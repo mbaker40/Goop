@@ -24,6 +24,8 @@ export class GoopUI {
   private revealed = new Set<string>();
   /** Signature of the currently-rendered tier/run upgrade lists; rebuilt only when it changes. */
   private shopSig = '';
+  /** Shop panel open state (landscape: expanded/collapsed body; portrait: sheet up/down). */
+  private shopOpen = true;
 
   constructor(private store: Store, mount: HTMLElement) {
     this.root = mount;
@@ -61,6 +63,21 @@ export class GoopUI {
       case 'buy-run': this.store.buyRunUpgrade(id); break;
       case 'buy-meta': this.store.buyMeta(id); break;
       case 'toggle-silly': this.store.toggleSilly(); break;
+      case 'toggle-shop': this.toggleShop(); break;
+    }
+  }
+
+  private toggleShop(): void {
+    this.shopOpen = !this.shopOpen;
+    this.applyShopState();
+  }
+
+  private applyShopState(): void {
+    const el = this.el('hud-shop');
+    if (el) {
+      el.classList.toggle('collapsed', !this.shopOpen);
+      const t = this.el('shop-toggle');
+      if (t) t.textContent = this.shopOpen ? 'Shop ▾' : 'Shop ▴';
     }
   }
 
@@ -107,38 +124,42 @@ export class GoopUI {
       </div>`,
     ).join('');
 
+    // Default the shop open in landscape, collapsed (sheet down) in portrait.
+    this.shopOpen = !window.matchMedia('(orientation: portrait)').matches;
+
     this.root.innerHTML = `
-    <div class="row" style="justify-content:space-between">
-      <h1 style="font-size:20px">🟢 GOOP TOWER</h1>
-      <button data-action="to-menu">≡ Menu</button>
-    </div>
-    <div class="banner grace" id="sr-banner">…</div>
-    <div class="grid">
-      <div>
-        <div class="tower" data-action="click-tower">
-          <div>
-            <div class="h" id="sr-height">0 m</div>
-            <div class="z" id="sr-zone">Zone 1</div>
-            <div class="hint" id="sr-hint">SLAP THE GOOP</div>
-          </div>
+    <div id="stage" data-action="click-tower"></div>
+    <div id="hud">
+      <div id="hud-stats" class="hud-card">
+        <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">
+          <span class="title">🟢 GOOP TOWER</span>
+          <button data-action="to-menu" class="mini">≡</button>
         </div>
-        <div style="margin-top:8px">
-          <div class="tag" id="sr-combo-label">Goop Momentum ×1.00</div>
-          <div class="combo"><i id="sr-combo-fill" style="width:0%"></i></div>
-        </div>
-        <div class="panel" style="margin-top:10px">
-          <div class="stat"><span>Goop</span><b id="sr-goop">0</b></div>
-          <div class="stat"><span>Goop / sec</span><b id="sr-gps">0</b></div>
-          <div class="stat"><span>Structural buffer</span><b id="sr-buffer">0</b></div>
-        </div>
+        <div class="stat"><span>Goop</span><b id="sr-goop">0</b></div>
+        <div class="stat"><span>Goop / sec</span><b id="sr-gps">0</b></div>
+        <div class="stat"><span>Buffer</span><b id="sr-buffer">0</b></div>
       </div>
-      <div>
-        <div class="panel"><h2>Producers</h2>
-          <div id="sr-producer-hint" class="tag">Slap the goop to afford your first Dripper.</div>
-          ${producerRows}
+
+      <div class="banner grace" id="sr-banner">…</div>
+
+      <div id="hud-readout">
+        <div class="h" id="sr-height">0 m</div>
+        <div class="z" id="sr-zone">Zone 1</div>
+        <div id="sr-combo-label">Goop Momentum ×1.00</div>
+        <div class="combo"><i id="sr-combo-fill" style="width:0%"></i></div>
+        <div class="hint" id="sr-hint">SLAP THE GOOP</div>
+      </div>
+
+      <div id="hud-shop" class="hud-card ${this.shopOpen ? '' : 'collapsed'}">
+        <button id="shop-toggle" data-action="toggle-shop">${this.shopOpen ? 'Shop ▾' : 'Shop ▴'}</button>
+        <div id="shop-body">
+          <div class="panel"><h2>Producers</h2>
+            <div id="sr-producer-hint" class="tag">Slap the goop to afford your first Dripper.</div>
+            ${producerRows}
+          </div>
+          <div class="panel" style="display:none" id="tier-panel"><h2>Tier Upgrades</h2><div id="tier-list"></div></div>
+          <div class="panel" style="display:none" id="run-panel"><h2>Upgrades</h2><div id="run-list"></div></div>
         </div>
-        <div class="panel" style="margin-top:12px;display:none" id="tier-panel"><h2>Tier Upgrades</h2><div id="tier-list"></div></div>
-        <div class="panel" style="margin-top:12px;display:none" id="run-panel"><h2>Upgrades</h2><div id="run-list"></div></div>
       </div>
     </div>`;
   }

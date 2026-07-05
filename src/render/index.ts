@@ -21,6 +21,8 @@ export interface GoopDebug {
   frames: number;
   splats: number;
   clicks: number;
+  anchorX: number;
+  anchorY: number;
 }
 
 declare global {
@@ -46,6 +48,8 @@ export class GoopRenderer {
   constructor(
     private canvas: HTMLCanvasElement,
     private source: RenderSource,
+    /** Optional: the DOM "stage" rect to frame the tower into; null centres the tower. */
+    private getStage?: () => DOMRect | null,
   ) {
     this.bundle = createScene(canvas);
     this.cam = new TowerCamera(1);
@@ -110,7 +114,17 @@ export class GoopRenderer {
 
     const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, game.run.combo, dt);
     this.splats.update(dt);
-    this.cam.update(topY, this.source.screen !== 'run', dt);
+
+    // Frame the tower into the DOM stage rect (NDC anchor); centre if there's no stage.
+    let anchor = { x: 0, y: 0 };
+    const rect = this.getStage?.();
+    if (rect && rect.width > 0 && this.w > 0 && this.h > 0) {
+      anchor = {
+        x: ((rect.left + rect.width / 2) / this.w) * 2 - 1,
+        y: -(((rect.top + rect.height / 2) / this.h) * 2 - 1),
+      };
+    }
+    this.cam.update(topY, this.source.screen !== 'run', dt, anchor);
 
     // Tint the key light slightly toward the sky for cohesion.
     this.bundle.keyLight.color.setHex(0xffffff).lerp(new THREE.Color(palette.skyTop), 0.2);
@@ -125,6 +139,8 @@ export class GoopRenderer {
       frames: this.frames,
       splats: this.splats.activeCount,
       clicks,
+      anchorX: anchor.x,
+      anchorY: anchor.y,
     };
   }
 }

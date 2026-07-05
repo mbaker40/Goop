@@ -55,7 +55,12 @@ function boot(): void {
       mock.start();
       new GoopRenderer(canvas, mock).start();
     } else {
-      new GoopRenderer(canvas, store).start();
+      // Frame the 3D tower into the run-screen stage element so it lines up with the HUD.
+      const stageRect = (): DOMRect | null => {
+        if (store.screen !== 'run') return null;
+        return document.getElementById('stage')?.getBoundingClientRect() ?? null;
+      };
+      new GoopRenderer(canvas, store, stageRect).start();
     }
   }
 

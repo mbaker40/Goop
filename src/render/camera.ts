@@ -1,16 +1,24 @@
 /**
- * camera.ts — perspective camera + smooth dolly that keeps the tower top framed as it grows,
- * with a lazy idle orbit (PLAN §9.1 "smooth dolly … occasional slow orbit while idle").
+ * camera.ts — perspective camera + smooth dolly that keeps the tower framed as it grows, plus a
+ * lateral/vertical **anchor** so the tower can be placed inside a DOM "stage" region rather than dead
+ * screen-centre (PLAN §9.2 responsive HUD). Anchor is given in NDC (-1..1, x right / y up); {0,0}
+ * centres. A lazy idle orbit runs on the menu (PLAN §9.1).
  */
 
 import * as THREE from 'three';
 
+export interface Anchor {
+  x: number;
+  y: number;
+}
+
 export class TowerCamera {
   readonly camera: THREE.PerspectiveCamera;
   private orbit = 0;
-  /** Smoothed look-at height and camera distance (lerped toward targets each frame). */
   private lookY = 1;
   private dist = 8;
+  private anchorX = 0;
+  private anchorY = 0;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 2000);
@@ -22,22 +30,30 @@ export class TowerCamera {
     this.camera.updateProjectionMatrix();
   }
 
-  /**
-   * @param towerTopY  world-space height of the tower top.
-   * @param orbiting   slow-orbit while idle (menu/win/puddle).
-   */
-  update(towerTopY: number, orbiting: boolean, dt: number): void {
-    // Frame the whole tower: look at its midpoint, pull back proportional to its height.
+  update(towerTopY: number, orbiting: boolean, dt: number, anchor: Anchor = { x: 0, y: 0 }): void {
     const targetLookY = towerTopY * 0.5 + 0.5;
     const targetDist = 6 + towerTopY * 1.15;
-    const k = 1 - Math.pow(0.001, dt); // frame-rate-independent smoothing
+    const k = 1 - Math.pow(0.001, dt);
     this.lookY += (targetLookY - this.lookY) * k;
     this.dist += (targetDist - this.dist) * k;
 
+    // Glide the anchor so layout/orientation changes don't snap.
+    const ak = 1 - Math.pow(0.02, dt);
+    this.anchorX += (anchor.x - this.anchorX) * ak;
+    this.anchorY += (anchor.y - this.anchorY) * ak;
+
     if (orbiting) this.orbit += dt * 0.15;
-    const x = Math.sin(this.orbit) * this.dist;
-    const z = Math.cos(this.orbit) * this.dist;
-    this.camera.position.set(x, this.lookY + this.dist * 0.35, z);
-    this.camera.lookAt(0, this.lookY, 0);
+
+    // Convert the NDC anchor into a world-space camera pan at the tower's distance.
+    const fov = THREE.MathUtils.degToRad(this.camera.fov);
+    const halfH = Math.tan(fov / 2) * this.dist;
+    const halfW = halfH * this.camera.aspect;
+    const panX = -this.anchorX * halfW;
+    const panY = -this.anchorY * halfH;
+
+    const ox = Math.sin(this.orbit) * this.dist;
+    const oz = Math.cos(this.orbit) * this.dist;
+    this.camera.position.set(ox + panX, this.lookY + this.dist * 0.35 + panY, oz);
+    this.camera.lookAt(panX, this.lookY + panY, 0);
   }
 }

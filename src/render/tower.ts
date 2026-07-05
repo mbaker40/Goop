@@ -55,6 +55,9 @@ export class GoopTower {
     this.mc.scale.set(RADIUS, TOWER_WORLD_HEIGHT / 2, RADIUS);
     this.mc.position.y = TOWER_WORLD_HEIGHT / 2; // base at group-local y = 0
     this.object.add(this.mc); // group pivots at the base (ground)
+    // Sink the group slightly so the goop foot meets the ground plane (metaball isolation clips the
+    // field near its bottom edge, which otherwise leaves the base hovering).
+    this.object.position.y = -0.7;
   }
 
   /** Kick the wobble spring + a squash pulse from a slap. */
@@ -74,7 +77,7 @@ export class GoopTower {
     this.renderedHeight += (heightRaw - this.renderedHeight) * hk;
 
     const fill = clamp(this.renderedHeight / WIN_HEIGHT, 0.03, 1);
-    const bottom = 0.1;
+    const bottom = 0.07;
     const top = bottom + fill * 0.8;
     const count = Math.max(3, Math.round(fill * 22));
     const mc = this.mc;
