@@ -105,8 +105,13 @@ export class GoopUI {
       const ov = this.el('pause-overlay');
       if (ov) ov.style.display = screen === 'paused' ? 'flex' : 'none';
     } else {
-      this.root.innerHTML =
+      // Normal-flow screens (menu/win/puddle) go inside a FIXED, composited, scrollable layer.
+      // On iOS a plain-flow container (even with will-change on #app) still gets painted UNDER the
+      // WebGL canvas's auto-promoted layer; a position:fixed layer is always composited and stacks
+      // above it — the same pattern that makes the run-screen HUD show. See styles.ts .screen-layer.
+      const body =
         screen === 'menu' ? this.renderMenu() : screen === 'win' ? this.renderWin() : this.renderPuddle();
+      this.root.innerHTML = `<div class="screen-layer"><div class="screen-inner">${body}</div></div>`;
     }
     this.lastScreen = screen;
   }
