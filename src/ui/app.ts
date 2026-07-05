@@ -57,6 +57,8 @@ export class GoopUI {
     switch (action) {
       case 'start-run': this.store.startRun(); break;
       case 'to-menu': this.store.toMenu(); break;
+      case 'pause': this.store.pause(); break;
+      case 'resume': this.store.resume(); break;
       case 'bank-win': this.store.bankWin(); break;
       case 'buy-producer': this.store.buyProducer(id, 1); break;
       case 'buy-tier': this.store.buyTierUpgrade(id); break;
@@ -76,18 +78,28 @@ export class GoopUI {
     const el = this.el('hud-shop');
     if (el) {
       el.classList.toggle('collapsed', !this.shopOpen);
-      const t = this.el('shop-toggle');
-      if (t) t.textContent = this.shopOpen ? 'Shop ▾' : 'Shop ▴';
+      // Portrait: slide the side-drawer via an inline transform (authoritative over CSS).
+      // Landscape: no transform (the drawer is docked; `collapsed` just hides its body).
+      const portrait = window.matchMedia('(orientation: portrait)').matches;
+      el.style.transform = portrait ? (this.shopOpen ? 'translateX(0)' : 'translateX(101%)') : '';
     }
+    const t = this.el('shop-toggle');
+    if (t) t.textContent = this.shopOpen ? 'Shop ▾' : 'Close ✕';
+    // The floating open-button shows only when the drawer is closed (portrait; CSS hides it in landscape).
+    const fab = this.el('shop-fab');
+    if (fab) fab.style.display = this.shopOpen ? 'none' : '';
   }
 
   // ---- Render dispatch ----
 
   private render(): void {
     const screen = this.store.screen;
-    if (screen === 'run') {
-      if (this.lastScreen !== 'run') this.buildRunSkeleton();
+    if (screen === 'run' || screen === 'paused') {
+      // Paused keeps the run DOM intact (so Resume is instant); just show the overlay.
+      if (this.lastScreen !== 'run' && this.lastScreen !== 'paused') this.buildRunSkeleton();
       this.updateRun();
+      const ov = this.el('pause-overlay');
+      if (ov) ov.style.display = screen === 'paused' ? 'flex' : 'none';
     } else {
       this.root.innerHTML =
         screen === 'menu' ? this.renderMenu() : screen === 'win' ? this.renderWin() : this.renderPuddle();
@@ -124,44 +136,58 @@ export class GoopUI {
       </div>`,
     ).join('');
 
-    // Default the shop open in landscape, collapsed (sheet down) in portrait.
+    // Default the shop open in landscape, closed (drawer/sheet away) in portrait.
     this.shopOpen = !window.matchMedia('(orientation: portrait)').matches;
 
+    // Flattened HUD (direct children of #app) — nested position:fixed + backdrop-filter cards
+    // render blank on iOS Safari, which stranded the whole overlay. Solid cards, no nesting.
     this.root.innerHTML = `
     <div id="stage" data-action="click-tower"></div>
-    <div id="hud">
-      <div id="hud-stats" class="hud-card">
-        <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">
-          <span class="title">🟢 GOOP TOWER</span>
-          <button data-action="to-menu" class="mini">≡</button>
-        </div>
-        <div class="stat"><span>Goop</span><b id="sr-goop">0</b></div>
-        <div class="stat"><span>Goop / sec</span><b id="sr-gps">0</b></div>
-        <div class="stat"><span>Buffer</span><b id="sr-buffer">0</b></div>
+    <div id="meltvig"></div>
+
+    <div id="hud-stats" class="hud-card">
+      <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">
+        <span class="title">🟢 GOOP TOWER</span>
+        <button data-action="pause" class="mini" aria-label="Pause">❚❚</button>
       </div>
+      <div class="stat"><span>Goop</span><b id="sr-goop">0</b></div>
+      <div class="stat"><span>Goop / sec</span><b id="sr-gps">0</b></div>
+      <div class="stat"><span>Buffer</span><b id="sr-buffer">0</b></div>
+    </div>
 
-      <div class="banner grace" id="sr-banner">…</div>
+    <div class="banner grace" id="sr-banner">…</div>
 
-      <div id="hud-readout">
-        <div class="h" id="sr-height">0 m</div>
-        <div class="z" id="sr-zone">Zone 1</div>
-        <div id="sr-combo-label">Goop Momentum ×1.00</div>
-        <div class="combo"><i id="sr-combo-fill" style="width:0%"></i></div>
-        <div class="hint" id="sr-hint">SLAP THE GOOP</div>
-      </div>
+    <div id="hud-readout">
+      <div class="h" id="sr-height">0 m</div>
+      <div class="z" id="sr-zone">Zone 1</div>
+      <div id="sr-combo-label">Goop Momentum ×1.00</div>
+      <div class="combo"><i id="sr-combo-fill" style="width:0%"></i></div>
+      <div class="hint" id="sr-hint">SLAP THE GOOP</div>
+    </div>
 
-      <div id="hud-shop" class="hud-card ${this.shopOpen ? '' : 'collapsed'}">
-        <button id="shop-toggle" data-action="toggle-shop">${this.shopOpen ? 'Shop ▾' : 'Shop ▴'}</button>
-        <div id="shop-body">
-          <div class="panel"><h2>Producers</h2>
-            <div id="sr-producer-hint" class="tag">Slap the goop to afford your first Dripper.</div>
-            ${producerRows}
-          </div>
-          <div class="panel" style="display:none" id="tier-panel"><h2>Tier Upgrades</h2><div id="tier-list"></div></div>
-          <div class="panel" style="display:none" id="run-panel"><h2>Upgrades</h2><div id="run-list"></div></div>
+    <button id="shop-fab" data-action="toggle-shop">🛒 Shop</button>
+    <div id="hud-shop" class="hud-card ${this.shopOpen ? '' : 'collapsed'}">
+      <button id="shop-toggle" data-action="toggle-shop">${this.shopOpen ? 'Shop ▾' : 'Close ✕'}</button>
+      <div id="shop-body">
+        <div class="panel"><h2>Producers</h2>
+          <div id="sr-producer-hint" class="tag">Slap the goop to afford your first Dripper.</div>
+          ${producerRows}
         </div>
+        <div class="panel" style="display:none" id="tier-panel"><h2>Tier Upgrades</h2><div id="tier-list"></div></div>
+        <div class="panel" style="display:none" id="run-panel"><h2>Upgrades</h2><div id="run-list"></div></div>
+      </div>
+    </div>
+
+    <div id="pause-overlay" style="display:none">
+      <div class="pause-card hud-card">
+        <h1 style="margin-top:0">⏸ Paused</h1>
+        <button data-action="resume" class="primary" style="width:100%">Resume ▶</button>
+        <button data-action="to-menu" style="width:100%;margin-top:10px">Quit to Menu</button>
+        <div class="tag" style="margin-top:10px">Quitting abandons this run (no Essence banked).</div>
       </div>
     </div>`;
+
+    this.applyShopState();
   }
 
   // ---- Run screen: patch values in place ----
@@ -195,6 +221,29 @@ export class GoopUI {
       const b = this.meltBanner(r.status, buffer);
       if (banner.className !== `banner ${b.cls}`) banner.className = `banner ${b.cls}`;
       if (banner.textContent !== b.text) banner.textContent = b.text;
+    }
+
+    // Melt-warning screen vignette: fades in as the buffer runs low; pulses red on collapse.
+    const vig = this.el('meltvig');
+    if (vig) {
+      const collapse = r.status === 'collapsing' || r.status === 'dead';
+      let level = 0;
+      let red = false;
+      if (collapse) {
+        level = 1;
+        red = true;
+      } else if (Number.isFinite(buffer) && r.status !== 'grace') {
+        if (buffer <= balance.melt.warnRedSec) {
+          level = 1;
+          red = true;
+        } else if (buffer <= balance.melt.warnOrangeSec) {
+          const t = (balance.melt.warnOrangeSec - buffer) / (balance.melt.warnOrangeSec - balance.melt.warnRedSec);
+          level = 0.25 + t * 0.5;
+        }
+      }
+      vig.style.opacity = level.toFixed(2);
+      if (vig.classList.contains('red') !== red) vig.classList.toggle('red', red);
+      if (vig.classList.contains('collapse') !== collapse) vig.classList.toggle('collapse', collapse);
     }
 
     this.updateProducers();

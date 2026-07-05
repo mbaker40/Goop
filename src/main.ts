@@ -16,6 +16,12 @@ import {
 import { deserializeRun } from './save';
 import { createMetaState } from './sim/game';
 
+declare global {
+  interface Window {
+    __goopStore?: Store;
+  }
+}
+
 function boot(): void {
   injectStyles();
 
@@ -46,6 +52,9 @@ function boot(): void {
   if (!mount) throw new Error('#app mount missing');
   new GoopUI(store, mount);
 
+  // Dev-only handle for smoke tests (e.g. forcing a collapse); only under ?debug.
+  if (location.search.includes('debug')) window.__goopStore = store;
+
   // 3D renderer behind the DOM overlay. `?mockrender` drives it from a scripted fixture instead
   // of the live sim, for isolated visual testing (PLAN §16.2).
   const canvas = document.getElementById('scene') as HTMLCanvasElement | null;
@@ -57,7 +66,7 @@ function boot(): void {
     } else {
       // Frame the 3D tower into the run-screen stage element so it lines up with the HUD.
       const stageRect = (): DOMRect | null => {
-        if (store.screen !== 'run') return null;
+        if (store.screen !== 'run' && store.screen !== 'paused') return null;
         return document.getElementById('stage')?.getBoundingClientRect() ?? null;
       };
       new GoopRenderer(canvas, store, stageRect).start();
