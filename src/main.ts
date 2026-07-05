@@ -22,8 +22,21 @@ declare global {
   }
 }
 
+/** Injected at build time by Vite (see vite.config.ts). Short git SHA + build time. */
+declare const __BUILD_ID__: string;
+
+/** Always-on build stamp so a cached bundle is obvious. Lives on <body>, NOT #app, so no screen
+ * render can wipe it; fixed + will-change so it composites above the WebGL canvas on iOS. */
+function injectBuildBadge(): void {
+  const badge = document.createElement('div');
+  badge.id = 'build-badge';
+  badge.textContent = `build ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'}`;
+  document.body.appendChild(badge);
+}
+
 function boot(): void {
   injectStyles();
+  injectBuildBadge();
 
   const saved = loadSave();
   const meta = saved?.meta ?? createMetaState();
