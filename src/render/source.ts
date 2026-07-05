@@ -18,6 +18,8 @@ export interface RenderRun {
   combo: number;
   collapseTimer: number;
   peakHeightRaw: number;
+  /** Lifetime click count this run — the renderer watches it rise to fire splat/wobble impacts. */
+  clicks: number;
 }
 
 /** The game accessors the renderer reads (a structural subset of sim `Game`). */
