@@ -66,7 +66,7 @@ function boot(): void {
     } else {
       // Frame the 3D tower into the run-screen stage element so it lines up with the HUD.
       const stageRect = (): DOMRect | null => {
-        if (store.screen !== 'run') return null;
+        if (store.screen !== 'run' && store.screen !== 'paused') return null;
         return document.getElementById('stage')?.getBoundingClientRect() ?? null;
       };
       new GoopRenderer(canvas, store, stageRect).start();

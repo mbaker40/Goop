@@ -136,7 +136,8 @@ export class GoopRenderer {
         y: -(((rect.top + rect.height / 2) / this.h) * 2 - 1),
       };
     }
-    this.cam.update(topY, this.source.screen !== 'run', dt, anchor);
+    const idle = this.source.screen !== 'run' && this.source.screen !== 'paused';
+    this.cam.update(topY, idle, dt, anchor);
 
     // Tint the key light slightly toward the sky for cohesion.
     this.bundle.keyLight.color.setHex(0xffffff).lerp(new THREE.Color(palette.skyTop), 0.2);

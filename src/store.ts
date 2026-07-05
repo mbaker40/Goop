@@ -8,7 +8,7 @@ import { balance } from './config/balance';
 import { Game, createMetaState, type MetaState } from './sim/game';
 import { bankRun, geEarned, buyMeta } from './sim/prestige';
 
-export type Screen = 'menu' | 'run' | 'win' | 'puddle';
+export type Screen = 'menu' | 'run' | 'paused' | 'win' | 'puddle';
 
 export interface Settings {
   sillyNames: boolean;
@@ -142,6 +142,23 @@ export class Store {
     this.screen = 'menu';
     this.prevStatus = '';
     this.emit();
+  }
+
+  /** Pause an in-progress run (freezes the sim — the loop only ticks on 'run'). */
+  pause(): void {
+    if (this.screen === 'run') {
+      this.screen = 'paused';
+      this.emit();
+    }
+  }
+
+  /** Resume a paused run without disturbing it. */
+  resume(): void {
+    if (this.screen === 'paused') {
+      this.screen = 'run';
+      this.lastFrame = performance.now(); // avoid a big dt spike after the pause
+      this.emit();
+    }
   }
 
   toggleSilly(): void {
