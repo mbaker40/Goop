@@ -21,10 +21,14 @@ body { margin: 0; background: var(--bg); color: var(--ink);
    canvas never intercepts pointer events (tower is clicked via the transparent #stage catcher). */
 #scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
   z-index: 0; pointer-events: none; transform: translateZ(0); }
-/* #app is a GPU compositing layer above the canvas so the menu (normal-flow children) is never
-   swallowed by the WebGL layer on iOS. */
-#app { position: relative; z-index: 1; will-change: transform; max-width: 1100px; margin: 0 auto; padding: 12px; }
-/* Every fixed HUD piece is its OWN composited layer too, so iOS stacks it above the canvas layer. */
+/* #app must NOT carry a transform/will-change on the RUN screen: it holds the position:fixed HUD
+   children, and a transformed ancestor becomes their containing block (collapsing #stage to 0 height
+   and flinging the readout to the top). So we promote #app to a GPU layer ONLY on the normal-flow
+   screens (menu/win/puddle), where it has no fixed descendants — data-screen is set in app.ts. */
+#app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 12px; }
+#app[data-screen="menu"], #app[data-screen="win"], #app[data-screen="puddle"] { will-change: transform; }
+/* On the run screen each fixed HUD piece is its OWN composited layer, so iOS stacks it above the
+   canvas WITHOUT any transformed ancestor breaking fixed positioning. */
 #hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig {
   will-change: transform; }
 h1 { font-size: 28px; letter-spacing: 2px; margin: 8px 0; }
