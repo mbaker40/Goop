@@ -34,6 +34,13 @@ button:disabled { opacity: .4; cursor: not-allowed; }
    also what the renderer frames the tower into, so sizing it per-orientation aligns the 3D tower. */
 html, body { overflow-x: hidden; }
 #stage { position: fixed; z-index: 0; touch-action: manipulation; }
+/* Melt-warning vignette: darkens/tints the screen edges as the buffer runs low; the off-centre
+   focus + heavier bottom give the "droop" feel. Opacity is driven from JS (updateRun). */
+#meltvig { position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0; transition: opacity .3s ease;
+  background: radial-gradient(130% 90% at 50% 32%, transparent 42%, rgba(180,90,20,.55) 100%); }
+#meltvig.red { background: radial-gradient(130% 95% at 50% 28%, transparent 36%, rgba(150,15,12,.72) 100%); }
+#meltvig.collapse { animation: meltpulse .5s ease-in-out infinite; }
+@keyframes meltpulse { 0%,100% { opacity: .6 !important; } 50% { opacity: .9 !important; } }
 #hud { position: fixed; inset: 0; z-index: 2; pointer-events: none; }
 #hud-stats, #hud-shop { pointer-events: auto; }
 #sr-banner, #hud-readout { pointer-events: none; }

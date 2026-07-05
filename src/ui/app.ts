@@ -129,6 +129,7 @@ export class GoopUI {
 
     this.root.innerHTML = `
     <div id="stage" data-action="click-tower"></div>
+    <div id="meltvig"></div>
     <div id="hud">
       <div id="hud-stats" class="hud-card">
         <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">
@@ -195,6 +196,29 @@ export class GoopUI {
       const b = this.meltBanner(r.status, buffer);
       if (banner.className !== `banner ${b.cls}`) banner.className = `banner ${b.cls}`;
       if (banner.textContent !== b.text) banner.textContent = b.text;
+    }
+
+    // Melt-warning screen vignette: fades in as the buffer runs low; pulses red on collapse.
+    const vig = this.el('meltvig');
+    if (vig) {
+      const collapse = r.status === 'collapsing' || r.status === 'dead';
+      let level = 0;
+      let red = false;
+      if (collapse) {
+        level = 1;
+        red = true;
+      } else if (Number.isFinite(buffer) && r.status !== 'grace') {
+        if (buffer <= balance.melt.warnRedSec) {
+          level = 1;
+          red = true;
+        } else if (buffer <= balance.melt.warnOrangeSec) {
+          const t = (balance.melt.warnOrangeSec - buffer) / (balance.melt.warnOrangeSec - balance.melt.warnRedSec);
+          level = 0.25 + t * 0.5;
+        }
+      }
+      vig.style.opacity = level.toFixed(2);
+      if (vig.classList.contains('red') !== red) vig.classList.toggle('red', red);
+      if (vig.classList.contains('collapse') !== collapse) vig.classList.toggle('collapse', collapse);
     }
 
     this.updateProducers();

@@ -23,6 +23,7 @@ export interface GoopDebug {
   clicks: number;
   anchorX: number;
   anchorY: number;
+  status: string;
 }
 
 declare global {
@@ -44,6 +45,7 @@ export class GoopRenderer {
   private h = 0;
   private lastClicks = 0;
   private splatOrigin = new THREE.Vector3();
+  private collapseDrip = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -112,7 +114,17 @@ export class GoopRenderer {
       this.lastClicks = clicks; // run restarted; resync
     }
 
-    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, game.run.combo, dt);
+    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, game.run.combo, game.run.collapseTimer, dt);
+
+    // Collapse drip-storm: goop sheds off the melting tower.
+    if (status === 'collapsing') {
+      this.collapseDrip += dt;
+      while (this.collapseDrip > 0.07) {
+        this.collapseDrip -= 0.07;
+        this.tower.topWorld(this.splatOrigin);
+        this.splats.burst(this.splatOrigin, 0xff5d3a);
+      }
+    }
     this.splats.update(dt);
 
     // Frame the tower into the DOM stage rect (NDC anchor); centre if there's no stage.
@@ -141,6 +153,7 @@ export class GoopRenderer {
       clicks,
       anchorX: anchor.x,
       anchorY: anchor.y,
+      status,
     };
   }
 }

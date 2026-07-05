@@ -76,10 +76,13 @@ targets). The renderer measures the `#stage` DOM rect each frame and pans the ca
 `src/render/camera.ts`) so the 3D tower lines up inside it in both orientations; goop base now meets
 the ground. Verified with a headless smoke at 1920×1080 and 390×844. **M1 (The Tower) is complete.**
 
-**Next: M2 — The Run (PLAN §17, §3).**
-- All 7 zone environments + zone-transition moments (camera pull-back, crossfade, sting); fuller Zone 1
-  set-dressing (toaster + more gags). First audio pass (squelch pool, §11).
-- Melt warning states (orange/red shader droop) + the full collapse cinematic → puddle handoff.
+**In progress: M2 — The Run (PLAN §17, §3).**
+- *Done (slice 1):* melt-warning **screen vignette** (`#meltvig`, ramps orange<30s / red<10s, drooped
+  edges) + the **collapse cinematic** — the tower slumps/spreads into a puddle driven by
+  `run.collapseTimer` with a red drip-storm (`src/render/tower.ts` collapse path + `index.ts`). A
+  `?debug` build exposes `window.__goopStore` for smoke tests.
+- *Next:* all 7 zone environments + zone-transition moments (camera pull-back, crossfade, sting);
+  fuller Zone 1 set-dressing (toaster + more gags). First audio pass (squelch pool, §11).
 - Prestige loop + GE meta-shop polish (already functional in the DOM).
 - Perf/bundle carry-over: dynamic-import `src/render` (paint DOM before 3D) and/or a `manualChunks`
   split for three; a marching-cubes resolution tier for mobile (PLAN §13). Portrait slim stat-bar wraps

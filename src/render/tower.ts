@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import { WIN_HEIGHT } from '../config/zones';
+import { balance } from '../config/balance';
 import type { ZonePalette } from './palette';
 import type { RunStatus } from './source';
 
@@ -69,20 +70,43 @@ export class GoopTower {
   }
 
   /** @returns world-space Y of the tower top (for camera framing), accounting for squash. */
-  update(heightRaw: number, palette: ZonePalette, status: RunStatus, meltHot: boolean, combo: number, dt: number): number {
+  update(
+    heightRaw: number,
+    palette: ZonePalette,
+    status: RunStatus,
+    meltHot: boolean,
+    combo: number,
+    collapseTimer: number,
+    dt: number,
+  ): number {
     this.t += dt;
 
     // Height spring.
     const hk = 1 - Math.pow(0.0025, dt);
     this.renderedHeight += (heightRaw - this.renderedHeight) * hk;
 
-    const fill = clamp(this.renderedHeight / WIN_HEIGHT, 0.03, 1);
+    // Collapse: slump the column down and spread it into a puddle as the timer runs out.
+    const collapsing = status === 'collapsing';
+    const dead = status === 'dead';
+    const cProg = dead ? 0 : collapsing ? clamp(collapseTimer / balance.melt.collapseSeconds, 0, 1) : 1;
+    const cAmt = 1 - cProg; // 0 = standing, 1 = fully melted
+
+    const baseFill = clamp(this.renderedHeight / WIN_HEIGHT, 0.03, 1);
+    const fill = baseFill * (1 - cAmt * 0.92);
     const bottom = 0.07;
     const top = bottom + fill * 0.8;
     const count = Math.max(3, Math.round(fill * 22));
     const mc = this.mc;
     mc.reset();
-    mc.addBall(0.5, bottom, 0.5, 1.7, 10);
+    // Base foot; swells and spreads into a puddle during collapse.
+    mc.addBall(0.5, bottom, 0.5, 1.7 + cAmt * 1.6, 10);
+    const spread = cAmt * 0.34;
+    if (spread > 0.001) {
+      for (let j = 0; j < 6; j++) {
+        const a = (j / 6) * Math.PI * 2 + this.t * 0.8;
+        mc.addBall(0.5 + Math.cos(a) * spread, bottom, 0.5 + Math.sin(a) * spread, 1.2, 10);
+      }
+    }
     for (let i = 0; i < count; i++) {
       const f = i / (count - 1);
       const ny = bottom + f * (top - bottom);
@@ -96,9 +120,17 @@ export class GoopTower {
     this.velZ += (-STIFFNESS * this.leanZ - DAMPING * this.velZ) * dt;
     this.leanX += this.velX * dt;
     this.leanZ += this.velZ * dt;
-    // Squash pulse springs back to 0.
-    this.squashVel += (-90 * this.squash - 14 * this.squashVel) * dt;
-    this.squash += this.squashVel * dt;
+    if (collapsing) {
+      // Flatten hard as it melts (overrides the squash spring); a slow drunken flop.
+      this.squash = cAmt * 0.55;
+      this.leanX += Math.sin(this.t * 2.1) * cAmt * 0.006;
+    } else if (dead) {
+      this.squash = 0.55;
+    } else {
+      // Squash pulse springs back to 0.
+      this.squashVel += (-90 * this.squash - 14 * this.squashVel) * dt;
+      this.squash += this.squashVel * dt;
+    }
 
     // Idle organic sway grows with combo and with melt danger (worsens as it heats up).
     const swayAmp = 0.02 + 0.03 * ((combo - 1) / 2) + this.warn * 0.06;

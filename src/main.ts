@@ -16,6 +16,12 @@ import {
 import { deserializeRun } from './save';
 import { createMetaState } from './sim/game';
 
+declare global {
+  interface Window {
+    __goopStore?: Store;
+  }
+}
+
 function boot(): void {
   injectStyles();
 
@@ -45,6 +51,9 @@ function boot(): void {
   const mount = document.getElementById('app');
   if (!mount) throw new Error('#app mount missing');
   new GoopUI(store, mount);
+
+  // Dev-only handle for smoke tests (e.g. forcing a collapse); only under ?debug.
+  if (location.search.includes('debug')) window.__goopStore = store;
 
   // 3D renderer behind the DOM overlay. `?mockrender` drives it from a scripted fixture instead
   // of the live sim, for isolated visual testing (PLAN §16.2).
