@@ -105,8 +105,13 @@ export class GoopUI {
       const ov = this.el('pause-overlay');
       if (ov) ov.style.display = screen === 'paused' ? 'flex' : 'none';
     } else {
-      this.root.innerHTML =
+      // iOS only lets position:fixed + composited elements paint above the WebGL canvas (the badge
+      // and run HUD prove it); normal-flow content stays buried behind it. So menu/win/puddle render
+      // inside a fixed, composited, scrollable .screen-layer. CRITICAL: no -webkit-overflow-scrolling
+      // (it paints BLANK over WebGL on iOS — that was PR#10's regression). See styles.ts.
+      const body =
         screen === 'menu' ? this.renderMenu() : screen === 'win' ? this.renderWin() : this.renderPuddle();
+      this.root.innerHTML = `<div class="screen-layer"><div class="screen-inner">${body}</div></div>`;
     }
     this.lastScreen = screen;
   }
