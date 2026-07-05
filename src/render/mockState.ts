@@ -16,7 +16,8 @@ export class MockSource implements RenderSource {
   private elapsed = 0;
   private raf = 0;
   private last = 0;
-  readonly run: RenderRun = { status: 'grace', combo: 1, collapseTimer: 0, peakHeightRaw: 0 };
+  readonly run: RenderRun = { status: 'grace', combo: 1, collapseTimer: 0, peakHeightRaw: 0, clicks: 0 };
+  private clickAccum = 0;
   readonly game: RenderGame;
 
   constructor() {
@@ -52,6 +53,15 @@ export class MockSource implements RenderSource {
 
     // Combo sweeps 1 → 3 while active.
     this.run.combo = status === 'active' ? 1 + 2 * (0.5 + 0.5 * Math.sin(this.elapsed * 1.5)) : 1;
+
+    // Simulate ~6 slaps/sec while active so splats/wobble get exercised under ?mockrender.
+    if (status === 'active') {
+      this.clickAccum += dt * 6;
+      while (this.clickAccum >= 1) {
+        this.run.clicks++;
+        this.clickAccum -= 1;
+      }
+    }
 
     if (t < dt) this.hv = 0; // clean reset at loop wrap so height visibly re-ramps
   }

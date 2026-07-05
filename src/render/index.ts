@@ -10,6 +10,7 @@ import { paletteFor } from './palette';
 import { createScene, type SceneBundle } from './scene';
 import { TowerCamera } from './camera';
 import { GoopTower } from './tower';
+import { SplatSystem } from './splats';
 import { Environment } from './zone1';
 import type { RenderSource } from './source';
 
@@ -18,6 +19,8 @@ export interface GoopDebug {
   towerTopY: number;
   zone: number;
   frames: number;
+  splats: number;
+  clicks: number;
 }
 
 declare global {
@@ -30,12 +33,15 @@ export class GoopRenderer {
   private bundle: SceneBundle;
   private cam: TowerCamera;
   private tower: GoopTower;
+  private splats: SplatSystem;
   private env: Environment;
   private raf = 0;
   private last = 0;
   private frames = 0;
   private w = 0;
   private h = 0;
+  private lastClicks = 0;
+  private splatOrigin = new THREE.Vector3();
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -44,9 +50,11 @@ export class GoopRenderer {
     this.bundle = createScene(canvas);
     this.cam = new TowerCamera(1);
     this.tower = new GoopTower();
+    this.splats = new SplatSystem();
     this.env = new Environment();
     this.bundle.scene.add(this.env.group);
     this.bundle.scene.add(this.tower.object);
+    this.bundle.scene.add(this.splats.object);
   }
 
   start(): void {
@@ -86,7 +94,22 @@ export class GoopRenderer {
     const meltHot = Number.isFinite(buffer) && buffer <= balance.melt.warnRedSec;
     const status = game.run.status;
 
-    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, dt);
+    // Slaps: fire wobble kicks + splat bursts for each new click (capped per frame).
+    const clicks = game.run.clicks;
+    if (clicks > this.lastClicks) {
+      const bursts = Math.min(3, clicks - this.lastClicks);
+      for (let i = 0; i < bursts; i++) {
+        this.tower.impact();
+        this.tower.topWorld(this.splatOrigin);
+        this.splats.burst(this.splatOrigin, palette.goop);
+      }
+      this.lastClicks = clicks;
+    } else if (clicks < this.lastClicks) {
+      this.lastClicks = clicks; // run restarted; resync
+    }
+
+    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, game.run.combo, dt);
+    this.splats.update(dt);
     this.cam.update(topY, this.source.screen !== 'run', dt);
 
     // Tint the key light slightly toward the sky for cohesion.
@@ -95,6 +118,13 @@ export class GoopRenderer {
     this.bundle.renderer.render(this.bundle.scene, this.cam.camera);
 
     this.frames++;
-    window.__goopDebug = { renderedHeight: this.tower.debugHeight, towerTopY: topY, zone: zone.index, frames: this.frames };
+    window.__goopDebug = {
+      renderedHeight: this.tower.debugHeight,
+      towerTopY: topY,
+      zone: zone.index,
+      frames: this.frames,
+      splats: this.splats.activeCount,
+      clicks,
+    };
   }
 }

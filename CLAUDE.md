@@ -65,8 +65,11 @@ prop, full-viewport canvas behind the DOM overlay. Renderer owns its own rAF (st
 10 Hz) and interpolates 10 Hz → 60 fps. Driven by the live store OR a mock fixture via `?mockrender`
 (`src/render/mockState.ts`). See ADR `docs/decisions/0002-m1-tower-rendering.md`.
 
-**Next: M1b — finish the Tower milestone (PLAN §17, §9.1–9.2).**
-- Click-splat impacts + wobble/jiggle springs (the spring hook is in `src/render/tower.ts`).
+**Done: M1b (part 1) — juice.** Click-splat droplet bursts (`src/render/splats.ts`, instanced pool)
+and wobble/squash springs on the tower (`src/render/tower.ts`, base-pivoted group). Renderer watches
+`run.clicks` to fire impacts; idle sway scales with combo + melt-warning.
+
+**Next: M1b (part 2) — finish the Tower milestone (PLAN §17, §9.1–9.2).**
 - Align the 3D tower with the DOM tower region + responsive portrait/landscape layouts (§9.2).
 - Remaining 6 zone environments + fuller Zone 1 set-dressing; fix the goop base floating above ground.
 - Perf/bundle: dynamic-import `src/render` (paint DOM before 3D loads) and/or a `manualChunks` split
