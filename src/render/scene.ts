@@ -1,0 +1,38 @@
+/**
+ * scene.ts — WebGL renderer, scene, and lights (PLAN §9.1). No post-fx (that's M5).
+ */
+
+import * as THREE from 'three';
+
+export interface SceneBundle {
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  keyLight: THREE.DirectionalLight;
+  resize(width: number, height: number): void;
+}
+
+export function createScene(canvas: HTMLCanvasElement): SceneBundle {
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x14121a, 12, 60);
+
+  // Soft fill from sky/ground + a key light for goop gloss + a warm rim.
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x404050, 0.9);
+  scene.add(hemi);
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+  keyLight.position.set(6, 12, 8);
+  scene.add(keyLight);
+
+  const rim = new THREE.DirectionalLight(0xa0d8ff, 0.5);
+  rim.position.set(-8, 4, -6);
+  scene.add(rim);
+
+  function resize(width: number, height: number): void {
+    renderer.setSize(width, height, false);
+  }
+
+  return { renderer, scene, keyLight, resize };
+}
