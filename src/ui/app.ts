@@ -94,6 +94,10 @@ export class GoopUI {
 
   private render(): void {
     const screen = this.store.screen;
+    // Drives the iOS GPU-layer promotion (see styles.ts): #app itself is composited ONLY on
+    // normal-flow screens (menu/win/puddle). On run/paused it must NOT carry a transform, or it
+    // becomes the containing block for the fixed HUD children and collapses their layout.
+    this.root.setAttribute('data-screen', screen);
     if (screen === 'run' || screen === 'paused') {
       // Paused keeps the run DOM intact (so Resume is instant); just show the overlay.
       if (this.lastScreen !== 'run' && this.lastScreen !== 'paused') this.buildRunSkeleton();
