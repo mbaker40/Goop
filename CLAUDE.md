@@ -69,10 +69,19 @@ prop, full-viewport canvas behind the DOM overlay. Renderer owns its own rAF (st
 and wobble/squash springs on the tower (`src/render/tower.ts`, base-pivoted group). Renderer watches
 `run.clicks` to fire impacts; idle sway scales with combo + melt-warning.
 
-**Next: M1b (part 2) — finish the Tower milestone (PLAN §17, §9.1–9.2).**
-- Align the 3D tower with the DOM tower region + responsive portrait/landscape layouts (§9.2).
-- Remaining 6 zone environments + fuller Zone 1 set-dressing; fix the goop base floating above ground.
-- Perf/bundle: dynamic-import `src/render` (paint DOM before 3D loads) and/or a `manualChunks` split
-  for three; consider a marching-cubes resolution tier for mobile (PLAN §13).
-- Carried from M0: win-run GE payout is very large (faithful to §4 but likely needs a cap — see
-  balance-notes); chaos-events scheduler is a stub (`src/sim/events.ts`) awaiting M3.
+**Done: M1b (part 2) — HUD + responsive + tower/DOM alignment.** Run screen is now a floating HUD
+over a transparent `#stage` click-catcher (stats top-left, melt banner top-center, height/zone/combo
+readout bottom-center, shop docked-right & collapsible in landscape / bottom-sheet in portrait, ≥44px
+targets). The renderer measures the `#stage` DOM rect each frame and pans the camera (NDC anchor in
+`src/render/camera.ts`) so the 3D tower lines up inside it in both orientations; goop base now meets
+the ground. Verified with a headless smoke at 1920×1080 and 390×844. **M1 (The Tower) is complete.**
+
+**Next: M2 — The Run (PLAN §17, §3).**
+- All 7 zone environments + zone-transition moments (camera pull-back, crossfade, sting); fuller Zone 1
+  set-dressing (toaster + more gags). First audio pass (squelch pool, §11).
+- Melt warning states (orange/red shader droop) + the full collapse cinematic → puddle handoff.
+- Prestige loop + GE meta-shop polish (already functional in the DOM).
+- Perf/bundle carry-over: dynamic-import `src/render` (paint DOM before 3D) and/or a `manualChunks`
+  split for three; a marching-cubes resolution tier for mobile (PLAN §13). Portrait slim stat-bar wraps
+  a little at 390px — tighten. Win-run GE payout likely needs a cap (see balance-notes). Chaos-events
+  scheduler is a stub (`src/sim/events.ts`) awaiting M3.
