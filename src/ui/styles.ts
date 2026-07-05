@@ -12,6 +12,12 @@ export const CSS = `
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
   font: 15px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+/* Always-on build stamp (cache diagnostic). Fixed + own GPU layer so it shows above the WebGL
+   canvas on iOS; sits on <body>, never wiped by a screen render. Highest z so nothing hides it. */
+#build-badge { position: fixed; top: calc(2px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%) translateZ(0);
+  z-index: 2147483647; pointer-events: none; background: rgba(10,8,16,.82); color: #7ee081;
+  font: 11px/1.3 ui-monospace, Menlo, monospace; padding: 2px 8px; border-radius: 0 0 8px 8px;
+  border: 1px solid var(--border); border-top: none; letter-spacing: .3px; white-space: nowrap; }
 /* iOS Safari auto-promotes a WebGL canvas to its OWN GPU compositing layer, which then paints
    ABOVE any plain (non-composited) DOM regardless of z-index — that's what stranded the whole
    overlay on a bare tower. The fix is NOT z-index games (a negative z-index actually HIDES the
