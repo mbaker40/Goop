@@ -1,10 +1,11 @@
 /**
- * main.ts — boot: load save -> Store -> UI -> loop -> autosave (PLAN §10).
- * M0 has no 3D; the renderer wires in here in Milestone 1.
+ * main.ts — boot: load save -> Store -> UI -> 3D renderer -> loop -> autosave (PLAN §10).
  */
 
 import { injectStyles } from './ui/styles';
 import { GoopUI } from './ui/app';
+import { GoopRenderer } from './render';
+import { MockSource } from './render/mockState';
 import { Store, defaultSettings } from './store';
 import {
   loadSave,
@@ -44,6 +45,19 @@ function boot(): void {
   const mount = document.getElementById('app');
   if (!mount) throw new Error('#app mount missing');
   new GoopUI(store, mount);
+
+  // 3D renderer behind the DOM overlay. `?mockrender` drives it from a scripted fixture instead
+  // of the live sim, for isolated visual testing (PLAN §16.2).
+  const canvas = document.getElementById('scene') as HTMLCanvasElement | null;
+  if (canvas) {
+    if (location.search.includes('mockrender')) {
+      const mock = new MockSource();
+      mock.start();
+      new GoopRenderer(canvas, mock).start();
+    } else {
+      new GoopRenderer(canvas, store).start();
+    }
+  }
 
   store.start();
 

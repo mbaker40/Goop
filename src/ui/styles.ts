@@ -12,7 +12,11 @@ export const CSS = `
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink);
   font: 15px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-#app { max-width: 1100px; margin: 0 auto; padding: 12px; }
+/* Full-viewport 3D canvas sits behind the DOM overlay and never intercepts pointer events
+   (the tower is clicked via DOM delegation on #app). */
+#scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
+  z-index: 0; pointer-events: none; }
+#app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 12px; }
 h1 { font-size: 28px; letter-spacing: 2px; margin: 8px 0; }
 h2 { font-size: 16px; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
 button { font: inherit; cursor: pointer; background: var(--panel2); color: var(--ink);
@@ -25,16 +29,18 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
 .stat { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; }
 .stat b { color: var(--goop); font-variant-numeric: tabular-nums; }
+/* The tower is now the 3D canvas behind the overlay; this element is a transparent click-catcher
+   over the lower portion of the viewport, with the height/zone readout floated at the bottom. */
 .tower {
-  width: 100%; min-height: 260px; border: 2px dashed var(--border); border-radius: 16px;
-  display: flex; align-items: center; justify-content: center; text-align: center;
-  background: radial-gradient(120% 90% at 50% 100%, rgba(182,232,74,.14), transparent);
+  width: 100%; min-height: 46vh; border: none; border-radius: 16px;
+  display: flex; align-items: flex-end; justify-content: center; text-align: center;
+  background: transparent;
   user-select: none; -webkit-user-select: none; touch-action: manipulation; transition: transform .05s;
 }
-.tower:active { transform: scale(.99); }
-.tower .h { font-size: 34px; color: var(--goop); }
-.tower .z { font-size: 18px; color: var(--muted); margin-top: 6px; }
-.tower .hint { color: var(--muted); font-size: 13px; margin-top: 10px; }
+.tower:active { transform: scale(.995); }
+.tower .h { font-size: 34px; color: var(--goop); text-shadow: 0 2px 8px rgba(0,0,0,.6); }
+.tower .z { font-size: 18px; color: var(--ink); margin-top: 6px; text-shadow: 0 1px 6px rgba(0,0,0,.7); }
+.tower .hint { color: var(--ink); font-size: 13px; margin-top: 10px; opacity: .85; text-shadow: 0 1px 6px rgba(0,0,0,.8); }
 .banner { padding: 10px 12px; border-radius: 10px; margin: 10px 0; text-align: center; font-weight: bold; }
 .banner.safe { background: #1c2a1c; color: var(--accent); }
 .banner.orange { background: #3a2c14; color: var(--warn); }

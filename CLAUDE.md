@@ -53,16 +53,23 @@ standing context + session handoff; keep §"Current milestone" updated at the en
   `docs/decisions/0001`. Tune via the harness, not by eyeballing meters.
 
 ## Current milestone & next tasks (HANDOFF — update me every session)
-**Done: M0 — Skeleton (playable ugly).** Pure sim (producers/costs/melt/combo/zones/win), prestige +
-meta shop, data-driven config, versioned localStorage save (export/import, capped offline), custom
-pub/sub store, DOM-only UI (menu → run → win/puddle), and the **sim-harness with passing PLAN §14
-acceptance tests**. Balance first-pass tuned & logged in `docs/balance-notes.md`.
+**Done: M0 — Skeleton (playable ugly).** Pure sim, prestige + meta shop, data-driven config,
+versioned localStorage save, custom pub/sub store, DOM UI (now in-place patched, not innerHTML
+rebuild), sim-harness with passing PLAN §14 acceptance tests. Deployed to GitHub Pages
+(`.github/workflows/deploy.yml`, auto-deploys on push to `main`).
 
-**Next: M1 — The Tower (PLAN §17).**
-- three.js scene + `MarchingCubes` tower that grows with `heightRaw`, click splats, wobble springs,
-  camera dolly, Zone 1 environment. Renderer lives in `src/render/`, reads store state, mutates
-  nothing. Build against a mock sim-state fixture so it never blocks on sim work.
-- Responsive portrait + landscape layouts (PLAN §9.2); replace the M0 innerHTML rebuild with in-place
-  updates.
-- Known follow-ups from M0: win-run GE payout is very large (faithful to §4's formula but likely
-  needs a cap — see balance-notes); events scheduler is a stub (`src/sim/events.ts`) awaiting M3.
+**Done: M1 (core slice) — The Tower.** three.js renderer in `src/render/` (reads a duck-typed
+`RenderSource`, mutates nothing; lint still enforces sim purity): `MarchingCubes` goop tower that
+springs/grows with `heightRaw`, framing camera dolly, per-zone gradient sky + ground + salt-shaker
+prop, full-viewport canvas behind the DOM overlay. Renderer owns its own rAF (store `emit()` is only
+10 Hz) and interpolates 10 Hz → 60 fps. Driven by the live store OR a mock fixture via `?mockrender`
+(`src/render/mockState.ts`). See ADR `docs/decisions/0002-m1-tower-rendering.md`.
+
+**Next: M1b — finish the Tower milestone (PLAN §17, §9.1–9.2).**
+- Click-splat impacts + wobble/jiggle springs (the spring hook is in `src/render/tower.ts`).
+- Align the 3D tower with the DOM tower region + responsive portrait/landscape layouts (§9.2).
+- Remaining 6 zone environments + fuller Zone 1 set-dressing; fix the goop base floating above ground.
+- Perf/bundle: dynamic-import `src/render` (paint DOM before 3D loads) and/or a `manualChunks` split
+  for three; consider a marching-cubes resolution tier for mobile (PLAN §13).
+- Carried from M0: win-run GE payout is very large (faithful to §4 but likely needs a cap — see
+  balance-notes); chaos-events scheduler is a stub (`src/sim/events.ts`) awaiting M3.
