@@ -10,17 +10,23 @@ export const CSS = `
   --warn: #ffb03a; --border: #35304a;
 }
 * { box-sizing: border-box; }
-html { background: var(--bg); }
 body { margin: 0; background: var(--bg); color: var(--ink);
   font: 15px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-/* Full-viewport 3D canvas is a true BACKGROUND layer (z-index:-1). On iOS Safari a fixed WebGL
-   canvas at z-index:0 can composite ABOVE the DOM overlay and hide it entirely; a negative z-index
-   is the reliable "background canvas" pattern. It never intercepts pointer events (the tower is
-   clicked via DOM delegation on #app). */
+/* iOS Safari auto-promotes a WebGL canvas to its OWN GPU compositing layer, which then paints
+   ABOVE any plain (non-composited) DOM regardless of z-index — that's what stranded the whole
+   overlay on a bare tower. The fix is NOT z-index games (a negative z-index actually HIDES the
+   canvas on compliant browsers, behind the body background). Instead we force BOTH the canvas and
+   every DOM overlay piece onto their own GPU layer (translateZ / will-change: transform); once both
+   are composited layers, z-index IS honored and the HUD stacks above the tower on iOS too. The
+   canvas never intercepts pointer events (tower is clicked via the transparent #stage catcher). */
 #scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
-  z-index: -1; pointer-events: none; }
-/* #app owns its own stacking context so it always paints above the background canvas. */
-#app { position: relative; z-index: 1; isolation: isolate; max-width: 1100px; margin: 0 auto; padding: 12px; }
+  z-index: 0; pointer-events: none; transform: translateZ(0); }
+/* #app is a GPU compositing layer above the canvas so the menu (normal-flow children) is never
+   swallowed by the WebGL layer on iOS. */
+#app { position: relative; z-index: 1; will-change: transform; max-width: 1100px; margin: 0 auto; padding: 12px; }
+/* Every fixed HUD piece is its OWN composited layer too, so iOS stacks it above the canvas layer. */
+#hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig {
+  will-change: transform; }
 h1 { font-size: 28px; letter-spacing: 2px; margin: 8px 0; }
 h2 { font-size: 16px; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
 button { font: inherit; cursor: pointer; background: var(--panel2); color: var(--ink);
