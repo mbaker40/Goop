@@ -25,18 +25,15 @@ body { margin: 0; background: var(--bg); color: var(--ink);
    every DOM overlay piece onto their own GPU layer (translateZ / will-change: transform); once both
    are composited layers, z-index IS honored and the HUD stacks above the tower on iOS too. The
    canvas never intercepts pointer events (tower is clicked via the transparent #stage catcher). */
-#scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block;
+/* WebGL canvas is shown ONLY on run/paused. On iOS a WebGL canvas composites above the DOM and no
+   overlay reliably beats it, so on the normal-flow screens (menu/win/puddle) we hide it entirely and
+   render plain scrolling DOM. data-screen is set on <body> in app.ts. */
+#scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: none;
   z-index: 0; pointer-events: none; transform: translateZ(0); }
-/* #app is a passthrough — NO transform (it holds the run screen's position:fixed HUD children, and a
-   transformed ancestor would become their containing block and collapse the layout). */
-#app { position: relative; z-index: 1; }
-/* menu/win/puddle render inside this FIXED, composited, scrollable layer. On iOS only a
-   position:fixed + composited element paints above the WebGL canvas's auto-promoted layer (the badge
-   and run HUD prove it); normal-flow content stays buried behind it. will-change:transform forces the
-   GPU layer. CRITICAL: do NOT add -webkit-overflow-scrolling:touch — that paints the container BLANK
-   over WebGL on iOS (PR#10's bug). Plain overflow-y:auto still momentum-scrolls on modern iOS. */
-.screen-layer { position: fixed; inset: 0; z-index: 1; overflow-y: auto; will-change: transform; }
-.screen-inner { max-width: 1100px; margin: 0 auto; padding: 12px; min-height: 100%; }
+body[data-screen="run"] #scene, body[data-screen="paused"] #scene { display: block; }
+/* #app: normal-flow container on menu/win/puddle (page scrolls); NO transform (it also holds the run
+   screen's position:fixed HUD children, and a transformed ancestor would collapse their layout). */
+#app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 12px; }
 /* On the run screen each fixed HUD piece is its OWN composited layer, so iOS stacks it above the
    canvas WITHOUT any transformed ancestor breaking fixed positioning. */
 #hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig {

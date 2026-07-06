@@ -98,6 +98,11 @@ export class GoopUI {
     // normal-flow screens (menu/win/puddle). On run/paused it must NOT carry a transform, or it
     // becomes the containing block for the fixed HUD children and collapses their layout.
     this.root.setAttribute('data-screen', screen);
+    // Gate the WebGL canvas by screen (styles.ts): it's shown ONLY on run/paused. On iOS a WebGL
+    // canvas composites above the DOM and no fixed/scrolling overlay reliably beats it, so on the
+    // normal-flow screens (menu/win/puddle) we hide the canvas entirely and render plain scrolling
+    // DOM — bulletproof, no compositing fight. (The menu tower was only decorative.)
+    document.body.setAttribute('data-screen', screen);
     if (screen === 'run' || screen === 'paused') {
       // Paused keeps the run DOM intact (so Resume is instant); just show the overlay.
       if (this.lastScreen !== 'run' && this.lastScreen !== 'paused') this.buildRunSkeleton();
@@ -105,13 +110,10 @@ export class GoopUI {
       const ov = this.el('pause-overlay');
       if (ov) ov.style.display = screen === 'paused' ? 'flex' : 'none';
     } else {
-      // iOS only lets position:fixed + composited elements paint above the WebGL canvas (the badge
-      // and run HUD prove it); normal-flow content stays buried behind it. So menu/win/puddle render
-      // inside a fixed, composited, scrollable .screen-layer. CRITICAL: no -webkit-overflow-scrolling
-      // (it paints BLANK over WebGL on iOS — that was PR#10's regression). See styles.ts.
-      const body =
+      // Canvas is hidden on these screens (see above), so plain normal-flow DOM renders reliably and
+      // the page scrolls natively — no WebGL compositing to fight.
+      this.root.innerHTML =
         screen === 'menu' ? this.renderMenu() : screen === 'win' ? this.renderWin() : this.renderPuddle();
-      this.root.innerHTML = `<div class="screen-layer"><div class="screen-inner">${body}</div></div>`;
     }
     this.lastScreen = screen;
   }
