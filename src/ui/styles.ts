@@ -31,11 +31,17 @@ body { margin: 0; background: var(--bg); color: var(--ink);
 #scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: none;
   z-index: 0; pointer-events: none; transform: translateZ(0); }
 body[data-screen="run"] #scene, body[data-screen="paused"] #scene { display: block; }
-/* #app: normal-flow container on menu/win/puddle (page scrolls); NO transform (it also holds the run
-   screen's position:fixed HUD children, and a transformed ancestor would collapse their layout). */
+/* menu/win/puddle: normal-flow container, page scrolls (canvas is hidden — no compositing needed). */
 #app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 12px; }
-/* On the run screen each fixed HUD piece is its OWN composited layer, so iOS stacks it above the
-   canvas WITHOUT any transformed ancestor breaking fixed positioning. */
+/* run/paused: #app becomes a FULL-VIEWPORT composited layer. This is the key to the iOS HUD: its
+   position:fixed children (the HUD) composite ABOVE the WebGL canvas because their ancestor is a GPU
+   layer — AND because #app is inset:0 with padding:0, its containing block == the viewport, so the
+   fixed HUD keeps correct positioning (the earlier cramming happened only because #app was then a
+   narrow max-width box). The badge proves a body-level fixed layer beats the canvas; this makes #app
+   that layer for the whole HUD. */
+body[data-screen="run"] #app, body[data-screen="paused"] #app {
+  position: fixed; inset: 0; max-width: none; margin: 0; padding: 0; transform: translateZ(0); }
+/* Extra safety: each fixed HUD piece is also its own composited layer. */
 #hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig {
   will-change: transform; }
 h1 { font-size: 28px; letter-spacing: 2px; margin: 8px 0; }
