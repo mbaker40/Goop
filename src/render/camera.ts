@@ -19,6 +19,8 @@ export class TowerCamera {
   private dist = 8;
   private anchorX = 0;
   private anchorY = 0;
+  /** Temporary extra pull-back (zone-transition moment, PLAN §9.1); decays back to 0. */
+  private pulseDist = 0;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 2000);
@@ -30,9 +32,15 @@ export class TowerCamera {
     this.camera.updateProjectionMatrix();
   }
 
+  /** One-shot dramatic pull-back (fired on zone transitions). */
+  pulse(strength = 2.6): void {
+    this.pulseDist = Math.min(6, this.pulseDist + strength);
+  }
+
   update(towerTopY: number, orbiting: boolean, dt: number, anchor: Anchor = { x: 0, y: 0 }): void {
+    this.pulseDist = Math.max(0, this.pulseDist - this.pulseDist * 1.6 * dt);
     const targetLookY = towerTopY * 0.5 + 0.5;
-    const targetDist = 6 + towerTopY * 1.15;
+    const targetDist = 6 + towerTopY * 1.15 + this.pulseDist;
     const k = 1 - Math.pow(0.001, dt);
     this.lookY += (targetLookY - this.lookY) * k;
     this.dist += (targetDist - this.dist) * k;

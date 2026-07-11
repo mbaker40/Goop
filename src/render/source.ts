@@ -20,6 +20,14 @@ export interface RenderRun {
   peakHeightRaw: number;
   /** Lifetime click count this run — the renderer watches it rise to fire splat/wobble impacts. */
   clicks: number;
+  /** Owned producer counts — each producer gets its own ambient visual signature (producerFx). */
+  producersOwned: Readonly<Record<string, number>>;
+}
+
+/** A tap's screen position (CSS pixels), recorded by the UI so splats land where you tapped. */
+export interface ClickPoint {
+  x: number;
+  y: number;
 }
 
 /** The game accessors the renderer reads (a structural subset of sim `Game`). */
@@ -35,4 +43,7 @@ export interface RenderSource {
   screen: Screen;
   game: RenderGame;
   subscribe(fn: () => void): () => void;
+  /** Return-and-clear the screen positions of taps since the last frame (presentation state only —
+   *  the renderer "reads" them destructively by design; they never touch the sim). */
+  drainClickPoints(): ClickPoint[];
 }

@@ -40,7 +40,8 @@ function boot(): void {
 
   const saved = loadSave();
   const meta = saved?.meta ?? createMetaState();
-  const settings = saved?.settings ?? defaultSettings();
+  // Merge over defaults so settings added in updates (e.g. haptics) exist on older saves.
+  const settings = { ...defaultSettings(), ...(saved?.settings ?? {}) };
   const store = new Store(meta, settings);
 
   // Restore an in-progress run if the save had one (PLAN §12), crediting capped offline GPS.
@@ -98,6 +99,8 @@ function boot(): void {
     if (document.visibilityState === 'hidden') persist();
   });
   window.addEventListener('beforeunload', persist);
+  // iOS Safari can kill a backgrounded tab without beforeunload; pagehide is the reliable signal.
+  window.addEventListener('pagehide', persist);
 }
 
 boot();
