@@ -22,8 +22,11 @@ smoke via `node scripts/smoke.mjs`).
    tappable targets + effect chips + outcome toasts; state rides RunState into saves; bots
    handle events per temperament. Remaining ideas: 3D cues (meteor blob dropping in-scene),
    Goop Umbrella consumable, Endless escalation.
-2. **Zone 7 boss - "The Flick"** (PLAN §3): 120s Divine Disapproval meter, melt ×5, hand prop.
-   Winning is currently a silent threshold crossing; the game's climax doesn't exist yet.
+2. ~~Zone 15 boss - "The Flick"~~ ✅ shipped 2026-07-12: raw-94 engage, 90s Divine Disapproval
+   meter, melt x5, knockback-not-death on meter full, 3-pose hand choreography, toaster
+   cameos, win gated on defeating the hand, Endless entry from the win screen. Remaining
+   ideas: boss sting/music, a taunt line pool, flick-count achievements (needs a swap under
+   the 100 cap).
 3. ~~Zone set dressing~~ ✅ phase 1 shipped 2026-07-12 as the **continuous ascent** system (design
    decision: smooth altitude gradient, no per-zone color cuts): `render/palette.ts paletteAt()`
    blends sky/fog/ground/goop with altitude; `render/markers.ts` sweeps fixed-altitude scale

@@ -245,3 +245,25 @@ function drawToaster(canvas: HTMLCanvasElement, face: ToasterFace): void {
   }
   c.stroke();
 }
+
+/** Transient toaster cameo (boss beats, win screen): same card look, no gating, self-removes. */
+export function showToasterCameo(lines: string[], face: ToasterFace, ms = 4500): void {
+  document.getElementById('tut-cameo')?.remove();
+  const card = document.createElement('div');
+  card.id = 'tut-cameo';
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  canvas.className = 'tut-portrait';
+  drawToaster(canvas, face);
+  const bubble = document.createElement('div');
+  bubble.className = 'tut-bubble';
+  bubble.innerHTML = lines.map((l) => escapeHtml(l)).join('<br>');
+  card.appendChild(canvas);
+  card.appendChild(bubble);
+  document.body.appendChild(card);
+  window.setTimeout(() => card.remove(), ms);
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}

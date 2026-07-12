@@ -50,6 +50,11 @@ export function deserializeRun(s: SerializedRun): RunState {
     eventCooldown: s.eventCooldown ?? 120,
     activeEvent: s.activeEvent ?? null,
     eventEffects: s.eventEffects ?? [],
+    // Boss fields (M3 slice 9) - same deal.
+    bossPhase: s.bossPhase ?? 'idle',
+    bossMeter: s.bossMeter ?? 0,
+    bossCooldown: s.bossCooldown ?? 0,
+    bossFlicks: s.bossFlicks ?? 0,
   };
 }
 

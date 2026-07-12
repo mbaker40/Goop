@@ -25,6 +25,8 @@ export class MockSource implements RenderSource {
     clicks: 0,
     // Exercise a few producer signatures under ?mockrender.
     producersOwned: { dripper: 12, cannon: 3, goopcopter: 1 },
+    bossPhase: 'idle',
+    bossMeter: 0,
   };
   private clickAccum = 0;
   readonly game: RenderGame;
@@ -54,6 +56,19 @@ export class MockSource implements RenderSource {
     // Height ramps 0 → just past WIN over the first 30s, then holds.
     this.hv = Math.min(WIN_HEIGHT + 2, (t / 30) * (WIN_HEIGHT + 2));
     if (this.hv > this.run.peakHeightRaw) this.run.peakHeightRaw = this.hv;
+
+    // Boss timeline: the hand engages while the ramp crosses startHeight -> WIN (~28.2-30s),
+    // shows the meter filling, and flips to defeated as the ramp tops out.
+    if (this.hv >= 94 && this.hv < WIN_HEIGHT) {
+      this.run.bossPhase = 'fight';
+      this.run.bossMeter = Math.min(1, (this.hv - 94) / 6);
+    } else if (this.hv >= WIN_HEIGHT) {
+      this.run.bossPhase = 'defeated';
+      this.run.bossMeter = 0;
+    } else {
+      this.run.bossPhase = 'idle';
+      this.run.bossMeter = 0;
+    }
 
     // Status timeline: grace → active → collapsing → dead → (loop resets to grace).
     let status: RunStatus;

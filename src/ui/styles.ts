@@ -149,7 +149,7 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
   80% { opacity: 1; } 100% { opacity: 0; margin-bottom: 18px; } }
 
 /* ---- Tutorial: the Judgmental Toaster ---- */
-#tut-card { position: fixed; z-index: 6; left: 10px; bottom: calc(96px + env(safe-area-inset-bottom));
+#tut-card, #tut-cameo { position: fixed; z-index: 6; left: 10px; bottom: calc(96px + env(safe-area-inset-bottom));
   display: flex; align-items: flex-end; gap: 8px; max-width: min(430px, 94vw);
   animation: tutin .4s ease-out; will-change: transform; }
 @keyframes tutin { 0% { opacity: 0; transform: translateY(24px); } 100% { opacity: 1; transform: none; } }
@@ -160,6 +160,14 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
   padding: 10px 14px; font-size: 14px; line-height: 1.45; min-width: 150px; min-height: 42px;
   border: 2px solid #b8ac94; cursor: pointer; }
 .tut-skip { position: absolute; right: 0; top: -40px; opacity: .75; font-size: 12px; }
+#boss-meter { position: fixed; z-index: 4; top: calc(64px + env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); width: min(400px, 88vw); text-align: center;
+  background: #2a1420; border: 1px solid #d94a6a; border-radius: 12px; padding: 8px 12px;
+  box-shadow: 0 6px 24px rgba(180,30,60,.5); will-change: transform; }
+#boss-meter b { color: #ff9ab0; letter-spacing: 2px; font-size: 13px; }
+#boss-meter .track { height: 10px; background: #1a0c12; border-radius: 999px; margin-top: 6px; overflow: hidden; }
+#boss-meter .track i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #d94a6a, #ffb03a);
+  border-radius: 999px; transition: width .2s linear; }
 #tut-pointer { position: fixed; z-index: 5; pointer-events: none; border: 3px solid var(--goop);
   border-radius: 50%; animation: tutping 1.3s ease-out infinite; will-change: transform, opacity; }
 @keyframes tutping { 0% { transform: scale(.75); opacity: .95; } 80% { transform: scale(1.12); opacity: .15; }

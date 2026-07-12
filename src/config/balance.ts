@@ -84,12 +84,30 @@ export const balance = {
     winMultiplier: 3,
     loseMultiplier: 1,
     softCapStart: 300,
-    softCapPower: 0.5,
+    /** 0.5 -> 0.42 (2026-07-12): a WIN paid ~95K GE, which Endless-depth peaks would multiply
+     *  into meta-shop trivialization. Now ~47K/win (measured). Loss GE is untouched (losses
+     *  rarely exceed softCapStart). Revisit with Endless GE data. */
+    softCapPower: 0.42,
   },
 
   /** Achievements (PLAN §7): each unlock grants a small permanent goop/sec bonus. */
   achievements: {
     gpsPctEach: 0.005,
+  },
+
+  /** Zone 15 boss - "The Flick" (PLAN §3). The marble hand descends when the run first reaches
+   *  `startHeight`; a Divine Disapproval meter fills over `meterSeconds` while melt runs at
+   *  `meltMult`. Out-grow it to WIN_HEIGHT before it fills = win. Meter full = THE FLICK: you
+   *  are knocked back down (lose `knockbackFrac` of lifetime goop, height drops with it) and
+   *  the hand withdraws until you climb back - a setback, not a run kill (design decision:
+   *  losing an hour-long run to the final 2 minutes is the carpal-tunnel patch's evil twin). */
+  boss: {
+    startHeight: 94,
+    meterSeconds: 90,
+    meltMult: 5,
+    knockbackFrac: 0.35,
+    /** Seconds the hand stays withdrawn after a flick before it can re-engage. */
+    cooldownSeconds: 20,
   },
 
   /** Chaos events (PLAN §8): scheduler mechanics. The event POOL lives in config/events.ts. */

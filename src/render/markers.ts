@@ -99,6 +99,10 @@ export class ScaleMarkers {
   private toaster: GroundProp | null = null;
   private toastBoards: Board[] = [];
   private toastFiredAt = -1;
+  /** Boss hand actor state. */
+  private boss: Partial<Record<'hand' | 'handFlick' | 'handThumb', Board>> = {};
+  private bossPrevPhase = 'idle';
+  private bossPhaseAt = 0;
 
   constructor() {
     this.shadowTex = makeShadowTexture();
@@ -216,7 +220,15 @@ export class ScaleMarkers {
       o.position.x += Math.sin(t * 0.2) * 1.5;
       o.position.y += Math.sin(t * 0.35) * 0.4;
     });
-    add('hand', 9e12, 8e12, 9, 2.5, -14, -0.08, WINDOW, (o, t) => (o.position.y += Math.sin(t * 0.5) * 0.25));
+    // (The hand of God is no longer a passive flyby - it is the BOSS, staged below.)
+
+    // ---- The Flick: boss hand actor (three pose boards, crossfaded by phase) ----
+    for (const art of ['hand', 'handFlick', 'handThumb'] as const) {
+      const b = board(ART[art]!, 1, 1, -0.06);
+      b.group.visible = false;
+      this.group.add(b.group);
+      this.boss[art] = b;
+    }
 
     // The home planet, receding below as you leave it (ground recession).
     this.planet = cutout(ART['planetBall']!, 1, 1, 512);
@@ -234,7 +246,8 @@ export class ScaleMarkers {
 
   /** `topRaw`/`topY` should be the SMOOTHED reference (renderer's slow follower), not the live
    *  sprung tower top - that is what keeps the world from bouncing on taps. */
-  update(topRaw: number, topY: number, t: number, zoom = 1): void {
+  update(topRaw: number, topY: number, t: number, zoom = 1, bossPhase = 'idle', bossMeter = 0): void {
+    this.updateBoss(topY, t, bossPhase, bossMeter);
     // Meters represented by one world unit at the current height (guarded near zero).
     const mPerW = Math.max(0.02, displayMeters(Math.max(0.35, topRaw))) / Math.max(0.5, topY);
 
@@ -323,6 +336,61 @@ export class ScaleMarkers {
         Math.min(1, (topRaw - 13) / 3) * (p < 0.92 ? 1 : (1 - p) / 0.08);
     } else {
       this.planet.visible = false;
+    }
+  }
+
+  /** The Flick choreography: descend + wind up while fighting (tremble grows with the meter),
+   *  snap-and-withdraw on the flick, a slow thumbs-up on defeat. */
+  private updateBoss(topY: number, t: number, phase: string, meter: number): void {
+    if (phase !== this.bossPrevPhase) {
+      this.bossPrevPhase = phase;
+      this.bossPhaseAt = t;
+    }
+    const since = t - this.bossPhaseAt;
+    const hand = this.boss['hand'];
+    const flick = this.boss['handFlick'];
+    const thumb = this.boss['handThumb'];
+    if (!hand || !flick || !thumb) return;
+    hand.group.visible = flick.group.visible = thumb.group.visible = false;
+    const SIZE = 7;
+
+    if (phase === 'fight') {
+      // Descend over ~2s, hover beside the crown, wind up + tremble as the meter fills.
+      const drop = Math.min(1, since / 2);
+      const ease = 1 - Math.pow(1 - drop, 3);
+      hand.group.visible = true;
+      hand.group.scale.setScalar(SIZE);
+      hand.group.position.set(
+        2.4 + Math.sin(t * 0.6) * 0.2 + Math.sin(t * 21) * 0.12 * meter,
+        topY + 8.5 - ease * 4.6 + Math.sin(t * 0.8) * 0.15,
+        -9,
+      );
+      hand.group.rotation.z = -0.12 - meter * 0.5; // the cocked finger draws back
+      hand.setOpacity(Math.min(1, since / 0.6));
+    } else if (phase === 'cooldown') {
+      // THE FLICK: snap pose for a beat, then withdraw skyward.
+      if (since < 1.1) {
+        flick.group.visible = true;
+        flick.group.scale.setScalar(SIZE);
+        flick.group.position.set(2.1, topY + 3.6, -9);
+        flick.group.rotation.z = 0.55 - Math.min(0.4, since * 1.6);
+        flick.setOpacity(1);
+      } else if (since < 2.6) {
+        hand.group.visible = true;
+        hand.group.scale.setScalar(SIZE);
+        hand.group.position.set(2.4, topY + 3.9 + (since - 1.1) * 5, -9);
+        hand.group.rotation.z = -0.12;
+        hand.setOpacity(Math.max(0, 1 - (since - 1.1) / 1.4));
+      }
+    } else if (phase === 'defeated') {
+      // Begrudging divine approval, then gone.
+      if (since < 6) {
+        thumb.group.visible = true;
+        thumb.group.scale.setScalar(SIZE);
+        thumb.group.position.set(2.2, topY + 4 + Math.sin(t * 0.7) * 0.25, -9);
+        thumb.group.rotation.z = Math.sin(t * 0.5) * 0.06;
+        thumb.setOpacity(since < 4.6 ? Math.min(1, since / 0.8) : Math.max(0, 1 - (since - 4.6) / 1.4));
+      }
     }
   }
 }

@@ -1,0 +1,32 @@
+import { chromium } from 'playwright';
+import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { setTimeout as sleep } from 'node:timers/promises';
+const OUT = process.argv[2] ?? 'shots-boss';
+mkdirSync(OUT, { recursive: true });
+const server = spawn('npx', ['vite', '--port', '5194', '--strictPort'], { stdio: 'pipe' });
+const url = 'http://localhost:5194';
+for (let i = 0; i < 60; i++) { try { if ((await fetch(url)).ok) break; } catch {} await sleep(500); }
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+const page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true })).newPage();
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+await page.goto(`${url}/?debug`, { waitUntil: 'networkidle' });
+await sleep(900);
+// Skip tutorial, then force the fight.
+await page.evaluate(() => { const s = window.__goopStore; s.meta.tutorialStep = 99; s.game.run.status = 'active'; s.emit(); });
+await sleep(400);
+await page.evaluate(() => { const s = window.__goopStore; s.game.run.bossPhase = 'fight'; s.game.run.bossMeter = 0.55; s.emit(); });
+await sleep(2600);
+await page.screenshot({ path: `${OUT}/boss-fight.png` });
+await page.evaluate(() => { const s = window.__goopStore; s.game.run.bossPhase = 'cooldown'; s.game.run.bossCooldown = 20; s.game.run.bossFlicks = 1; s.emit(); });
+await sleep(600);
+await page.screenshot({ path: `${OUT}/boss-flick.png` });
+await page.evaluate(() => { const s = window.__goopStore; s.game.run.bossPhase = 'defeated'; s.emit(); });
+await sleep(1600);
+await page.screenshot({ path: `${OUT}/boss-thumb.png` });
+console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'No console errors.');
+await browser.close();
+server.kill();
+process.exit(0);
