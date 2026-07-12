@@ -179,13 +179,19 @@ export class GoopRenderer {
     }
     this.splats.update(dt);
 
-    // Frame the tower into the DOM stage rect (NDC anchor); centre if there's no stage.
-    let anchor = { x: 0, y: 0 };
+    // Frame the tower into the DOM stage rect: centre horizontally, and pin the goop's BASE near
+    // the BOTTOM of the stage so it sits on the ground and grows upward — instead of floating at
+    // mid-screen with a band of empty ground under it (the old centre-anchor bug). Portrait's
+    // stage ends above the readout, so the base can hug the stage bottom (97%); landscape's
+    // readout OVERLAYS the stage bottom-centre, so keep the base above it (78%).
+    let anchor = { x: 0, yBase: -0.45 };
     const rect = this.getStage?.();
     if (rect && rect.width > 0 && this.w > 0 && this.h > 0) {
+      const portrait = this.h >= this.w;
+      const baselineY = rect.top + rect.height * (portrait ? 0.97 : 0.78);
       anchor = {
         x: ((rect.left + rect.width / 2) / this.w) * 2 - 1,
-        y: -(((rect.top + rect.height / 2) / this.h) * 2 - 1),
+        yBase: -((baselineY / this.h) * 2 - 1),
       };
     }
     const idle = this.source.screen !== 'run' && this.source.screen !== 'paused';
@@ -205,7 +211,7 @@ export class GoopRenderer {
       splats: this.splats.activeCount,
       clicks,
       anchorX: anchor.x,
-      anchorY: anchor.y,
+      anchorY: anchor.yBase,
       status,
     };
   }
