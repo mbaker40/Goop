@@ -27,7 +27,7 @@ const K = 0.55;
 /** The tower's approximate world-space top at a given raw height (mirrors tower.ts fill math:
  *  fillTop = 0.07 + clamp(raw/WIN)*0.8 over TOWER_WORLD_HEIGHT 10). */
 function topYFor(raw: number): number {
-  return 10 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.8);
+  return 10 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.76);
 }
 
 /** metersPerWorld at a given raw height (guarded like update()'s live computation). */

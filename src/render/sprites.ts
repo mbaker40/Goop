@@ -587,10 +587,12 @@ export const ART: Record<string, Draw> = {
 Object.assign(ART, {
   mug: ((c: CanvasRenderingContext2D) => {
     rr(c, 60, 70, 120, 130, 22, '#d96a4a');
+    // Handle must overlap the body generously - a thin tangent arc erodes into a detached
+    // floating "C" once the silhouette stamp runs (seen on-device).
     c.strokeStyle = '#b4523a';
-    c.lineWidth = 10;
+    c.lineWidth = 16;
     c.beginPath();
-    c.arc(196, 130, 38, -1.2, 1.2);
+    c.arc(172, 132, 40, -1.15, 1.15);
     c.stroke();
     ell(c, 120, 78, 58, 18, '#8a4a3a');
     ell(c, 120, 76, 48, 12, '#5a3028');

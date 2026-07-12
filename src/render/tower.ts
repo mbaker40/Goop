@@ -52,7 +52,7 @@ export class GoopTower {
   addBlob(world: THREE.Vector3, power = 1): void {
     const fx = clamp(0.5 + world.x / (2 * RADIUS), 0.22, 0.78);
     const fz = clamp(0.5 + world.z / (2 * RADIUS), 0.22, 0.78);
-    const fy = clamp(world.y / TOWER_WORLD_HEIGHT, 0.09, 0.92);
+    const fy = clamp(world.y / TOWER_WORLD_HEIGHT, 0.09, 0.82);
     this.blobs.push({ fx, fy, fz, r: 0.4 + 0.35 * power, age: 0 });
     if (this.blobs.length > 14) this.blobs.shift();
   }
@@ -164,7 +164,10 @@ export class GoopTower {
     if (this.fieldAcc >= this.fieldDt) {
       this.fieldAcc %= this.fieldDt;
       const bottom = 0.07;
-      const top = bottom + fill * 0.8;
+      // 0.76 (not 0.8): ball centers + iso-surface extent must stay inside the marching-cubes
+      // unit lattice, or a maxed tower's crown gets planar-clipped at the grid ceiling (the
+      // "top of the goop cuts off" bug at Zone 15 heights).
+      const top = bottom + fill * 0.76;
       const count = Math.max(3, Math.round(fill * 22));
       const mc = this.mc;
       mc.reset();
@@ -270,7 +273,7 @@ export class GoopTower {
 
     // Camera framing height: IGNORE tap deformation (swell) so the view never bobs per slap;
     // only the collapse slump moves the framing (the camera should follow the tower down).
-    const fillTop = 0.07 + fill * 0.8;
+    const fillTop = 0.07 + fill * 0.76;
     const camScaleY = collapsing || dead ? this.object.scale.y : 1;
     return TOWER_WORLD_HEIGHT * fillTop * camScaleY;
   }
