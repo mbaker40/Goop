@@ -169,7 +169,8 @@ export class GoopRenderer {
     this.lastTopY = topY;
 
     // Fixed-altitude scale markers sweep past the climbing top (birds → blimp → jet → Moon …).
-    this.markers.update(this.tower.debugHeight, topY, this.t);
+    const zoom = this.source.viewZoom || 1;
+    this.markers.update(this.tower.debugHeight, topY, this.t, zoom);
 
     // Ambient producer signatures — each "tool" you buy is visible working on the tower.
     if (status === 'active' || status === 'grace') {
@@ -203,7 +204,7 @@ export class GoopRenderer {
       };
     }
     const idle = this.source.screen !== 'run' && this.source.screen !== 'paused';
-    this.cam.update(topY, idle, dt, anchor);
+    this.cam.update(topY, idle, dt, anchor, zoom);
 
     // Tint the key light slightly toward the sky for cohesion.
     this.bundle.keyLight.color.setHex(0xffffff).lerp(this.lightTint.setHex(palette.skyTop), 0.2);

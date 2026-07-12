@@ -233,6 +233,23 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
 .center { text-align: center; }
 .big { font-size: 42px; color: var(--goop); }
 .tag { font-size: 12px; color: var(--muted); }
+
+/* ---- Main menu: hero + folding sections (keep it calm) ---- */
+.menu-hero { text-align: center; max-width: 520px; margin: 4vh auto 18px; }
+.menu-hero h1 { margin-bottom: 2px; }
+#menu-start { width: 100%; font-size: 20px; padding: 16px; margin-top: 14px; }
+.menu-vitals { display: flex; justify-content: center; gap: 18px; margin-top: 12px; color: var(--muted);
+  font-size: 14px; flex-wrap: wrap; }
+.menu-vitals b { color: var(--goop); }
+.msec { max-width: 520px; margin: 0 auto 10px; border: 1px solid var(--border); border-radius: 12px;
+  background: var(--panel); overflow: hidden; }
+.msec-head { width: 100%; display: flex; align-items: center; gap: 10px; border: none; border-radius: 0;
+  background: none; padding: 14px 14px; font-weight: bold; text-align: left; }
+.msec-head span:first-child { flex: 1; }
+.msec-head i { font-style: normal; color: var(--muted); }
+.msec.open .msec-head { border-bottom: 1px solid var(--border); }
+.msec-body { padding: 12px; }
+.msec:not(.open) .msec-body { display: none; }
 textarea { width: 100%; height: 70px; background: var(--panel2); color: var(--ink); border: 1px solid var(--border); border-radius: 8px; }
 `;
 

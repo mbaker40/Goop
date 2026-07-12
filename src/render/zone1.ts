@@ -1,6 +1,6 @@
 /**
- * zone1.ts — the environment (PLAN §3 / §9.1). A gradient sky, a ground plane, one primitive
- * sight-gag (the giant salt shaker), and a starfield for the space altitudes.
+ * zone1.ts — the environment (PLAN §3 / §9.1). A gradient sky, a ground plane, and a starfield
+ * for the space altitudes (set dressing lives in markers.ts as 2D cutouts).
  *
  * The environment is a CONTINUOUS ascent: sky/fog/ground blend smoothly with ALTITUDE
  * (palette.ts paletteAt), like a balloon ride — warm kitchen light thins into attic dust, blue
@@ -16,7 +16,6 @@ export class Environment {
   readonly group = new THREE.Group();
   private ground: THREE.Mesh;
   private groundMat: THREE.MeshStandardMaterial;
-  private shaker: THREE.Group;
   private skyTex: THREE.CanvasTexture;
   private skyCanvas: HTMLCanvasElement;
   private stars: THREE.Points;
@@ -48,21 +47,6 @@ export class Environment {
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
     this.group.add(this.ground);
-
-    // Sight gag: a giant salt shaker off to the side.
-    const shakerBody = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.5, metalness: 0.1 });
-    this.shaker = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.3, 3.2, 24), shakerBody);
-    body.position.y = 1.6;
-    const cap = new THREE.Mesh(
-      new THREE.SphereGeometry(1.15, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshStandardMaterial({ color: 0xc0c4cc, roughness: 0.4, metalness: 0.4 }),
-    );
-    cap.position.y = 3.2;
-    this.shaker.add(body, cap);
-    this.shaker.position.set(7.5, 0, -3);
-    this.shaker.scale.setScalar(1.1);
-    this.group.add(this.shaker);
 
     // Starfield: a shell of points that fades in with altitude (space is continuous too).
     const STARS = 260;
@@ -130,8 +114,6 @@ export class Environment {
       this.groundAlpha += (targetAlpha - this.groundAlpha) * Math.min(1, 2.2 * dt);
       this.groundMat.opacity = this.groundAlpha;
       this.ground.visible = this.groundAlpha > 0.02;
-      this.shaker.visible = this.groundAlpha > 0.02;
-      this.shaker.scale.setScalar(1.1 * (0.2 + 0.8 * this.groundAlpha));
     }
     this.starMat.opacity = clamp01((heightRaw - 30) / 20) * 0.9;
     this.stars.visible = this.starMat.opacity > 0.02;

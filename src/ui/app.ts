@@ -47,6 +47,8 @@ export class GoopUI {
   private achShowing = false;
   /** Full-screen achievements overlay (available mid-run; does not pause the sim). */
   private achOverlayOpen = false;
+  /** Main-menu collapsible section state (menu re-renders on actions; this survives them). */
+  private menuSections: Record<string, boolean> = { upgrades: true, achievements: false, stats: false };
 
   constructor(private store: Store, mount: HTMLElement) {
     this.root = mount;
@@ -179,6 +181,18 @@ export class GoopUI {
       case 'toggle-haptics': this.store.toggleHaptics(); break;
       case 'toggle-shop': this.toggleShop(); break;
       case 'toggle-ach-overlay': this.toggleAchOverlay(); break;
+      case 'cycle-zoom': {
+        this.store.cycleZoom();
+        const z = this.store.viewZoom;
+        const btn = this.el('zoom-btn');
+        if (btn) btn.textContent = z === 1 ? '🔭' : `🔭×${z}`;
+        break;
+      }
+      case 'menu-sec': {
+        this.menuSections[id] = !this.menuSections[id];
+        this.render();
+        break;
+      }
     }
   }
 
@@ -331,13 +345,11 @@ export class GoopUI {
     <div id="zone-toast" aria-live="polite"></div>
 
     <div id="hud-stats" class="hud-card">
-      <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">
-        <span class="title">🟢 GOOP TOWER</span>
-        <span class="row" style="gap:6px;flex-wrap:nowrap">
-          <button data-action="toggle-ach-overlay" class="mini" aria-label="Achievements">🏆</button>
-          <button data-action="toggle-sound" class="mini" id="sound-btn-run" aria-label="Toggle sound">${this.store.settings.muted ? '🔇' : '🔊'}</button>
-          <button data-action="pause" class="mini" aria-label="Pause">❚❚</button>
-        </span>
+      <div class="row" style="justify-content:flex-end;gap:6px;flex-wrap:nowrap">
+        <button data-action="cycle-zoom" class="mini" id="zoom-btn" aria-label="Zoom view">🔭</button>
+        <button data-action="toggle-ach-overlay" class="mini" aria-label="Achievements">🏆</button>
+        <button data-action="toggle-sound" class="mini" id="sound-btn-run" aria-label="Toggle sound">${this.store.settings.muted ? '🔇' : '🔊'}</button>
+        <button data-action="pause" class="mini" aria-label="Pause">❚❚</button>
       </div>
       <div class="stat"><span>🟢 Goop</span><b id="sr-goop">0</b></div>
       <div class="stat"><span>⏱ Goop/sec</span><b id="sr-gps">0</b></div>
@@ -609,44 +621,60 @@ export class GoopUI {
 
     const unlockedSet = new Set(m.achievements);
     const achTiles = ACHIEVEMENTS.map((a) => this.achTile(a, unlockedSet.has(a.id))).join('');
+    const affordable = META_UPGRADES.filter((u) => canBuyMeta(m, u.id)).length;
 
+    const section = (id: string, title: string, badge: string, body: string): string => {
+      const open = !!this.menuSections[id];
+      return `<div class="msec ${open ? 'open' : ''}">
+        <button class="msec-head" data-action="menu-sec" data-id="${id}">
+          <span>${title}</span><span class="tag">${badge}</span><i>${open ? '▾' : '▸'}</i>
+        </button>
+        <div class="msec-body">${open ? body : ''}</div>
+      </div>`;
+    };
+
+    // Hero + one-line vitals up top; everything else folds away (menu was "too busy").
     return `
-    <h1>🟢 GOOP TOWER</h1>
-    <div class="tag">Slap goop, climb 7 zones, don't melt. Every puddle makes you stronger.</div>
-    <div class="grid">
-      <div>
-        <div class="panel">
-          <h2>Permanent Upgrades</h2>
-          <div class="tag subtitle">Bought with Goop Essence (GE) — the stuff every ended run pays out. These survive melting.</div>
-          ${meta}
-        </div>
-        <div class="panel" style="margin-top:12px">
-          <h2>Achievements <span class="tag">${m.achievements.length}/${ACHIEVEMENTS.length}</span></h2>
-          <div class="tag subtitle">Each unlock permanently adds +0.5% goop/sec. Tap a tile to inspect.</div>
-          <div class="ach-grid">${achTiles}</div>
-          <div class="tag" id="ach-detail" style="margin-top:8px">Tap any tile…</div>
-        </div>
+    <div class="menu-hero">
+      <h1>🟢 GOOP TOWER</h1>
+      <div class="tag">Slap goop. Climb 7 zones. Don't melt.</div>
+      <button data-action="start-run" class="primary" id="menu-start">START RUN ▶</button>
+      <div class="menu-vitals">
+        <span>⚗️ <b>${m.ge}</b> GE</span>
+        <span>🏆 <b>${m.achievements.length}</b>/${ACHIEVEMENTS.length}</span>
+        <span>⛰️ <b>${formatHeight(displayMeters(m.bestHeightRaw))}</b></span>
       </div>
-      <div>
-        <div class="panel">
-          <h2>Show-off Room</h2>
-          <div class="stat"><span>Goop Essence</span><b>${m.ge} GE</b></div>
-          <div class="stat"><span>Wins</span><b>${m.wins}</b></div>
-          <div class="stat"><span>Puddles</span><b>${m.puddles}</b></div>
-          <div class="stat"><span>Lifetime slaps</span><b>${formatInt(m.totalClicks)}</b></div>
-          <div class="stat"><span>Best height</span><b>${formatHeight(displayMeters(m.bestHeightRaw))}</b></div>
-          <div class="stat"><span>Achievements</span><b>${m.achievements.length}/${ACHIEVEMENTS.length}</b></div>
-        </div>
-        <div class="panel center" style="margin-top:12px">
-          <button data-action="start-run" class="primary" style="width:100%;font-size:18px;padding:14px">START RUN ▶</button>
-          <div class="row" style="margin-top:10px;justify-content:center">
-            <button data-action="toggle-sound">Sound: ${this.store.settings.muted ? 'off 🔇' : 'ON 🔊'}</button>
-            <button data-action="toggle-haptics">Haptics: ${this.store.settings.haptics ? 'ON' : 'off'}</button>
-            <button data-action="toggle-silly">Silly names: ${this.store.settings.sillyNames ? 'ON' : 'off'}</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    </div>
+
+    ${section(
+      'upgrades',
+      '💠 Permanent Upgrades',
+      affordable > 0 ? `${affordable} affordable!` : `${m.ge} GE banked`,
+      `<div class="tag subtitle">Bought with Goop Essence (GE) — every ended run pays it out. These survive melting.</div>${meta}`,
+    )}
+    ${section(
+      'achievements',
+      '🏆 Achievements',
+      `${m.achievements.length}/${ACHIEVEMENTS.length}`,
+      `<div class="tag subtitle">Each unlock permanently adds +0.5% goop/sec. Tap a tile to inspect.</div>
+       <div class="ach-grid">${achTiles}</div>
+       <div class="tag" id="ach-detail" style="margin-top:8px">Tap any tile…</div>`,
+    )}
+    ${section(
+      'stats',
+      '📊 Stats & Settings',
+      `${m.wins} win${m.wins === 1 ? '' : 's'}`,
+      `<div class="stat"><span>Goop Essence</span><b>${m.ge} GE</b></div>
+       <div class="stat"><span>Wins</span><b>${m.wins}</b></div>
+       <div class="stat"><span>Puddles</span><b>${m.puddles}</b></div>
+       <div class="stat"><span>Lifetime slaps</span><b>${formatInt(m.totalClicks)}</b></div>
+       <div class="stat"><span>Best height</span><b>${formatHeight(displayMeters(m.bestHeightRaw))}</b></div>
+       <div class="row" style="margin-top:12px;justify-content:center">
+         <button data-action="toggle-sound">Sound: ${this.store.settings.muted ? 'off 🔇' : 'ON 🔊'}</button>
+         <button data-action="toggle-haptics">Haptics: ${this.store.settings.haptics ? 'ON' : 'off'}</button>
+         <button data-action="toggle-silly">Silly names: ${this.store.settings.sillyNames ? 'ON' : 'off'}</button>
+       </div>`,
+    )}`;
   }
 
   private renderWin(): string {

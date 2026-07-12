@@ -133,7 +133,7 @@ export class GoopTower {
       // Base foot; slim while young (a fresh run starts as a cute blob, not a monolith), thickens
       // as the tower fills toward WIN, and swells/spreads into a puddle during collapse.
       const girth = 0.55 + fill * 0.75;
-      mc.addBall(0.5, bottom, 0.5, (0.95 + fill * 0.75) + cAmt * 1.9, 10);
+      mc.addBall(0.5, bottom, 0.5, (0.82 + fill * 0.85) + cAmt * 1.9, 10);
       const spread = cAmt * 0.34;
       if (spread > 0.001) {
         for (let j = 0; j < 6; j++) {
@@ -143,16 +143,34 @@ export class GoopTower {
       }
       // Fluid body: every ball breathes (radius wobble) and drifts laterally; amplitude rises with
       // growth so an actively-fed tower visibly churns while a stalled one sits eerily still.
+      // LUMPY by design — it's goop, not a bullet: each ball keeps a persistent pseudo-random
+      // girth and lateral offset (hashed off its index, stable frame to frame), so the silhouette
+      // reads as a stacked pile of blobs.
       const boil = 0.05 + growth * 0.16;
       for (let i = 0; i < count; i++) {
         const f = count === 1 ? 0 : i / (count - 1);
         const ny = bottom + f * (top - bottom);
-        const swayX = 0.015 * Math.sin(f * 6 + this.renderedHeight) + 0.012 * Math.sin(this.t * 1.9 + i * 2.1) * (0.3 + f);
-        const swayZ = 0.012 * Math.cos(this.t * 1.6 + i * 1.3) * (0.3 + f);
+        // Persistent per-blob character (deterministic hash of the blob index).
+        const lumpR = 0.68 + 0.62 * (0.5 + 0.5 * Math.sin(i * 12.9898 + 4.98));
+        const lumpX = 0.12 * Math.sin(i * 7.13 + 1.7);
+        const lumpZ = 0.12 * Math.cos(i * 9.77 + 0.6);
+        const swayX = 0.015 * Math.sin(f * 6 + this.renderedHeight) + 0.014 * Math.sin(this.t * 1.9 + i * 2.1) * (0.3 + f);
+        const swayZ = 0.014 * Math.cos(this.t * 1.6 + i * 1.3) * (0.3 + f);
         const breathe = 1 + boil * Math.sin(this.t * 2.6 + i * 1.7);
         // Fresh goop swells the top of the tower right after a slap.
         const fresh = f > 0.75 ? this.growPulse * 0.5 * ((f - 0.75) / 0.25) : 0;
-        mc.addBall(0.5 + swayX, ny, 0.5 + swayZ, (0.85 + girth * 0.45) * breathe + fresh, 10);
+        mc.addBall(0.5 + lumpX + swayX, ny, 0.5 + lumpZ + swayZ, (0.85 + girth * 0.45) * lumpR * breathe + fresh, 10);
+      }
+      // Flank lumps: half-sunk side blobs at persistent pseudo-random heights, slowly oozing
+      // downward — the drips and bulges that make it read as goo.
+      const lumps = Math.max(3, Math.round(fill * 10));
+      for (let j = 0; j < lumps; j++) {
+        const fh = 0.5 + 0.5 * Math.sin(j * 5.23 + 2.1); // stable height fraction per lump
+        const ooze = (this.t * 0.015 + j * 0.13) % 1; // slow downward creep
+        const ly = bottom + Math.max(0.02, fh - ooze * 0.25) * (top - bottom);
+        const la = j * 2.39996; // golden-angle spread around the column
+        const lr = 0.2 + 0.06 * Math.sin(j * 3.7);
+        mc.addBall(0.5 + Math.cos(la) * lr, ly, 0.5 + Math.sin(la) * lr, 0.35 + 0.18 * Math.sin(j * 8.1), 10);
       }
       mc.update();
     }

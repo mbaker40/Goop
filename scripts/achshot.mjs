@@ -20,7 +20,9 @@ await page.evaluate(() => {
   s.toMenu();
 });
 await sleep(400);
-// Scroll the achievements panel into view on the menu.
+// Open the (collapsed) achievements section, then scroll the grid into view.
+await page.locator('[data-action="menu-sec"][data-id="achievements"]').click().catch(() => {});
+await sleep(300);
 await page.locator('.ach-grid').first().scrollIntoViewIfNeeded();
 await sleep(200);
 await page.locator('.ach.on').first().click().catch(() => {});

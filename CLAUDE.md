@@ -121,7 +121,21 @@ scale markers that sweep past the climbing tower top (toaster → birds → hous
 Starfield fades in above raw 30; ground/shaker fade out ~raw 14-26. Env exposes `live` blended
 palette consumed by tower/splats/light.
 
+**Done: M3 (slice 3) — Ascent phase 2: cardboard-cutout world (2026-07-12).** All background
+assets are now 2D "cardboard cutout" sprites (LBP style): `render/sprites.ts` draws each asset
+with canvas 2D and runs it through a sticker pipeline (offset-stamped silhouette outline + soft
+drop shadow) onto THREE.Sprites that wobble like paper. `markers.ts` gained the cat photo, kite,
+hot-air balloon, UFO, goop whale (raw 66), marble hand w/ cocked flick finger (raw 96), the salt
+shaker (now a cutout; 3D prop removed), and the **planet recession** — the home planet (counter-
+tile ball w/ goop continents) shrinks away below from raw ~13-72. A **view zoom** (🔭 HUD button,
+store.viewZoom 1/1.7/2.6, threaded through RenderSource → camera dist + marker window) lets
+players pull back and see the diorama. The goop tower is **lumpy** now (persistent per-blob girth/
+offset hashes + protruding flank lumps that ooze downward; foot slimmed). Run HUD dropped the
+decorative "🟢 GOOP TOWER" title (buttons row: 🔭🏆🔊❚❚). Main menu redesigned: hero (title +
+big START + vitals line) over three collapsible sections (Permanent Upgrades / Achievements /
+Stats & Settings; state in GoopUI.menuSections survives re-renders).
+
 **Next (see `docs/release-roadmap.md` for the full ordered list):** chaos events (sim stub at
-`src/sim/events.ts`), Zone 7 boss "The Flick", ascent phase 2 (planet-ball recession, whale,
-marble hand, keep-top framing), real-device iOS/Android QA, prestige-path Z4-wall smoothing,
-save/offline test coverage + export/import UI.
+`src/sim/events.ts`), Zone 7 boss "The Flick" (the hand cutout already waits at raw 96),
+real-device iOS/Android QA, prestige-path Z4-wall smoothing, save/offline test coverage +
+export/import UI.

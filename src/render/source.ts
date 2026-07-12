@@ -42,6 +42,8 @@ export interface RenderGame {
 export interface RenderSource {
   screen: Screen;
   game: RenderGame;
+  /** View zoom multiplier (1 = framed on the tower; higher pulls back to show the environment). */
+  viewZoom: number;
   subscribe(fn: () => void): () => void;
   /** Return-and-clear the screen positions of taps since the last frame (presentation state only —
    *  the renderer "reads" them destructively by design; they never touch the sim). */
