@@ -138,6 +138,14 @@ export interface RunState {
   eventCooldown: number;
   activeEvent: ActiveEventState | null;
   eventEffects: EventEffectState[];
+  /** Zone 15 boss (balance.boss). Phases: 'idle' (never engaged) -> 'fight' (meter filling) ->
+   *  'cooldown' (just flicked; hand withdrawn) -> back to 'fight' on re-reach -> 'defeated'. */
+  bossPhase: 'idle' | 'fight' | 'cooldown' | 'defeated';
+  /** Divine Disapproval, 0..1 while fighting. */
+  bossMeter: number;
+  /** Cooldown timer after a flick; also counts total flicks eaten this run (for flavor). */
+  bossCooldown: number;
+  bossFlicks: number;
 }
 
 export class Game {
@@ -178,6 +186,10 @@ export class Game {
       eventCooldown: initialEventCooldown(this.rng),
       activeEvent: null,
       eventEffects: [],
+      bossPhase: 'idle',
+      bossMeter: 0,
+      bossCooldown: 0,
+      bossFlicks: 0,
     };
     this.run = run;
     return run;
@@ -266,12 +278,14 @@ export class Game {
     const endless = 1 + r.endlessDepth * balance.melt.endlessPerDepth;
     const sinceGrace = Math.max(0, r.runTime - balance.melt.graceSeconds);
     const ramp = Math.min(1, sinceGrace / balance.melt.rampSeconds);
+    const boss = r.bossPhase === 'fight' ? balance.boss.meltMult : 1;
     return (
       r.emaIncome.toNumber() *
       balance.melt.meltFracBase *
       zoneMult *
       endless *
       ramp *
+      boss *
       eventMeltMult(this) *
       (1 - this.meltResistFrac())
     );
@@ -470,11 +484,56 @@ export class Game {
     if (h > r.peakHeightRaw) r.peakHeightRaw = h;
     if (h > this.meta.bestHeightRaw) this.meta.bestHeightRaw = h;
 
-    // Win check (reach Zone 15's finish - the boss itself is M4).
-    if (r.status === 'active' && r.endlessDepth === 0 && h >= WIN_HEIGHT) {
+    // ---- Zone 15 boss: "The Flick" (balance.boss; PLAN §3) ----
+    // The hand GATES the win: it engages at startHeight, and only 'defeated' lets the win
+    // check pass. Endless continuation runs (endlessDepth > 0) never re-fight it.
+    if (r.status === 'active' && r.endlessDepth === 0) {
+      const b = balance.boss;
+      if (r.bossPhase === 'idle' && h >= b.startHeight) {
+        r.bossPhase = 'fight';
+        r.bossMeter = 0;
+      } else if (r.bossPhase === 'cooldown') {
+        r.bossCooldown -= dt;
+        if (r.bossCooldown <= 0 && h >= b.startHeight) {
+          r.bossPhase = 'fight';
+          r.bossMeter = 0;
+        }
+      } else if (r.bossPhase === 'fight') {
+        r.bossMeter += dt / b.meterSeconds;
+        if (h >= WIN_HEIGHT) {
+          r.bossPhase = 'defeated'; // out-gooped the divine
+        } else if (r.bossMeter >= 1) {
+          // THE FLICK: knocked down, not out. Lose a chunk of lifetime goop (height falls with
+          // it); the hand withdraws and waits for the rematch.
+          r.bossFlicks++;
+          r.bossPhase = 'cooldown';
+          r.bossCooldown = b.cooldownSeconds;
+          r.bossMeter = 0;
+          r.lifetimeGoop = r.lifetimeGoop.mul(1 - b.knockbackFrac);
+          r.structuralGoop = r.structuralGoop.mul(0.5);
+        }
+      }
+    }
+
+    // Win check: reach the top WITH the hand defeated (Endless continuations skip the gate).
+    if (r.status === 'active' && r.endlessDepth === 0 && h >= WIN_HEIGHT && r.bossPhase === 'defeated') {
       r.status = 'won';
       checkAchievements(this); // win-conditioned achievements fire on the transition
     }
+
+    // Endless (PLAN §3): depth deepens every +8 raw past the win line; melt scales with it.
+    if (r.status === 'active' && r.endlessDepth > 0 && h > WIN_HEIGHT) {
+      const depth = 1 + Math.floor((h - WIN_HEIGHT) / 8);
+      if (depth > r.endlessDepth) r.endlessDepth = depth;
+    }
+  }
+
+  /** Win-screen action: keep the tower and descend into the Goopiverse (PLAN §3 Endless). */
+  enterEndless(): boolean {
+    if (this.run.status !== 'won') return false;
+    this.run.status = 'active';
+    this.run.endlessDepth = Math.max(1, this.run.endlessDepth);
+    return true;
   }
 
   private beginCollapse(): void {

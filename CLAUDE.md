@@ -230,8 +230,24 @@ legacy saves migrate straight to done (save/index.ts checks totalClicks/lifetime
 (5 new: reachability by real play, predicate purity, migration). `scripts/_tutshot.mjs` walks
 the whole tutorial headless and screenshots each beat.
 
-**Next (see `docs/release-roadmap.md` for the full ordered list):** Zone 15 boss "The Flick"
-(the hand cutout already waits at raw 96), real-device iOS/Android QA, prestige-path
-mid-zone-wall smoothing, save/offline test coverage + export/import UI, Endless GE scaling
-(win pays 95K GE - revisit in M4). Pinned for later: friend leaderboard + 2-goop multiplayer
-(ghost-race design sketch in the roadmap).
+**Done: M3 (slice 9) - THE FLICK + Endless (2026-07-12, Phase 1).** The game has a climax:
+- **Sim** (balance.boss + game.ts): bossPhase idle/fight/cooldown/defeated on RunState (save-
+  defaulted). Engages raw 94; meter fills 90s; melt x5 during fight; WIN gated on 'defeated'.
+  Meter full = THE FLICK: -35% lifetime goop + half buffer + 20s withdraw, then rematch
+  (setback, not run kill). Tuned: median meta wins 0 flicks (tense ~100s), 60%-meta eats 1.
+- **Renderer**: boss hand actor in markers.ts (3 pose boards: hand/handFlick/handThumb -
+  descend + wind-up + tremble by meter, snap-and-withdraw, thumbs-up fade) driven via
+  RenderRun.bossPhase/bossMeter (mockState simulates phases on its ramp); camera pulse + hard
+  lateral impact on the flick (index.ts watches transitions).
+- **UI**: DIVINE DISAPPROVAL meter bar (red/gold, top-center), "THE FLICK" zone-toast stamp,
+  toaster cameos via showToasterCameo() (engage/flick/defeat lines), win screen shows flick
+  count + "Keep climbing: THE GOOPIVERSE" button (store.enterEndless).
+- **Endless**: game.enterEndless() resumes a won run; depth = 1 + floor((raw-100)/8); HUD zone
+  line shows endlessZoneName(depth); boss never re-engages. GE softCapPower 0.5 -> 0.42 (win
+  ~47K). 50 tests green (boss gate, flick knockback, endless depth). `scripts/_bossprobe.mjs`
+  forces each phase via ?debug for screenshots.
+
+**Next (see `docs/release-roadmap.md` for the full ordered list):** Phase 2 release hardening
+(real-device iOS/Android QA, save export/import UI + offline tests, service worker/wake-lock,
+dynamic-import render for first paint), prestige-path mid-zone-wall smoothing, Endless GE
+data pass. Pinned: friend leaderboard + 2-goop multiplayer (ghost-race sketch in roadmap).

@@ -18,7 +18,8 @@ import { META_UPGRADES } from '../config/upgrades';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, type AchievementDef } from '../config/achievements';
 import { EVENT_BY_ID, eventDisplay } from '../config/events';
 import { achIcon, ic } from './icons';
-import { ZONES, displayMeters } from '../config/zones';
+import { ZONES, displayMeters, endlessZoneName } from '../config/zones';
+import { showToasterCameo } from './tutorial';
 import { metaUpgradeCost, canBuyMeta } from '../sim/prestige';
 import { format, formatInt, formatHeight, formatTime } from '../sim/numbers';
 import type { Decimal } from '../sim/numbers';
@@ -43,6 +44,8 @@ export class GoopUI {
   private lastStatus = '';
   /** Chaos-event instance last rendered ('' = none) - rebuilds banner/targets only on change. */
   private lastEventKey = '';
+  /** Boss phase last seen (fires cameos/stamps exactly on transitions). */
+  private lastBossPhase = 'idle';
   private floaters = 0;
   /** Achievement-toast queue (unlocks are detected by diffing meta.achievements growth). */
   private lastAchCount = 0;
@@ -164,6 +167,7 @@ export class GoopUI {
       case 'pause': this.store.pause(); break;
       case 'resume': this.store.resume(); break;
       case 'bank-win': this.store.bankWin(); break;
+      case 'enter-endless': this.store.enterEndless(); break;
       case 'buy-producer': {
         const n = this.buyAmt === 'max' ? Math.max(1, this.store.game.maxAffordableProducer(id)) : this.buyAmt;
         if (this.store.buyProducer(id, n)) this.purchased('prow-' + id);
@@ -375,6 +379,7 @@ export class GoopUI {
 
     <div id="event-banner" style="display:none" aria-live="polite"></div>
     <div id="event-chips"></div>
+    <div id="boss-meter" style="display:none" aria-live="polite"><b>DIVINE DISAPPROVAL</b><div class="track"><i id="boss-fill"></i></div></div>
 
     <div id="hud-readout">
       <div class="h" id="sr-height">0 m</div>
@@ -494,7 +499,44 @@ export class GoopUI {
 
     // Tower + stats.
     this.setText('sr-height', formatHeight(displayMeters(g.heightRaw())));
-    this.setText('sr-zone', `Zone ${zone.index}: ${zone.name}`);
+    this.setText(
+      'sr-zone',
+      r.endlessDepth > 0
+        ? `Goopiverse ${r.endlessDepth}: ${endlessZoneName(r.endlessDepth)}`
+        : `Zone ${zone.index}: ${zone.name}`,
+    );
+
+    // ---- The Flick: Divine Disapproval meter + toaster cameos on phase transitions ----
+    const bm = this.el('boss-meter');
+    if (bm) {
+      const fighting = r.bossPhase === 'fight';
+      if ((bm.style.display === 'none') === fighting) bm.style.display = fighting ? '' : 'none';
+      if (fighting) {
+        const fill = this.el('boss-fill');
+        if (fill) fill.style.width = `${Math.round(r.bossMeter * 100)}%`;
+      }
+    }
+    if (r.bossPhase !== this.lastBossPhase) {
+      if (r.bossPhase === 'fight' && this.lastBossPhase === 'idle') {
+        showToasterCameo(["Oh no. He's here.", 'GROW. Grow like you have never grown.'], 'alarm');
+        audio.zoneSting();
+        this.buzz(40);
+      } else if (r.bossPhase === 'cooldown') {
+        const toast = this.el('zone-toast');
+        if (toast) {
+          toast.innerHTML = `<b>THE FLICK</b><span>get up. go again.</span>`;
+          toast.classList.remove('show');
+          void toast.offsetWidth;
+          toast.classList.add('show');
+        }
+        showToasterCameo(['OKAY. That looked expensive.', 'Get up. Go again.'], 'alarm');
+        audio.collapseGroan();
+        this.buzz(80);
+      } else if (r.bossPhase === 'defeated') {
+        showToasterCameo(['...huh.', "I'm not crying. I'm buttered."], 'approve', 6000);
+      }
+      this.lastBossPhase = r.bossPhase;
+    }
     const hint =
       r.status === 'grace'
         ? `GRACE PERIOD (${Math.max(0, Math.ceil(balance.melt.graceSeconds - r.runTime))}s) - melt is off, slap freely`
@@ -808,17 +850,24 @@ export class GoopUI {
 
   private renderWin(): string {
     const g = this.store.game;
+    const flicks = g.run.bossFlicks;
+    const flickLine =
+      flicks === 0
+        ? 'You out-gooped the divine on the first try. He is FURIOUS.'
+        : `You ate ${flicks} flick${flicks === 1 ? '' : 's'} and got back up. He respects that. Furiously.`;
     return `
     <div class="panel center">
       <h1>${ic('trophy')} PAST GOD</h1>
       <div class="big">YOU WON</div>
-      <p>The tower pierced the skybox. A giant marble hand gives you a slow thumbs-up.</p>
+      <p>The tower pierced the skybox. The hand gives you a slow, grinding thumbs-up.</p>
+      <p class="tag">${flickLine}</p>
       <p>Peak height: <b>${formatHeight(displayMeters(g.run.peakHeightRaw))}</b> · Time: <b>${formatTime(g.run.runTime)}</b></p>
       <p>Bank this run for <b>${this.store.lastGe} GE</b> (×${balance.prestige.winMultiplier} win bonus).</p>
       <div class="row" style="justify-content:center">
         <button data-action="bank-win" class="primary" style="font-size:18px;padding:12px">Bank it (×3 GE) ▶</button>
-        <button disabled title="Milestone 4">Enter Endless (coming soon)</button>
+        <button data-action="enter-endless" style="font-size:16px;padding:12px">Keep climbing: THE GOOPIVERSE ▶</button>
       </div>
+      <p class="tag">The Goopiverse: no more banking until you melt. Melt grows with every layer. Godspeed.</p>
     </div>`;
   }
 

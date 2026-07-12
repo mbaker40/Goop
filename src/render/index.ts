@@ -66,6 +66,7 @@ export class GoopRenderer {
   private worldRaw = 0;
   private worldSnap = true;
   private lastGame: unknown = null;
+  private lastBossPhase = 'idle';
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -200,7 +201,16 @@ export class GoopRenderer {
 
     // Scale markers + ground scenery track the smoothed reference.
     const zoom = this.source.viewZoom || 1;
-    this.markers.update(this.worldRaw, this.worldTop, this.t, zoom);
+    this.markers.update(this.worldRaw, this.worldTop, this.t, zoom, game.run.bossPhase, game.run.bossMeter);
+    // The flick lands PHYSICALLY: camera pulse + a hard lateral impact on the transition.
+    if (game.run.bossPhase !== this.lastBossPhase) {
+      if (game.run.bossPhase === 'cooldown') {
+        this.cam.pulse(4);
+        this.tower.impact(-1, 0.2, 2.2);
+      }
+      if (game.run.bossPhase === 'fight' && this.lastBossPhase === 'idle') this.cam.pulse(3);
+      this.lastBossPhase = game.run.bossPhase;
+    }
     this.backdrop.update(this.worldRaw, this.worldTop, dt, this.t);
     this.env.setTowerShadow(this.tower.groundFootprint);
     this.env.setGroundShrink(groundShrink(this.worldRaw, this.worldTop));

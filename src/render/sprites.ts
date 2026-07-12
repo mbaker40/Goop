@@ -550,6 +550,112 @@ export const ART: Record<string, Draw> = {
     c.bezierCurveTo(168, 56, 156, 82, 172, 102);
     c.stroke();
   },
+  handFlick: (c) => {
+    // Same marble hand a split second AFTER The Flick: index snapped out forward/down, thumb
+    // sprung up and away, other fingers still curled. Wrist exits the top edge (matches 'hand').
+    const M = '#ece8e0';
+    // Index finger, fully extended (just released) - it did its one job.
+    c.save();
+    c.translate(102, 122);
+    c.rotate(0.15);
+    rr(c, -12, -6, 24, 96, 12, '#e2dcce');
+    c.restore();
+    // Middle / ring / pinky, still curled: short stubs where straight fingers hung in 'hand'.
+    rr(c, 110, 118, 25, 56, 12, M);
+    rr(c, 141, 118, 24, 50, 12, M);
+    rr(c, 168, 114, 21, 42, 10, M);
+    // Palm + wrist off the top of the canvas (identical framing to 'hand').
+    rr(c, 88, 28, 92, 96, 18, M);
+    rr(c, 106, -26, 64, 62, 18, M);
+    // Thumb, released: swung up and away from the palm's lower-left.
+    c.save();
+    c.translate(84, 104);
+    c.rotate(2.8);
+    rr(c, -16, -8, 32, 86, 16, '#ded7c8');
+    c.restore();
+    // Same soft marble shading pass along the underside as 'hand'.
+    c.globalCompositeOperation = 'source-atop';
+    const g = c.createLinearGradient(200, 20, 50, 210);
+    g.addColorStop(0.6, 'rgba(90,84,70,0)');
+    g.addColorStop(1, 'rgba(90,84,70,0.15)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 256, 256);
+    c.globalCompositeOperation = 'source-over';
+    // Faint marble veins across the palm.
+    c.strokeStyle = '#cfc8ba';
+    c.lineWidth = 2.5;
+    c.beginPath();
+    c.moveTo(112, 44);
+    c.bezierCurveTo(140, 62, 120, 92, 150, 110);
+    c.moveTo(150, 36);
+    c.bezierCurveTo(168, 56, 156, 82, 172, 102);
+    c.stroke();
+    // Motion arcs trailing the fingertip along its swing (cocked-left -> snapped-down).
+    c.strokeStyle = '#b9b3a6';
+    c.lineWidth = 5;
+    for (const [r, a0, a1] of [[64, 0.6, 0.95], [80, 0.62, 0.9], [96, 0.64, 0.86]] as const) {
+      c.beginPath();
+      c.arc(102, 122, r, a0 * Math.PI, a1 * Math.PI);
+      c.stroke();
+    }
+  },
+  handThumb: (c) => {
+    // Same marble hand, giving a slow divine THUMBS-UP: closed fist, thumb huge and unambiguous
+    // (it must read as approval at 60px). Wrist exits the top edge (matches 'hand').
+    const M = '#ece8e0';
+    // Fist block + wrist off the top of the canvas.
+    rr(c, 84, 28, 100, 118, 24, M);
+    rr(c, 106, -26, 64, 62, 18, M);
+    // Four curled finger bumps along the bottom edge of the fist.
+    rr(c, 88, 120, 26, 46, 13, '#e2dcce');
+    rr(c, 118, 124, 26, 46, 13, '#e2dcce');
+    rr(c, 148, 122, 25, 44, 12, '#e2dcce');
+    rr(c, 176, 116, 21, 38, 10, '#e2dcce');
+    // The thumb: big, extended clearly upward from the fist's left side. Approved.
+    c.save();
+    c.translate(80, 112);
+    c.rotate(2.9);
+    rr(c, -19, -10, 38, 104, 19, '#ded7c8');
+    c.restore();
+    ell(c, 63, 42, 9, 12, '#f4f0e6'); // thumbnail
+    // Same soft marble shading pass along the underside as 'hand'.
+    c.globalCompositeOperation = 'source-atop';
+    const g = c.createLinearGradient(200, 20, 50, 210);
+    g.addColorStop(0.6, 'rgba(90,84,70,0)');
+    g.addColorStop(1, 'rgba(90,84,70,0.15)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 256, 256);
+    c.globalCompositeOperation = 'source-over';
+    // Faint marble veins across the fist.
+    c.strokeStyle = '#cfc8ba';
+    c.lineWidth = 2.5;
+    c.beginPath();
+    c.moveTo(112, 44);
+    c.bezierCurveTo(140, 62, 120, 92, 150, 110);
+    c.moveTo(150, 36);
+    c.bezierCurveTo(168, 56, 156, 82, 172, 102);
+    c.stroke();
+  },
+  crown: (c) => {
+    // A tiny golden crown, to be dropped onto the goop on the win beat. Long may it squelch.
+    c.fillStyle = '#e8b830';
+    c.beginPath(); // three points rising off the band
+    c.moveTo(60, 176);
+    c.lineTo(66, 84);
+    c.lineTo(100, 140);
+    c.lineTo(128, 64);
+    c.lineTo(156, 140);
+    c.lineTo(190, 84);
+    c.lineTo(196, 176);
+    c.fill();
+    ell(c, 66, 80, 13, 13, '#e8b830'); // ball tips
+    ell(c, 128, 60, 13, 13, '#e8b830');
+    ell(c, 190, 80, 13, 13, '#e8b830');
+    rr(c, 52, 168, 152, 44, 14, '#e8b830'); // band
+    rr(c, 52, 188, 152, 24, 12, '#b4831c'); // band shading
+    ell(c, 98, 190, 9, 9, '#d94a6a'); // jewels
+    ell(c, 158, 190, 9, 9, '#4ab8d9');
+  },
   planetBall: (c) => {
     // The home planet, receding: a kitchen-counter-tile world with a goop splat continent.
     ell(c, 128, 128, 96, 96, '#d9c7a3');

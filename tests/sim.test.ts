@@ -110,13 +110,49 @@ describe('height, melt, win (PLAN §5.1, §5.3, §3)', () => {
     expect(g.meltRate()).toBeGreaterThan(0);
   });
 
-  it('reaching WIN_HEIGHT sets status to won', () => {
+  it('reaching WIN_HEIGHT wins only through the boss gate (engage -> defeat -> won)', () => {
     const g = newGame();
     g.run.status = 'active';
     // Enough lifetime goop to exceed WIN_HEIGHT.
     g.run.lifetimeGoop = D(10).pow(Math.ceil(Math.pow((WIN_HEIGHT + 5) / balance.height.coeff, 1 / balance.height.exp)));
-    g.tick(0.1);
+    g.tick(0.1); // tick 1: The Flick engages (idle -> fight)
+    expect(g.run.status).toBe('active');
+    expect(g.run.bossPhase).toBe('fight');
+    g.tick(0.1); // tick 2: already past WIN_HEIGHT -> defeated -> won
+    expect(g.run.bossPhase).toBe('defeated');
     expect(g.run.status).toBe('won');
+  });
+
+  it('endless: enterEndless resumes the run past the win line and depth grows with height', () => {
+    const g = newGame();
+    g.run.status = 'active';
+    g.run.lifetimeGoop = D(10).pow(Math.ceil(Math.pow((WIN_HEIGHT + 5) / balance.height.coeff, 1 / balance.height.exp)));
+    g.tick(0.1);
+    g.tick(0.1); // through the boss gate (teleport case) -> won
+    expect(g.run.status).toBe('won');
+    expect(g.enterEndless()).toBe(true);
+    expect(g.run.status).toBe('active');
+    expect(g.run.endlessDepth).toBeGreaterThanOrEqual(1);
+    // Push higher: depth deepens every +8 raw past WIN.
+    g.run.lifetimeGoop = D(10).pow(Math.ceil(Math.pow((WIN_HEIGHT + 17) / balance.height.coeff, 1 / balance.height.exp)));
+    g.tick(0.1);
+    expect(g.run.endlessDepth).toBeGreaterThanOrEqual(3);
+    // And the boss never re-engages in Endless.
+    expect(g.run.bossPhase).toBe('defeated');
+  });
+
+  it('the flick knocks you down instead of winning: meter full = goop loss + cooldown', () => {
+    const g = newGame();
+    g.run.status = 'active';
+    // Park between startHeight and WIN so the fight runs its full meter.
+    const rawFor = (h: number) => D(10).pow(Math.pow(h / balance.height.coeff, 1 / balance.height.exp));
+    g.run.lifetimeGoop = rawFor((balance.boss.startHeight + WIN_HEIGHT) / 2);
+    const before = g.run.lifetimeGoop;
+    for (let i = 0; i < Math.ceil(balance.boss.meterSeconds / 0.1) + 5 && g.run.bossFlicks === 0; i++) g.tick(0.1);
+    expect(g.run.bossFlicks).toBe(1);
+    expect(g.run.bossPhase).toBe('cooldown');
+    expect(g.run.status).toBe('active'); // a setback, not a death
+    expect(g.run.lifetimeGoop.lt(before)).toBe(true);
   });
 });
 

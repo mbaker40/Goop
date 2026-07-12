@@ -147,6 +147,16 @@ export class Store {
     return ok;
   }
 
+  /** Win-screen action: keep the tower, descend into the Goopiverse (Endless, PLAN §3). */
+  enterEndless(): boolean {
+    const ok = this.game.enterEndless();
+    if (ok) {
+      this.screen = 'run';
+      this.emit();
+    }
+    return ok;
+  }
+
   /** Drain queued event-outcome toast lines (UI shows them like achievement toasts). */
   drainEventToasts(): string[] {
     if (this.game.eventToasts.length === 0) return [];

@@ -224,3 +224,22 @@ DealerBot no-meta now COLLAPSES at Z6 (that row is the closed exploit); with med
 shave only ~49s off the win. Prestige path: first win **run #9, ~3.3h** (was #13/4.3h - the
 steeper late wall pays more GE from deeper mid-run deaths, which is a nicer ramp). All windows
 green (43 tests).
+
+---
+
+## 2026-07-12 (The Flick) - Zone 15 boss + Endless + GE re-tune
+
+- **The Flick (balance.boss)**: engages at raw 94; Divine Disapproval fills over 90s with melt
+  x5; reach WIN (raw 100) first = defeated. Meter full = THE FLICK: -35% lifetime goop
+  (height falls with it), buffer halved, hand withdraws 20s, rematch on re-reach. A setback,
+  not a run kill. Tuned via probes: median-meta ClickerBot wins with 0 flicks (~100s fight,
+  meter nearly full - tense); a 60%-meta build eats exactly 1 flick and wins ~10 min later
+  (income keeps growing between attempts, so the retry loop self-resolves).
+- **Win gate**: crossing raw 100 only wins through bossPhase 'defeated' (teleport-past cases
+  resolve in 2 ticks: engage then defeat). Endless continuations never re-fight.
+- **Endless entry**: win screen "Keep climbing: THE GOOPIVERSE" resumes the run at depth 1;
+  depth deepens every +8 raw past 100 (melt x(1+0.5/depth-step) via endlessPerDepth); zone
+  readout switches to endlessZoneName(depth).
+- **GE soft cap** softCapPower 0.5 -> 0.42: win pays ~47K GE (was ~95K) ahead of Endless peaks
+  multiplying it. Loss GE untouched. Median win 46:16, prestige path unchanged (first win run
+  #9), all 50 tests green.

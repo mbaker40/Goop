@@ -22,6 +22,9 @@ export interface RenderRun {
   clicks: number;
   /** Owned producer counts - each producer gets its own ambient visual signature (producerFx). */
   producersOwned: Readonly<Record<string, number>>;
+  /** Zone 15 boss (The Flick): drives the hand choreography. */
+  bossPhase: 'idle' | 'fight' | 'cooldown' | 'defeated';
+  bossMeter: number;
 }
 
 /** A tap's screen position (CSS pixels), recorded by the UI so splats land where you tapped. */
