@@ -12,11 +12,20 @@ const CYCLE_SEC = 44; // full scripted timeline length
 
 export class MockSource implements RenderSource {
   screen: Screen = 'run';
+  viewZoom = 1;
   private hv = 0;
   private elapsed = 0;
   private raf = 0;
   private last = 0;
-  readonly run: RenderRun = { status: 'grace', combo: 1, collapseTimer: 0, peakHeightRaw: 0, clicks: 0 };
+  readonly run: RenderRun = {
+    status: 'grace',
+    combo: 1,
+    collapseTimer: 0,
+    peakHeightRaw: 0,
+    clicks: 0,
+    // Exercise a few producer signatures under ?mockrender.
+    producersOwned: { dripper: 12, cannon: 3, goopcopter: 1 },
+  };
   private clickAccum = 0;
   readonly game: RenderGame;
 
@@ -31,6 +40,10 @@ export class MockSource implements RenderSource {
 
   subscribe(_fn: () => void): () => void {
     return () => {};
+  }
+
+  drainClickPoints(): { x: number; y: number }[] {
+    return [];
   }
 
   /** Advance the scripted timeline by dt seconds. */

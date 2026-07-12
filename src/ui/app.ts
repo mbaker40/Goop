@@ -6,16 +6,24 @@
  * button — that flickers and makes the shop reflow out from under the cursor. So the run screen is
  * built ONCE (a stable skeleton) and only its values/attributes are patched in place each tick.
  * The static screens (menu/win/puddle) only render on explicit actions, so they stay string-based.
+ *
+ * Mobile feel: taps report their screen position (splats land under the finger), buzz the haptics,
+ * float a "+N" gain, and squelch (audio/). Purchases flash their row. Zone changes toast + sting.
  */
 
 import type { Store, Screen } from '../store';
 import { balance } from '../config/balance';
 import { PRODUCERS } from '../config/producers';
 import { META_UPGRADES } from '../config/upgrades';
+import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, type AchievementDef } from '../config/achievements';
+import { achIcon } from './icons';
 import { ZONES, displayMeters } from '../config/zones';
 import { metaUpgradeCost, canBuyMeta } from '../sim/prestige';
 import { format, formatInt, formatHeight, formatTime } from '../sim/numbers';
 import type { Decimal } from '../sim/numbers';
+import * as audio from '../audio';
+
+type BuyAmount = 1 | 10 | 'max';
 
 export class GoopUI {
   private root: HTMLElement;
@@ -26,27 +34,108 @@ export class GoopUI {
   private shopSig = '';
   /** Shop panel open state (landscape: expanded/collapsed body; portrait: sheet up/down). */
   private shopOpen = true;
+  /** Producer purchase quantity (×1 / ×10 / MAX). */
+  private buyAmt: BuyAmount = 1;
+  /** Zone index last shown, to fire the zone-transition toast exactly on changes. */
+  private lastZoneIdx = 0;
+  /** Run status last seen (fires collapse audio once). */
+  private lastStatus = '';
+  private floaters = 0;
+  /** Achievement-toast queue (unlocks are detected by diffing meta.achievements growth). */
+  private lastAchCount = 0;
+  private achQueue: string[] = [];
+  private achShowing = false;
+  /** Full-screen achievements overlay (available mid-run; does not pause the sim). */
+  private achOverlayOpen = false;
+  /** Main-menu collapsible section state (menu re-renders on actions; this survives them). */
+  private menuSections: Record<string, boolean> = { upgrades: true, achievements: false, stats: false };
 
   constructor(private store: Store, mount: HTMLElement) {
     this.root = mount;
-    this.root.addEventListener('pointerdown', (e) => this.onPointer(e));
+    this.root.addEventListener('pointerdown', (e) => this.onPointer(e as PointerEvent));
     this.root.addEventListener('click', (e) => this.onClick(e));
+    this.root.addEventListener('keydown', (e) => this.onKey(e as KeyboardEvent));
+    // Re-assert the drawer transform when the device rotates (the portrait/landscape shop styles
+    // differ; without this a drawer opened in one orientation strands mis-transformed in the other).
+    window.matchMedia('(orientation: portrait)').addEventListener('change', () => this.applyShopState());
+    audio.setMuted(this.store.settings.muted);
+    this.lastAchCount = this.store.meta.achievements.length;
     this.store.subscribe(() => this.render());
     this.render();
+  }
+
+  // ---- Achievement toasts (queued; the toast node lives on <body> so screen rebuilds never
+  // wipe it — unlocks can land on any screen, e.g. puddle-count achievements at run end) ----
+
+  private pumpAchievements(): void {
+    const achs = this.store.meta.achievements;
+    if (achs.length > this.lastAchCount) {
+      for (let i = this.lastAchCount; i < achs.length; i++) this.achQueue.push(achs[i]!);
+      this.lastAchCount = achs.length;
+      this.showNextAchievement();
+    }
+  }
+
+  private showNextAchievement(): void {
+    if (this.achShowing) return;
+    const id = this.achQueue.shift();
+    if (!id) return;
+    const a = ACHIEVEMENT_BY_ID[id];
+    if (!a) return this.showNextAchievement();
+    this.achShowing = true;
+    audio.purchaseBlip();
+    this.buzz(20);
+    const el = document.createElement('div');
+    el.id = 'ach-toast';
+    el.innerHTML = `<span class="i">${achIcon(a.icon)}</span><span class="t"><b>Achievement!</b> ${a.name}<i>+0.5% goop/sec</i></span>`;
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => {
+      el.remove();
+      this.achShowing = false;
+      this.showNextAchievement();
+    });
   }
 
   private fmt(v: Decimal | number): string {
     return format(v, { silly: this.store.settings.sillyNames });
   }
 
+  /** One achievements-board tile: handmade SVG icon + tier pips (shared by menu + run overlay). */
+  private achTile(a: AchievementDef, on: boolean): string {
+    const pips = a.tier ? `<i class="pips">${'<b></b>'.repeat(a.tier)}</i>` : '';
+    return `<span class="ach ${on ? 'on' : ''}" data-action="ach-info" data-id="${a.id}" title="${a.name}">${achIcon(a.icon)}${pips}</span>`;
+  }
+
+  /** Haptic tap (no-op where unsupported, e.g. iOS Safari; feature-gated by settings). */
+  private buzz(ms: number): void {
+    if (!this.store.settings.haptics) return;
+    (navigator as Navigator & { vibrate?: (ms: number) => boolean }).vibrate?.(ms);
+  }
+
   // ---- Input (event delegation on the stable #app root) ----
 
-  private onPointer(e: Event): void {
+  private onPointer(e: PointerEvent): void {
     const el = (e.target as HTMLElement).closest('[data-action="click-tower"]');
     if (el) {
       e.preventDefault();
-      this.store.click();
+      const gainText = '+' + this.fmt(this.store.game.clickGain());
+      this.store.click(e.clientX, e.clientY);
+      this.buzz(8);
+      const heat = (this.store.game.run.combo - 1) / Math.max(1, balance.click.comboMaxMult - 1);
+      audio.squelch(heat);
+      this.spawnFloater(e.clientX, e.clientY, gainText);
     }
+  }
+
+  /** Keyboard path for the tower (Space/Enter on the focused #stage). */
+  private onKey(e: KeyboardEvent): void {
+    if ((e.key !== ' ' && e.key !== 'Enter') || (e.target as HTMLElement).id !== 'stage') return;
+    e.preventDefault();
+    const rect = (e.target as HTMLElement).getBoundingClientRect();
+    const gainText = '+' + this.fmt(this.store.game.clickGain());
+    this.store.click(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    audio.squelch((this.store.game.run.combo - 1) / Math.max(1, balance.click.comboMaxMult - 1));
+    this.spawnFloater(rect.left + rect.width / 2, rect.top + rect.height * 0.4, gainText);
   }
 
   private onClick(e: Event): void {
@@ -60,13 +149,81 @@ export class GoopUI {
       case 'pause': this.store.pause(); break;
       case 'resume': this.store.resume(); break;
       case 'bank-win': this.store.bankWin(); break;
-      case 'buy-producer': this.store.buyProducer(id, 1); break;
-      case 'buy-tier': this.store.buyTierUpgrade(id); break;
-      case 'buy-run': this.store.buyRunUpgrade(id); break;
-      case 'buy-meta': this.store.buyMeta(id); break;
+      case 'buy-producer': {
+        const n = this.buyAmt === 'max' ? Math.max(1, this.store.game.maxAffordableProducer(id)) : this.buyAmt;
+        if (this.store.buyProducer(id, n)) this.purchased('prow-' + id);
+        break;
+      }
+      case 'buy-tier': if (this.store.buyTierUpgrade(id)) this.purchased('titem-' + id); break;
+      case 'buy-run': if (this.store.buyRunUpgrade(id)) this.purchased('ritem-' + id); break;
+      case 'buy-meta': if (this.store.buyMeta(id)) this.purchased(''); break;
+      case 'buy-amt': {
+        this.buyAmt = id === 'max' ? 'max' : id === '10' ? 10 : 1;
+        this.updateBuyAmtButtons();
+        break;
+      }
       case 'toggle-silly': this.store.toggleSilly(); break;
+      case 'ach-info': {
+        const a = ACHIEVEMENT_BY_ID[id];
+        const detail = this.el('ach-detail');
+        if (a && detail) {
+          const on = this.store.meta.achievements.includes(a.id);
+          detail.innerHTML = `<span class="dico">${achIcon(a.icon)}</span><b>${a.name}</b> — ${on ? a.flavor : '🔒 locked'}`;
+        }
+        break;
+      }
+      case 'toggle-sound':
+        this.store.toggleMuted();
+        audio.setMuted(this.store.settings.muted);
+        if (!this.store.settings.muted) audio.purchaseBlip(); // audible confirmation
+        this.syncSoundButtons();
+        break;
+      case 'toggle-haptics': this.store.toggleHaptics(); break;
       case 'toggle-shop': this.toggleShop(); break;
+      case 'toggle-ach-overlay': this.toggleAchOverlay(); break;
+      case 'cycle-zoom': {
+        this.store.cycleZoom();
+        const z = this.store.viewZoom;
+        const btn = this.el('zoom-btn');
+        if (btn) btn.textContent = z === 1 ? '🔭' : `🔭×${z}`;
+        break;
+      }
+      case 'menu-sec': {
+        this.menuSections[id] = !this.menuSections[id];
+        this.render();
+        break;
+      }
     }
+  }
+
+  /** Shared purchase feedback: flash the row, buzz, blip. */
+  private purchased(rowId: string): void {
+    this.buzz(15);
+    audio.purchaseBlip();
+    if (!rowId) return;
+    const row = this.el(rowId);
+    if (row) {
+      row.classList.remove('bought');
+      // Force a reflow so re-adding the class restarts the animation on rapid buys.
+      void (row as HTMLElement).offsetWidth;
+      row.classList.add('bought');
+    }
+  }
+
+  /** Floating "+N" gain readout at the tap point. */
+  private spawnFloater(x: number, y: number, text: string): void {
+    if (this.floaters >= 8) return; // cap concurrent DOM nodes under spam
+    this.floaters++;
+    const f = document.createElement('div');
+    f.className = 'floater';
+    f.textContent = text;
+    f.style.left = `${x}px`;
+    f.style.top = `${y}px`;
+    document.body.appendChild(f);
+    f.addEventListener('animationend', () => {
+      f.remove();
+      this.floaters--;
+    });
   }
 
   private toggleShop(): void {
@@ -90,9 +247,32 @@ export class GoopUI {
     if (fab) fab.style.display = this.shopOpen ? 'none' : '';
   }
 
+  /** Trophy button (hud-stats): opens/closes the mid-run achievements overlay. Does NOT pause the
+   * sim — it's a plain overlay, not a screen transition, so the run keeps ticking behind it. */
+  private toggleAchOverlay(): void {
+    this.achOverlayOpen = !this.achOverlayOpen;
+    const ov = this.el('ach-overlay');
+    if (ov) ov.style.display = this.achOverlayOpen ? 'block' : 'none';
+    if (this.achOverlayOpen) this.refreshAchOverlay();
+  }
+
+  /** Re-syncs tile unlocked-states + the header count. Called only when the overlay OPENS, not
+   * per tick — a cheap classList loop over 100 tiles is fine on open, not at 10 Hz. */
+  private refreshAchOverlay(): void {
+    const unlocked = new Set(this.store.meta.achievements);
+    this.setText('ach-overlay-count', `${this.store.meta.achievements.length}/${ACHIEVEMENTS.length}`);
+    const grid = this.el('ach-overlay-grid');
+    if (grid) {
+      grid.querySelectorAll<HTMLElement>('.ach').forEach((tile) => {
+        tile.classList.toggle('on', unlocked.has(tile.dataset.id ?? ''));
+      });
+    }
+  }
+
   // ---- Render dispatch ----
 
   private render(): void {
+    this.pumpAchievements();
     const screen = this.store.screen;
     // Drives the iOS GPU-layer promotion (see styles.ts): #app itself is composited ONLY on
     // normal-flow screens (menu/win/puddle). On run/paused it must NOT carry a transform, or it
@@ -137,42 +317,52 @@ export class GoopUI {
   private buildRunSkeleton(): void {
     this.revealed.clear();
     this.shopSig = '';
+    this.achOverlayOpen = false;
+    this.lastZoneIdx = this.store.game.currentZone().index;
+    this.lastStatus = this.store.game.run.status;
     const producerRows = PRODUCERS.map(
       (p) => `
       <div class="shopitem" id="prow-${p.id}" style="display:none">
-        <div class="info"><div class="name">${p.name} <span class="tag" id="pcount-${p.id}">×0</span></div>
-        <div class="flavor">${p.flavor}</div></div>
+        <div class="info"><div class="name"><span class="icon">${p.icon}</span>${p.name} <span class="tag" id="pcount-${p.id}">×0</span></div>
+        <div class="flavor">${p.flavor}</div>
+        <div class="tag" id="prate-${p.id}"></div></div>
         <button data-action="buy-producer" data-id="${p.id}" id="pbtn-${p.id}" disabled>
-          <span class="cost" id="pcost-${p.id}">—</span></button>
+          <span class="amt" id="pamt-${p.id}"></span><span class="cost" id="pcost-${p.id}">—</span></button>
       </div>`,
     ).join('');
 
     // Default the shop open in landscape, closed (drawer/sheet away) in portrait.
     this.shopOpen = !window.matchMedia('(orientation: portrait)').matches;
 
+    const unlockedAtBuild = new Set(this.store.meta.achievements);
+    const achOverlayTiles = ACHIEVEMENTS.map((a) => this.achTile(a, unlockedAtBuild.has(a.id))).join('');
+
     // Flattened HUD (direct children of #app) — nested position:fixed + backdrop-filter cards
     // render blank on iOS Safari, which stranded the whole overlay. Solid cards, no nesting.
     this.root.innerHTML = `
-    <div id="stage" data-action="click-tower"></div>
+    <div id="stage" data-action="click-tower" role="button" tabindex="0" aria-label="Slap the goop tower"></div>
     <div id="meltvig"></div>
+    <div id="zone-toast" aria-live="polite"></div>
 
     <div id="hud-stats" class="hud-card">
-      <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">
-        <span class="title">🟢 GOOP TOWER</span>
+      <div class="row" style="justify-content:flex-end;gap:6px;flex-wrap:nowrap">
+        <button data-action="cycle-zoom" class="mini" id="zoom-btn" aria-label="Zoom view">🔭</button>
+        <button data-action="toggle-ach-overlay" class="mini" aria-label="Achievements">🏆</button>
+        <button data-action="toggle-sound" class="mini" id="sound-btn-run" aria-label="Toggle sound">${this.store.settings.muted ? '🔇' : '🔊'}</button>
         <button data-action="pause" class="mini" aria-label="Pause">❚❚</button>
       </div>
-      <div class="stat"><span>Goop</span><b id="sr-goop">0</b></div>
-      <div class="stat"><span>Goop / sec</span><b id="sr-gps">0</b></div>
-      <div class="stat"><span>Buffer</span><b id="sr-buffer">0</b></div>
+      <div class="stat"><span>🟢 Goop</span><b id="sr-goop">0</b></div>
+      <div class="stat"><span>⏱ Goop/sec</span><b id="sr-gps">0</b></div>
+      <div class="stat"><span>🛡️ Melt shield</span><b id="sr-buffer">∞</b></div>
     </div>
 
-    <div class="banner grace" id="sr-banner">…</div>
+    <div class="banner grace" id="sr-banner" aria-live="polite">…</div>
 
     <div id="hud-readout">
       <div class="h" id="sr-height">0 m</div>
       <div class="z" id="sr-zone">Zone 1</div>
-      <div id="sr-combo-label">Goop Momentum ×1.00</div>
-      <div class="combo"><i id="sr-combo-fill" style="width:0%"></i></div>
+      <div id="sr-combo-label">Slap Combo ×1.00</div>
+      <div class="combo" id="sr-combo-track"><i id="sr-combo-fill" style="width:0%"></i></div>
       <div class="hint" id="sr-hint">SLAP THE GOOP</div>
     </div>
 
@@ -180,12 +370,23 @@ export class GoopUI {
     <div id="hud-shop" class="hud-card ${this.shopOpen ? '' : 'collapsed'}">
       <button id="shop-toggle" data-action="toggle-shop">${this.shopOpen ? 'Shop ▾' : 'Close ✕'}</button>
       <div id="shop-body">
-        <div class="panel"><h2>Producers</h2>
+        <div class="panel"><h2>Goop Makers</h2>
+          <div class="tag subtitle">They make goop every second — even while your hand rests.</div>
+          <div class="buyamt row" id="buyamt-row">
+            <span class="tag">Buy</span>
+            <button data-action="buy-amt" data-id="1" id="amt-1" class="mini on">×1</button>
+            <button data-action="buy-amt" data-id="10" id="amt-10" class="mini">×10</button>
+            <button data-action="buy-amt" data-id="max" id="amt-max" class="mini">MAX</button>
+          </div>
           <div id="sr-producer-hint" class="tag">Slap the goop to afford your first Dripper.</div>
           ${producerRows}
         </div>
-        <div class="panel" style="display:none" id="tier-panel"><h2>Tier Upgrades</h2><div id="tier-list"></div></div>
-        <div class="panel" style="display:none" id="run-panel"><h2>Upgrades</h2><div id="run-list"></div></div>
+        <div class="panel" style="display:none" id="tier-panel"><h2>×2 Boosts</h2>
+          <div class="tag subtitle">Double what a maker produces. Forever (this run).</div>
+          <div id="tier-list"></div></div>
+        <div class="panel" style="display:none" id="run-panel"><h2>Upgrades</h2>
+          <div class="tag subtitle">One-time powers for this run.</div>
+          <div id="run-list"></div></div>
       </div>
     </div>
 
@@ -193,12 +394,43 @@ export class GoopUI {
       <div class="pause-card hud-card">
         <h1 style="margin-top:0">⏸ Paused</h1>
         <button data-action="resume" class="primary" style="width:100%">Resume ▶</button>
+        <div class="row" style="margin-top:10px;justify-content:center">
+          <button data-action="toggle-sound">Sound: ${this.store.settings.muted ? 'off 🔇' : 'ON 🔊'}</button>
+          <button data-action="toggle-haptics">Haptics: ${this.store.settings.haptics ? 'ON' : 'off'}</button>
+        </div>
         <button data-action="to-menu" style="width:100%;margin-top:10px">Quit to Menu</button>
         <div class="tag" style="margin-top:10px">Quitting abandons this run (no Essence banked).</div>
       </div>
+    </div>
+
+    <div id="ach-overlay" style="display:none">
+      <div class="ach-ov-head">
+        <h1 style="margin:0">🏆 Achievements <span class="tag" id="ach-overlay-count">0/${ACHIEVEMENTS.length}</span></h1>
+        <button data-action="toggle-ach-overlay" class="mini" aria-label="Close achievements">✕</button>
+      </div>
+      <div class="tag subtitle">Each unlock permanently adds +0.5% goop/sec. Tap a tile to inspect.</div>
+      <div class="ach-grid" id="ach-overlay-grid">${achOverlayTiles}</div>
+      <div class="tag" id="ach-detail" style="margin-top:8px">Tap any tile…</div>
     </div>`;
 
     this.applyShopState();
+  }
+
+  private updateBuyAmtButtons(): void {
+    for (const a of ['1', '10', 'max']) {
+      const b = this.el('amt-' + a);
+      if (b) b.classList.toggle('on', String(this.buyAmt) === a);
+    }
+  }
+
+  private syncSoundButtons(): void {
+    const muted = this.store.settings.muted;
+    const runBtn = this.el('sound-btn-run');
+    if (runBtn) runBtn.textContent = muted ? '🔇' : '🔊';
+    // Pause overlay + menu buttons re-render via innerHTML; patch if present.
+    this.root.querySelectorAll('[data-action="toggle-sound"]').forEach((b) => {
+      if (b.id !== 'sound-btn-run') b.textContent = `Sound: ${muted ? 'off 🔇' : 'ON 🔊'}`;
+    });
   }
 
   // ---- Run screen: patch values in place ----
@@ -209,22 +441,48 @@ export class GoopUI {
     const zone = g.currentZone();
     const buffer = g.bufferSeconds();
 
+    // Zone transition toast + sting (the run's biggest beat — PLAN §3).
+    if (zone.index !== this.lastZoneIdx) {
+      if (zone.index > this.lastZoneIdx) {
+        const toast = this.el('zone-toast');
+        if (toast) {
+          toast.innerHTML = `<b>ZONE ${zone.index}</b><span>${zone.name}</span>`;
+          toast.classList.remove('show');
+          void toast.offsetWidth; // restart animation
+          toast.classList.add('show');
+        }
+        audio.zoneSting();
+        this.buzz(30);
+      }
+      this.lastZoneIdx = zone.index;
+    }
+
+    // Collapse groan, once, on the transition into 'collapsing'.
+    if (r.status !== this.lastStatus) {
+      if (r.status === 'collapsing') {
+        audio.collapseGroan();
+        this.buzz(60);
+      }
+      this.lastStatus = r.status;
+    }
+
     // Tower + stats.
     this.setText('sr-height', formatHeight(displayMeters(g.heightRaw())));
     this.setText('sr-zone', `Zone ${zone.index}: ${zone.name}`);
-    this.setText('sr-hint', `SLAP THE GOOP — +${this.fmt(g.clickGain())} per slap · ${formatTime(r.runTime)}`);
+    this.setText('sr-hint', `SLAP THE GOOP — +${this.fmt(g.clickGain())} goop per slap · ${formatTime(r.runTime)}`);
     this.setText('sr-goop', this.fmt(r.goop));
     this.setText('sr-gps', this.fmt(g.gps()));
-    this.setText(
-      'sr-buffer',
-      `${this.fmt(r.structuralGoop)} (${buffer === Infinity ? '∞' : Math.floor(buffer) + 's'})`,
-    );
+    // Melt shield: seconds until collapse if income stalls — the ONE number melt survival hangs
+    // on, so show it plainly instead of the raw structural-goop figure.
+    this.setText('sr-buffer', buffer === Infinity ? '∞ (warming up)' : `${Math.floor(buffer)}s`);
 
-    // Combo bar.
+    // Combo bar (glows at max).
     const comboPct = Math.max(0, ((r.combo - 1) / (balance.click.comboMaxMult - 1)) * 100);
-    this.setText('sr-combo-label', `Goop Momentum ×${r.combo.toFixed(2)}`);
+    this.setText('sr-combo-label', `Slap Combo ×${r.combo.toFixed(2)}`);
     const fill = this.el('sr-combo-fill');
     if (fill) fill.style.width = `${comboPct}%`;
+    const track = this.el('sr-combo-track');
+    if (track) track.classList.toggle('maxed', r.combo >= balance.click.comboMaxMult - 0.01);
 
     // Melt banner.
     const banner = this.el('sr-banner');
@@ -272,24 +530,34 @@ export class GoopUI {
   private updateProducers(): void {
     const g = this.store.game;
     let anyShown = false;
+    let anyAffordable = false;
     for (const p of PRODUCERS) {
       const owned = g.run.producersOwned[p.id] ?? 0;
-      const cost = g.producerCost(p.id, 1);
       // Progressive reveal: show once owned or roughly within reach, then keep it shown (latch).
-      if (!this.revealed.has(p.id) && (owned > 0 || g.run.goop.mul(1000).add(1000).gte(cost))) {
+      if (!this.revealed.has(p.id) && (owned > 0 || g.run.goop.mul(1000).add(1000).gte(g.producerCost(p.id, 1)))) {
         this.revealed.add(p.id);
         const row = this.el('prow-' + p.id);
         if (row) row.style.display = '';
       }
       if (this.revealed.has(p.id)) {
         anyShown = true;
+        // Price the selected quantity (×1 / ×10 / MAX-affordable, min 1 so the price never blanks).
+        const n = this.buyAmt === 'max' ? Math.max(1, g.maxAffordableProducer(p.id)) : this.buyAmt;
+        const cost = g.producerCost(p.id, n);
+        const afford = g.canAfford(cost);
+        if (afford) anyAffordable = true;
         this.setText('pcount-' + p.id, `×${owned}`);
+        this.setText('pamt-' + p.id, n > 1 ? `×${n} ` : '');
         this.setText('pcost-' + p.id, this.fmt(cost));
-        this.setDisabled('pbtn-' + p.id, !g.canAfford(cost));
+        this.setText('prate-' + p.id, `each makes ${this.fmt(p.baseGps)} goop/sec`);
+        this.setDisabled('pbtn-' + p.id, !afford);
       }
     }
     const hint = this.el('sr-producer-hint');
     if (hint) hint.style.display = anyShown ? 'none' : '';
+    // Nudge the closed portrait drawer when something in the shop is buyable.
+    const fab = this.el('shop-fab');
+    if (fab) fab.classList.toggle('attn', !this.shopOpen && anyAffordable);
   }
 
   private updateUpgradePanels(): void {
@@ -305,19 +573,20 @@ export class GoopUI {
       const runList = this.el('run-list');
       if (tierList) {
         tierList.innerHTML = tiers
-          .map(
-            (u) => `<div class="shopitem">
-              <div class="info"><div class="name">${u.name}</div><div class="flavor">${u.flavor}</div></div>
+          .map((u) => {
+            const p = PRODUCERS.find((x) => x.id === u.producerId);
+            return `<div class="shopitem" id="titem-${u.id}">
+              <div class="info"><div class="name"><span class="icon">${p?.icon ?? '📈'}</span>${u.name}</div><div class="flavor">${u.flavor}</div></div>
               <button data-action="buy-tier" data-id="${u.id}" id="tbtn-${u.id}"><span class="cost">${this.fmt(u.costGoop)}</span></button>
-            </div>`,
-          )
+            </div>`;
+          })
           .join('');
       }
       if (runList) {
         runList.innerHTML = runs
           .map(
-            (u) => `<div class="shopitem">
-              <div class="info"><div class="name">${u.name}</div><div class="flavor">${u.flavor}</div></div>
+            (u) => `<div class="shopitem" id="ritem-${u.id}">
+              <div class="info"><div class="name"><span class="icon">${u.icon}</span>${u.name}</div><div class="flavor">${u.flavor}</div></div>
               <button data-action="buy-run" data-id="${u.id}" id="rbtn-${u.id}"><span class="cost">${this.fmt(u.costGoop)}</span></button>
             </div>`,
           )
@@ -343,40 +612,69 @@ export class GoopUI {
       const cost = metaUpgradeCost(u, lvl);
       const can = canBuyMeta(m, u.id);
       return `<div class="shopitem">
-        <div class="info"><div class="name">${u.name} <span class="tag">Lv ${lvl}/${u.maxLevel}</span></div>
+        <div class="info"><div class="name"><span class="icon">${u.icon}</span>${u.name} <span class="tag">Lv ${lvl}/${u.maxLevel}</span></div>
         <div class="flavor">${u.flavor}</div></div>
         <button data-action="buy-meta" data-id="${u.id}" ${!can || maxed ? 'disabled' : ''}>
           ${maxed ? 'MAX' : `${cost} GE`}</button>
       </div>`;
     }).join('');
 
+    const unlockedSet = new Set(m.achievements);
+    const achTiles = ACHIEVEMENTS.map((a) => this.achTile(a, unlockedSet.has(a.id))).join('');
+    const affordable = META_UPGRADES.filter((u) => canBuyMeta(m, u.id)).length;
+
+    const section = (id: string, title: string, badge: string, body: string): string => {
+      const open = !!this.menuSections[id];
+      return `<div class="msec ${open ? 'open' : ''}">
+        <button class="msec-head" data-action="menu-sec" data-id="${id}">
+          <span>${title}</span><span class="tag">${badge}</span><i>${open ? '▾' : '▸'}</i>
+        </button>
+        <div class="msec-body">${open ? body : ''}</div>
+      </div>`;
+    };
+
+    // Hero + one-line vitals up top; everything else folds away (menu was "too busy").
     return `
-    <h1>🟢 GOOP TOWER</h1>
-    <div class="tag">Milestone 0 — playable ugly. Slap goop, climb 7 zones, don't melt.</div>
-    <div class="grid">
-      <div>
-        <div class="panel">
-          <h2>Meta — spend Goop Essence</h2>
-          ${meta}
-        </div>
+    <div class="menu-hero">
+      <h1>🟢 GOOP TOWER</h1>
+      <div class="tag">Slap goop. Climb 7 zones. Don't melt.</div>
+      <button data-action="start-run" class="primary" id="menu-start">START RUN ▶</button>
+      <div class="menu-vitals">
+        <span>⚗️ <b>${m.ge}</b> GE</span>
+        <span>🏆 <b>${m.achievements.length}</b>/${ACHIEVEMENTS.length}</span>
+        <span>⛰️ <b>${formatHeight(displayMeters(m.bestHeightRaw))}</b></span>
       </div>
-      <div>
-        <div class="panel">
-          <h2>Show-off Room</h2>
-          <div class="stat"><span>Goop Essence</span><b>${m.ge} GE</b></div>
-          <div class="stat"><span>Goobers</span><b>${m.goobers}</b></div>
-          <div class="stat"><span>Wins</span><b>${m.wins}</b></div>
-          <div class="stat"><span>Lifetime clicks</span><b>${formatInt(m.totalClicks)}</b></div>
-          <div class="stat"><span>Best height</span><b>${formatHeight(displayMeters(m.bestHeightRaw))}</b></div>
-        </div>
-        <div class="panel center" style="margin-top:12px">
-          <button data-action="start-run" style="width:100%;font-size:18px;padding:14px">START RUN ▶</button>
-          <div class="row" style="margin-top:10px">
-            <button data-action="toggle-silly">Silly names: ${this.store.settings.sillyNames ? 'ON' : 'off'}</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
+    </div>
+
+    ${section(
+      'upgrades',
+      '💠 Permanent Upgrades',
+      affordable > 0 ? `${affordable} affordable!` : `${m.ge} GE banked`,
+      `<div class="tag subtitle">Bought with Goop Essence (GE) — every ended run pays it out. These survive melting.</div>${meta}`,
+    )}
+    ${section(
+      'achievements',
+      '🏆 Achievements',
+      `${m.achievements.length}/${ACHIEVEMENTS.length}`,
+      `<div class="tag subtitle">Each unlock permanently adds +0.5% goop/sec. Tap a tile to inspect.</div>
+       <div class="ach-grid">${achTiles}</div>
+       <div class="tag" id="ach-detail" style="margin-top:8px">Tap any tile…</div>`,
+    )}
+    ${section(
+      'stats',
+      '📊 Stats & Settings',
+      `${m.wins} win${m.wins === 1 ? '' : 's'}`,
+      `<div class="stat"><span>Goop Essence</span><b>${m.ge} GE</b></div>
+       <div class="stat"><span>Wins</span><b>${m.wins}</b></div>
+       <div class="stat"><span>Puddles</span><b>${m.puddles}</b></div>
+       <div class="stat"><span>Lifetime slaps</span><b>${formatInt(m.totalClicks)}</b></div>
+       <div class="stat"><span>Best height</span><b>${formatHeight(displayMeters(m.bestHeightRaw))}</b></div>
+       <div class="row" style="margin-top:12px;justify-content:center">
+         <button data-action="toggle-sound">Sound: ${this.store.settings.muted ? 'off 🔇' : 'ON 🔊'}</button>
+         <button data-action="toggle-haptics">Haptics: ${this.store.settings.haptics ? 'ON' : 'off'}</button>
+         <button data-action="toggle-silly">Silly names: ${this.store.settings.sillyNames ? 'ON' : 'off'}</button>
+       </div>`,
+    )}`;
   }
 
   private renderWin(): string {
@@ -389,7 +687,7 @@ export class GoopUI {
       <p>Peak height: <b>${formatHeight(displayMeters(g.run.peakHeightRaw))}</b> · Time: <b>${formatTime(g.run.runTime)}</b></p>
       <p>Bank this run for <b>${this.store.lastGe} GE</b> (×${balance.prestige.winMultiplier} win bonus).</p>
       <div class="row" style="justify-content:center">
-        <button data-action="bank-win" style="font-size:18px;padding:12px">Bank it (×3 GE) ▶</button>
+        <button data-action="bank-win" class="primary" style="font-size:18px;padding:12px">Bank it (×3 GE) ▶</button>
         <button disabled title="Milestone 4">Enter Endless (coming soon)</button>
       </div>
     </div>`;
@@ -405,7 +703,7 @@ export class GoopUI {
       <p>Peak height: <b>${formatHeight(displayMeters(g.run.peakHeightRaw))}</b> · Time: <b>${formatTime(g.run.runTime)}</b></p>
       <div class="big">+${this.store.lastGe} GE</div>
       <p class="tag">Every puddle makes you stronger. Spend it in the meta shop.</p>
-      <button data-action="to-menu" style="font-size:18px;padding:12px">Continue ▶</button>
+      <button data-action="to-menu" class="primary" style="font-size:18px;padding:12px">Continue ▶</button>
     </div>`;
   }
 }

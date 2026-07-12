@@ -49,7 +49,7 @@ export const balance = {
     /** Grace period at run start with zero melt (PLAN §6 first-run guardrail). */
     graceSeconds: 90,
     /** Time constant (s) of the GPS moving average that melt lags behind. Larger = more forgiving. */
-    incomeEmaTau: 22,
+    incomeEmaTau: 26,
     /** Steady-state melt as a fraction of lagged GPS. MUST exceed structuralRatio so stalling kills. */
     meltFracBase: 0.16,
     /** Cap the structural buffer at this many seconds of current melt. Bounds a healthy grower's
@@ -69,11 +69,21 @@ export const balance = {
     collapseSeconds: 8,
   },
 
-  /** Prestige / Goop Essence (PLAN §4). GE = floor(sqrt(peakHeight)/coeffDiv) * winMult. */
+  /** Prestige / Goop Essence (PLAN §4). GE = floor(sqrt(peakHeight)/coeffDiv) * winMult, with a
+   *  soft cap above `softCapStart` (excess grows as ^softCapPower) so a WIN pays thousands of GE,
+   *  not the uncapped ~1e6 the raw formula yields at 1e13 flavor-meters (the known M2 exploit —
+   *  see docs/balance-notes.md). */
   prestige: {
-    geCoeffDiv: 10,
+    geCoeffDiv: 5,
     winMultiplier: 3,
     loseMultiplier: 1,
+    softCapStart: 300,
+    softCapPower: 0.5,
+  },
+
+  /** Achievements (PLAN §7): each unlock grants a small permanent goop/sec bonus. */
+  achievements: {
+    gpsPctEach: 0.005,
   },
 
   /** Offline progress (PLAN §12): capped GPS credit, melt paused. */

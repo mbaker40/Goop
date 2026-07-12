@@ -7,16 +7,18 @@
 import { balance } from './config/balance';
 import { Game, createMetaState, type MetaState } from './sim/game';
 import { bankRun, geEarned, buyMeta } from './sim/prestige';
+import { checkAchievements } from './sim/achievements';
 
 export type Screen = 'menu' | 'run' | 'paused' | 'win' | 'puddle';
 
 export interface Settings {
   sillyNames: boolean;
   muted: boolean;
+  haptics: boolean;
 }
 
 export function defaultSettings(): Settings {
-  return { sillyNames: false, muted: true };
+  return { sillyNames: false, muted: true, haptics: true };
 }
 
 type Listener = () => void;
@@ -28,6 +30,11 @@ export class Store {
   screen: Screen = 'menu';
   /** GE earned from the run that just ended (for the win/puddle screens). */
   lastGe = 0;
+  /** Screen positions of recent taps (presentation only; drained by the renderer each frame). */
+  private clickPoints: { x: number; y: number }[] = [];
+  /** View zoom multiplier (presentation only): 1 = framed on the tower, higher = pulled back to
+   *  see the environment/scale markers. Cycled by the HUD 🔭 button. */
+  viewZoom = 1;
 
   private listeners = new Set<Listener>();
   private accumulator = 0;
@@ -95,6 +102,7 @@ export class Store {
       this.screen = 'win';
     } else if (status === 'dead') {
       this.lastGe = bankRun(this.meta, this.game.run.peakHeightRaw, false);
+      checkAchievements(this.game); // puddle/GE-count achievements land with the payout
       this.screen = 'puddle';
     }
   }
@@ -110,31 +118,52 @@ export class Store {
     this.emit();
   }
 
-  click(): void {
+  click(x?: number, y?: number): void {
     this.game.click();
+    if (x !== undefined && y !== undefined) {
+      this.clickPoints.push({ x, y });
+      if (this.clickPoints.length > 16) this.clickPoints.shift();
+    }
     this.emit();
   }
 
-  buyProducer(id: string, count = 1): void {
-    if (this.game.buyProducer(id, count)) this.emit();
+  /** Renderer contract (RenderSource): return-and-clear tap positions since the last frame. */
+  drainClickPoints(): { x: number; y: number }[] {
+    if (this.clickPoints.length === 0) return this.clickPoints;
+    const out = this.clickPoints;
+    this.clickPoints = [];
+    return out;
   }
 
-  buyRunUpgrade(id: string): void {
-    if (this.game.buyRunUpgrade(id)) this.emit();
+  buyProducer(id: string, count = 1): boolean {
+    const ok = this.game.buyProducer(id, count);
+    if (ok) this.emit();
+    return ok;
   }
 
-  buyTierUpgrade(id: string): void {
-    if (this.game.buyTierUpgrade(id)) this.emit();
+  buyRunUpgrade(id: string): boolean {
+    const ok = this.game.buyRunUpgrade(id);
+    if (ok) this.emit();
+    return ok;
+  }
+
+  buyTierUpgrade(id: string): boolean {
+    const ok = this.game.buyTierUpgrade(id);
+    if (ok) this.emit();
+    return ok;
   }
 
   /** Purchase a meta upgrade with Goop Essence (persistent progression, PLAN §6). */
-  buyMeta(id: string): void {
-    if (buyMeta(this.meta, id)) this.emit();
+  buyMeta(id: string): boolean {
+    const ok = buyMeta(this.meta, id);
+    if (ok) this.emit();
+    return ok;
   }
 
   /** Bank a won run (applies the ×3 win multiplier via geEarned) and return to menu. */
   bankWin(): void {
     bankRun(this.meta, this.game.run.peakHeightRaw, true);
+    checkAchievements(this.game); // win-count/GE achievements land with the bank
     this.toMenu();
   }
 
@@ -163,6 +192,22 @@ export class Store {
 
   toggleSilly(): void {
     this.settings.sillyNames = !this.settings.sillyNames;
+    this.emit();
+  }
+
+  toggleMuted(): void {
+    this.settings.muted = !this.settings.muted;
+    this.emit();
+  }
+
+  toggleHaptics(): void {
+    this.settings.haptics = !this.settings.haptics;
+    this.emit();
+  }
+
+  /** Cycle the view zoom: framed → wide → panorama → back. */
+  cycleZoom(): void {
+    this.viewZoom = this.viewZoom >= 2.6 ? 1 : this.viewZoom >= 1.7 ? 2.6 : 1.7;
     this.emit();
   }
 }

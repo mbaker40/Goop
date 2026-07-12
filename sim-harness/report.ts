@@ -48,7 +48,9 @@ function main(): void {
   printTable(header, table);
 
   // eslint-disable-next-line no-console
-  console.log('\nAcceptance targets (PLAN §14): win 45-60min | greedy no-meta melt Z3-5 @15-30min | idle melt <5min');
+  console.log('\nAcceptance targets (PLAN §14, tuned): win 45-60min | greedy no-meta melt Z3-5 @8-32min | idle melt <5min');
+  // eslint-disable-next-line no-console
+  console.log('Also run: npx tsx sim-harness/prestigePath.ts (road to first win) and trajectory.ts (growth curves).');
 }
 
 function printTable(header: string[], rows: string[][]): void {

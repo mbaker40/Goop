@@ -12,10 +12,14 @@ import { computeMetaBonuses, type MetaState } from './game';
  *  Uses flavor "meters" (displayMeters) so payouts match §4's examples. */
 export function geEarned(peakHeightRaw: number, won: boolean, meta: MetaState): number {
   const meters = displayMeters(Math.max(0, peakHeightRaw));
-  const base = Math.floor(Math.sqrt(meters) / balance.prestige.geCoeffDiv);
+  let base = Math.sqrt(meters) / balance.prestige.geCoeffDiv;
+  // Soft cap: past `softCapStart` the excess grows sub-linearly, so deep runs/wins stay lucrative
+  // without instantly trivializing the meta shop (PLAN §4 intends "hundreds" for a win).
+  const cap = balance.prestige.softCapStart;
+  if (base > cap) base = cap * Math.pow(base / cap, balance.prestige.softCapPower);
   const winMult = won ? balance.prestige.winMultiplier : balance.prestige.loseMultiplier;
   const geGainMult = computeMetaBonuses(meta.metaLevels).geGainMult;
-  return Math.floor(base * winMult * geGainMult);
+  return Math.floor(Math.floor(base) * winMult * geGainMult);
 }
 
 /** Cost of the NEXT level of a meta upgrade (×costGrowth per level, PLAN §6). */
@@ -42,11 +46,13 @@ export function buyMeta(meta: MetaState, id: string): boolean {
   return true;
 }
 
-/** Bank a finished run into MetaState: award GE, bump win count. */
+/** Bank a finished run into MetaState: award GE, bump win/puddle counts. */
 export function bankRun(meta: MetaState, peakHeightRaw: number, won: boolean): number {
   const ge = geEarned(peakHeightRaw, won, meta);
   meta.ge += ge;
+  meta.lifetimeGe += ge;
   if (won) meta.wins++;
+  else meta.puddles++;
   if (peakHeightRaw > meta.bestHeightRaw) meta.bestHeightRaw = peakHeightRaw;
   return ge;
 }
