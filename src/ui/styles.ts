@@ -196,12 +196,21 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
 .shopitem .cost { white-space: nowrap; color: var(--goop); font-variant-numeric: tabular-nums; }
 .subtitle { margin: -2px 0 8px; }
 
-/* ---- Achievements ---- */
+/* ---- Achievements (handmade SVG tiles; see ui/icons.ts) ---- */
 .ach-grid { display: flex; flex-wrap: wrap; gap: 4px; }
-.ach { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
-  font-size: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2);
+.ach { position: relative; width: 36px; height: 36px; display: inline-flex; align-items: center;
+  justify-content: center; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2);
   filter: grayscale(1) brightness(.45); cursor: pointer; }
+.ach svg { width: 23px; height: 23px; display: block; }
 .ach.on { filter: none; border-color: var(--goop); box-shadow: 0 0 6px rgba(182,232,74,.35); }
+/* Tier pips: tiny dots along the tile bottom (I..VI within a family). */
+.ach .pips { position: absolute; bottom: 2px; left: 0; right: 0; display: flex; gap: 2px;
+  justify-content: center; pointer-events: none; }
+.ach .pips b { width: 3px; height: 3px; border-radius: 50%; background: var(--goop); display: block; }
+.ach:not(.on) .pips b { background: var(--muted); }
+#ach-detail .dico { display: inline-block; vertical-align: -4px; margin-right: 6px; }
+#ach-detail .dico svg { width: 18px; height: 18px; }
+#ach-toast .i svg { width: 28px; height: 28px; display: block; }
 #ach-toast { position: fixed; z-index: 2147483100; top: calc(64px + env(safe-area-inset-top)); right: 10px;
   display: flex; gap: 10px; align-items: center; background: #1d1a28; border: 1px solid var(--goop);
   border-radius: 12px; padding: 8px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.5), 0 0 14px rgba(182,232,74,.25);

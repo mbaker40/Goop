@@ -101,7 +101,9 @@ the ground. Verified with a headless smoke at 1920×1080 and 390×844. **M1 (The
   over an `AchievementCtx`), evaluated ~1 Hz in `Game.tick()` + on win/collapse/bank transitions
   (`sim/achievements.ts`). Each grants +0.5% goop/sec (`balance.achievements`). MetaState gained
   `puddles`/`lifetimeGe`/`achievements` (save-migrated via defaults merge). Menu shows a 100-tile
-  board (tap to inspect); unlocks toast+blip on any screen (toast node lives on `<body>`).
+  board (tap to inspect) + a mid-run 🏆 overlay; unlocks toast+blip on any screen (toast node
+  lives on `<body>`). Tiles use a **handmade inline-SVG icon set** (`src/ui/icons.ts`, ~38 motifs;
+  configs reference icon KEYS, one per family, with tier pips) — no emoji on the board.
   Median win moved 54:07 → 46:48 (in window) — see balance-notes.
 - **Taps now ADD goop** visually: blobs converge on the tap point and are absorbed
   (`splats.absorb()`), with settling drips — replacing the outward "damage ejecta" burst.

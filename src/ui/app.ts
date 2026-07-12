@@ -15,7 +15,8 @@ import type { Store, Screen } from '../store';
 import { balance } from '../config/balance';
 import { PRODUCERS } from '../config/producers';
 import { META_UPGRADES } from '../config/upgrades';
-import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID } from '../config/achievements';
+import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, type AchievementDef } from '../config/achievements';
+import { achIcon } from './icons';
 import { ZONES, displayMeters } from '../config/zones';
 import { metaUpgradeCost, canBuyMeta } from '../sim/prestige';
 import { format, formatInt, formatHeight, formatTime } from '../sim/numbers';
@@ -84,7 +85,7 @@ export class GoopUI {
     this.buzz(20);
     const el = document.createElement('div');
     el.id = 'ach-toast';
-    el.innerHTML = `<span class="i">${a.icon}</span><span class="t"><b>Achievement!</b> ${a.name}<i>+0.5% goop/sec</i></span>`;
+    el.innerHTML = `<span class="i">${achIcon(a.icon)}</span><span class="t"><b>Achievement!</b> ${a.name}<i>+0.5% goop/sec</i></span>`;
     document.body.appendChild(el);
     el.addEventListener('animationend', () => {
       el.remove();
@@ -95,6 +96,12 @@ export class GoopUI {
 
   private fmt(v: Decimal | number): string {
     return format(v, { silly: this.store.settings.sillyNames });
+  }
+
+  /** One achievements-board tile: handmade SVG icon + tier pips (shared by menu + run overlay). */
+  private achTile(a: AchievementDef, on: boolean): string {
+    const pips = a.tier ? `<i class="pips">${'<b></b>'.repeat(a.tier)}</i>` : '';
+    return `<span class="ach ${on ? 'on' : ''}" data-action="ach-info" data-id="${a.id}" title="${a.name}">${achIcon(a.icon)}${pips}</span>`;
   }
 
   /** Haptic tap (no-op where unsupported, e.g. iOS Safari; feature-gated by settings). */
@@ -159,7 +166,7 @@ export class GoopUI {
         const detail = this.el('ach-detail');
         if (a && detail) {
           const on = this.store.meta.achievements.includes(a.id);
-          detail.textContent = `${a.icon} ${a.name} — ${on ? a.flavor : '🔒 locked'}`;
+          detail.innerHTML = `<span class="dico">${achIcon(a.icon)}</span><b>${a.name}</b> — ${on ? a.flavor : '🔒 locked'}`;
         }
         break;
       }
@@ -314,10 +321,7 @@ export class GoopUI {
     this.shopOpen = !window.matchMedia('(orientation: portrait)').matches;
 
     const unlockedAtBuild = new Set(this.store.meta.achievements);
-    const achOverlayTiles = ACHIEVEMENTS.map(
-      (a) =>
-        `<span class="ach ${unlockedAtBuild.has(a.id) ? 'on' : ''}" data-action="ach-info" data-id="${a.id}" title="${a.name}">${a.icon}</span>`,
-    ).join('');
+    const achOverlayTiles = ACHIEVEMENTS.map((a) => this.achTile(a, unlockedAtBuild.has(a.id))).join('');
 
     // Flattened HUD (direct children of #app) — nested position:fixed + backdrop-filter cards
     // render blank on iOS Safari, which stranded the whole overlay. Solid cards, no nesting.
@@ -604,10 +608,7 @@ export class GoopUI {
     }).join('');
 
     const unlockedSet = new Set(m.achievements);
-    const achTiles = ACHIEVEMENTS.map((a) => {
-      const on = unlockedSet.has(a.id);
-      return `<span class="ach ${on ? 'on' : ''}" data-action="ach-info" data-id="${a.id}" title="${a.name}">${a.icon}</span>`;
-    }).join('');
+    const achTiles = ACHIEVEMENTS.map((a) => this.achTile(a, unlockedSet.has(a.id))).join('');
 
     return `
     <h1>🟢 GOOP TOWER</h1>
