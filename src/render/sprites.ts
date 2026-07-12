@@ -686,4 +686,18 @@ Object.assign(ART, {
     // A sun.
     ell(c, 186, 70, 22, 22, '#ffb03a');
   }) as Draw,
+  // A proud slice of toast (the Zone 2 gag payload).
+  toast: ((c: CanvasRenderingContext2D) => {
+    rr(c, 56, 60, 144, 150, 34, '#b4783c');
+    rr(c, 68, 74, 120, 124, 26, '#e8b464');
+    // Toasted speckles.
+    c.fillStyle = 'rgba(140,90,40,0.5)';
+    for (let i = 0; i < 7; i++) {
+      const x = 88 + ((i * 53) % 84);
+      const y = 100 + ((i * 37) % 72);
+      c.beginPath();
+      c.ellipse(x, y, 4, 3, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+  }) as Draw,
 });
