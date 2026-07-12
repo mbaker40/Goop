@@ -637,7 +637,7 @@ export class GoopUI {
     return `
     <div class="menu-hero">
       <h1>🟢 GOOP TOWER</h1>
-      <div class="tag">Slap goop. Climb 7 zones. Don't melt.</div>
+      <div class="tag">Slap goop. Climb 15 zones. Don't melt.</div>
       <button data-action="start-run" class="primary" id="menu-start">START RUN ▶</button>
       <div class="menu-vitals">
         <span>⚗️ <b>${m.ge}</b> GE</span>

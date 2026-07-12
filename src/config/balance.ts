@@ -51,13 +51,17 @@ export const balance = {
     /** Time constant (s) of the GPS moving average that melt lags behind. Larger = more forgiving. */
     incomeEmaTau: 26,
     /** Steady-state melt as a fraction of lagged GPS. MUST exceed structuralRatio so stalling kills. */
-    meltFracBase: 0.16,
+    meltFracBase: 0.18,
     /** Cap the structural buffer at this many seconds of current melt. Bounds a healthy grower's
      *  cushion so that STALLING anywhere melts you within ~this window (PLAN §14.3) without
      *  making moment-to-moment growth harsher (the EMA lag still protects active play). */
     maxBufferSeconds: 120,
-    /** Per-zone melt escalation (index 0 unused). Higher zones demand faster growth. */
-    zoneMeltMult: [0, 1, 1, 1.05, 1.1, 1.18, 1.28, 1.4],
+    /** Seconds after the grace period over which melt ramps from 0 to full strength — new players
+     *  meet the mechanic as a slope, not a wall (was: instant full melt = carpal-tunnel opener). */
+    rampSeconds: 90,
+    /** Per-zone melt escalation (index 0 unused; 15 zones). Early zones are gentle on purpose —
+     *  a first run should die in zones 4-6 around the 12-20 min mark, not sweat from minute two. */
+    zoneMeltMult: [0, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.08, 1.15, 1.22, 1.28, 1.34, 1.4, 1.46, 1.52, 1.58],
     /** Endless depth melt escalation (PLAN §5.4): meltRate *= (1 + depth*perDepth). */
     endlessPerDepth: 0.5,
     /** Melt resistance from upgrades is capped so melt never becomes irrelevant. */

@@ -29,7 +29,7 @@ export const PRODUCERS: readonly ProducerDef[] = [
   { id: 'singularity', name: 'Goop Singularity', icon: '🕳️', baseCost: 2e7, baseGps: 22_000, flavor: 'A small black hole that emits goop, against all physics.' },
   { id: 'mother', name: 'The Goop Mother', icon: '💗', baseCost: 1.5e8, baseGps: 90_000, flavor: 'She loves you. She produces goop.' },
   { id: 'pipeline', name: 'Interdimensional Goop Pipeline', icon: '🌀', baseCost: 1.1e9, baseGps: 660_000, flavor: 'Steals goop from timelines where you already won.' },
-  { id: 'bottle', name: "God's Own Squeeze Bottle", icon: '🧴', baseCost: 8e9, baseGps: 5e6, flavor: 'Foreshadows Zone 7.' },
+  { id: 'bottle', name: "God's Own Squeeze Bottle", icon: '🧴', baseCost: 8e9, baseGps: 5e6, flavor: 'Foreshadows Zone 15.' },
 ] as const;
 
 export const PRODUCER_BY_ID: Readonly<Record<string, ProducerDef>> = Object.fromEntries(

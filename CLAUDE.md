@@ -1,7 +1,7 @@
 # CLAUDE.md — Goop Tower dev guide
 
 **Goop Tower** is a deliberately-stupid 3D incremental game: slap goop onto a wobbling, physically
-jiggling tower and climb it from a kitchen counter to "Past God" across 7 zones, or melt into a
+jiggling tower and climb it from a kitchen counter to "Past God" across 15 zones, or melt into a
 puddle trying. Losing grants meta-currency (Goop Essence), so no run is wasted. Full design is in
 [`PLAN.md`](./PLAN.md) — read the relevant section before touching a system. This file is the
 standing context + session handoff; keep §"Current milestone" updated at the end of every session.
@@ -140,7 +140,29 @@ decorative "🟢 GOOP TOWER" title (buttons row: 🔭🏆🔊❚❚). Main menu 
 big START + vitals line) over three collapsible sections (Permanent Upgrades / Achievements /
 Stats & Settings; state in GoopUI.menuSections survives re-renders).
 
+**Done: M3 (slice 4) — 15 zones + honest scale model + counter diorama (2026-07-12).**
+- **Zones 7 → 15** (`config/zones.ts`; Kitchen Counter … PAST GOD at raws [0, 8.5, 11, 13.5, 16,
+  19, 22.5, 26.5, 31, 36, 42, 49, 57, 66, 78], WIN 100) with re-seated display-meter anchors and
+  `endlessZoneName(layer)` (deterministic adjective×noun generator) for Endless. Melt got a
+  **post-grace ramp-in** (`rampSeconds: 90` — the carpal-tunnel patch), 15-entry `zoneMeltMult`,
+  `meltFracBase 0.18`. Median win 46:53, prestige path run #13/~4.3 h — see balance-notes. Any
+  `zone >= N` logic must be read against the NEW indices (achievements were remapped, ids kept).
+- **True-proportion scale model** (`render/markers.ts` rewrite): every prop has real METERS;
+  metersPerWorld = displayMeters(topRaw)/topY. GROUND SCENERY (mug/spoon/shaker/toaster → fence/
+  bush → houses/water tower → hills/kitchen window; per-prop size caps + `yOff` for art with
+  bottom padding) at true scale, fading raw 14-26; FLYBYS at real altitudes render
+  max(true size, readable floor), floor decays exp(delta/2.6) once passed — birds dwindle,
+  colossals (Moon/planet/whale/hand) cap at 14. Contact-shadow planes under everything incl.
+  tower (`env.setTowerShadow(tower.groundFootprint)`).
+- **Counter diorama base** (`render/zone1.ts`): 26-radius tiled counter texture + edge cylinder.
+  GOTCHA — the counter is `transparent` (altitude fade), and three.js sorts transparent objects
+  by object-center distance, so it drew OVER the cutouts' lower halves ("fence sunk in the
+  ground"): fixed with explicit renderOrder (ground −3, contact shadows −2, cutouts 0). Cutout
+  boards keep `depthWrite:false`.
+- **No world bounce on taps**: renderer feeds markers/camera a slow follower of tower top
+  (`wk = 1−exp(−dt/0.9)` in `render/index.ts`), never the sprung mesh height.
+
 **Next (see `docs/release-roadmap.md` for the full ordered list):** chaos events (sim stub at
-`src/sim/events.ts`), Zone 7 boss "The Flick" (the hand cutout already waits at raw 96),
-real-device iOS/Android QA, prestige-path Z4-wall smoothing, save/offline test coverage +
-export/import UI.
+`src/sim/events.ts`), Zone 15 boss "The Flick" (the hand cutout already waits at raw 96),
+real-device iOS/Android QA, prestige-path mid-zone-wall smoothing, save/offline test coverage +
+export/import UI, Endless GE scaling (win pays 95K GE — revisit in M4).

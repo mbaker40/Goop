@@ -230,14 +230,17 @@ export class Game {
   }
 
   /** Melt rate in goop/second (PLAN §5.3). Tracks LAGGED GPS (emaIncome), so out-growing the
-   *  lag is safety and stalling is death. Zero during the start-of-run grace period. */
+   *  lag is safety and stalling is death. Zero during the start-of-run grace period, then ramps
+   *  in over balance.melt.rampSeconds so new players meet the mechanic as a slope, not a wall. */
   meltRate(): number {
     const r = this.run;
     if (r.status === 'grace') return 0;
     const zone = this.currentZone();
     const zoneMult = balance.melt.zoneMeltMult[zone.index] ?? 1;
     const endless = 1 + r.endlessDepth * balance.melt.endlessPerDepth;
-    return r.emaIncome.toNumber() * balance.melt.meltFracBase * zoneMult * endless * (1 - this.meltResistFrac());
+    const sinceGrace = Math.max(0, r.runTime - balance.melt.graceSeconds);
+    const ramp = Math.min(1, sinceGrace / balance.melt.rampSeconds);
+    return r.emaIncome.toNumber() * balance.melt.meltFracBase * zoneMult * endless * ramp * (1 - this.meltResistFrac());
   }
 
   /** Seconds of structural buffer left at the current melt rate (Infinity if not melting). */
@@ -404,7 +407,7 @@ export class Game {
     if (h > r.peakHeightRaw) r.peakHeightRaw = h;
     if (h > this.meta.bestHeightRaw) this.meta.bestHeightRaw = h;
 
-    // Win check (reach Zone 7's finish — the boss itself is M4).
+    // Win check (reach Zone 15's finish — the boss itself is M4).
     if (r.status === 'active' && r.endlessDepth === 0 && h >= WIN_HEIGHT) {
       r.status = 'won';
       checkAchievements(this); // win-conditioned achievements fire on the transition

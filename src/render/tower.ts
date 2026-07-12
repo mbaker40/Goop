@@ -241,6 +241,12 @@ export class GoopTower {
   get debugHeight(): number {
     return this.renderedHeight;
   }
+
+  /** Approximate ground footprint diameter (world units) — drives the contact shadow. */
+  get groundFootprint(): number {
+    const fill = Math.min(1, Math.max(0.03, this.renderedHeight / WIN_HEIGHT));
+    return (2.6 + fill * 2.4) * (1 + Math.max(0, this.swell) * 0.5);
+  }
 }
 
 function clamp(v: number, lo: number, hi: number): number {

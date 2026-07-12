@@ -1,7 +1,7 @@
 # 🟢 Goop Tower
 
 A deliberately-stupid 3D incremental game where you slap goop onto a wobbling tower and climb it
-from a kitchen counter to "Past God" across 7 zones — or melt into a puddle trying. Every puddle
+from a kitchen counter to "Past God" across 15 zones — or melt into a puddle trying. Every puddle
 makes you stronger (losing grants meta-currency), so no run is wasted.
 
 **▶ Play: https://mbaker40.github.io/Goop/**

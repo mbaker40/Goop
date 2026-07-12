@@ -101,12 +101,12 @@ const producers: AchievementDef[] = PRODS.flatMap((p) =>
 
 // ---- Zones reached (6) ----
 const zones: AchievementDef[] = [
-  A('zone2', 'Ceiling? Never Met Her', 'house', 'Reach Zone 2. The attic was not ready.', (c) => c.zone >= 2),
-  A('zone3', 'Suburban Menace', 'rooftops', 'Reach Zone 3. The HOA is drafting a letter.', (c) => c.zone >= 3),
-  A('zone4', 'Cloud Loiterer', 'cloud', 'Reach Zone 4. A jet honked at you.', (c) => c.zone >= 4),
-  A('zone5', 'Orbital Goopware', 'satellite', 'Reach Zone 5. The astronaut gave a thumbs-up. He gets it.', (c) => c.zone >= 5),
-  A('zone6', 'Deep Space Slime', 'planet', 'Reach Zone 6. The goop whales sing of you.', (c) => c.zone >= 6),
-  A('zone7', "Knocking On God's Door", 'gate', 'Reach Zone 7. He can hear you squelching.', (c) => c.zone >= 7),
+  A('zone2', 'Ceiling? Never Met Her', 'house', 'Reach Zone 3: Through the Ceiling. The attic was not ready.', (c) => c.zone >= 3),
+  A('zone3', 'Suburban Menace', 'rooftops', 'Reach Zone 5: Suburban Skyline. The HOA is drafting a letter.', (c) => c.zone >= 5),
+  A('zone4', 'Cloud Loiterer', 'cloud', 'Reach Zone 7: The Cloud Layer. A jet honked at you.', (c) => c.zone >= 7),
+  A('zone5', 'Orbital Goopware', 'satellite', 'Reach Zone 11: Low Orbit. The astronaut gave a thumbs-up. He gets it.', (c) => c.zone >= 11),
+  A('zone6', 'Deep Space Slime', 'planet', 'Reach Zone 13: Deep Space. The goop whales sing of you.', (c) => c.zone >= 13),
+  A('zone7', "Knocking On God's Door", 'gate', 'Reach Zone 15: PAST GOD. He can hear you squelching.', (c) => c.zone >= 15),
 ];
 
 // ---- Wins (3) ----
@@ -192,7 +192,7 @@ const combo: AchievementDef[] = [
 const feats: AchievementDef[] = [
   A('survive30', 'Marathon Goopist', 'medal', 'Keep one run alive for 30 minutes. Hydration is not your problem.', (c) => c.runTime >= 30 * 60 && c.status !== 'dead'),
   A('speedwin', 'Speedgoop', 'flag', 'Win in under 50 minutes. God barely had time to notice you.', (c) => c.status === 'won' && c.runTime < 50 * 60),
-  A('rush3', 'Zone 3 Speedrun', 'rocket', 'Reach Zone 3 within 5 minutes. The suburbs never saw it coming.', (c) => c.zone >= 3 && c.runTime <= 5 * 60),
+  A('rush3', 'Roofline Rush', 'rocket', 'Reach Zone 4: The Roofline within 5 minutes. The shingles never saw it coming.', (c) => c.zone >= 4 && c.runTime <= 5 * 60),
   A('thriftywin', 'Economy Class Ascension', 'ticket', 'Win with fewer than 2,000 slaps. Mostly the goop carried you.', (c) => c.status === 'won' && c.runClicks < 2_000),
   A('kitchenmelt', 'Melted On The Counter', 'pan', 'Collapse without leaving Zone 1. The toaster judged you the whole time.', (c) => (c.status === 'collapsing' || c.status === 'dead') && c.zone === 1),
 ];

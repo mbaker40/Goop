@@ -16,12 +16,20 @@ export interface ZonePalette {
 const P: Record<number, ZonePalette> = {
   0: { skyTop: 0x1a1626, skyBottom: 0x0d0b14, goop: 0x9be34a, ground: 0x2a2436, fog: 0x14121a },
   1: { skyTop: 0xffe9b0, skyBottom: 0xf7c98a, goop: 0xb6e84a, ground: 0xd9c7a3, fog: 0xf3d9a8 }, // Kitchen counter
-  2: { skyTop: 0xcdb48a, skyBottom: 0x8a6f4e, goop: 0xb6e84a, ground: 0x6f5a3a, fog: 0x8a6f4e }, // Attic
-  3: { skyTop: 0x9fd2ff, skyBottom: 0xdfeeff, goop: 0x8fe06a, ground: 0x8a97a5, fog: 0xbfe0ff }, // Skyline
-  4: { skyTop: 0xbfe0ff, skyBottom: 0xffffff, goop: 0x7fe0c0, ground: 0xeaf3ff, fog: 0xdfeeff }, // Clouds
-  5: { skyTop: 0x0a1030, skyBottom: 0x1a2a6a, goop: 0x66e0ff, ground: 0x141c3a, fog: 0x0a1030 }, // Low orbit
-  6: { skyTop: 0x05010f, skyBottom: 0x180a3a, goop: 0xc060ff, ground: 0x0a0620, fog: 0x05010f }, // Deep space
-  7: { skyTop: 0xfff4d6, skyBottom: 0xffd36a, goop: 0xffe066, ground: 0xf0e0b0, fog: 0xfff0c0 }, // Past God
+  2: { skyTop: 0xf6e6c4, skyBottom: 0xe2c898, goop: 0xb6e84a, ground: 0xcdb691, fog: 0xe8d3a8 }, // Top of the fridge
+  3: { skyTop: 0xcdb48a, skyBottom: 0x8a6f4e, goop: 0xb0e050, ground: 0x6f5a3a, fog: 0x8a6f4e }, // Through the ceiling
+  4: { skyTop: 0xb8d8f2, skyBottom: 0xe8d9b8, goop: 0xa5e455, ground: 0x87755a, fog: 0xcfd9d2 }, // The roofline
+  5: { skyTop: 0x9fd2ff, skyBottom: 0xdfeeff, goop: 0x8fe06a, ground: 0x8a97a5, fog: 0xbfe0ff }, // Suburban skyline
+  6: { skyTop: 0x8ec8ff, skyBottom: 0xf2f7ff, goop: 0x86e086, ground: 0x9aa7b5, fog: 0xcfe6ff }, // Kite & balloon alley
+  7: { skyTop: 0xbfe0ff, skyBottom: 0xffffff, goop: 0x7fe0c0, ground: 0xeaf3ff, fog: 0xdfeeff }, // The cloud layer
+  8: { skyTop: 0x7fb2e8, skyBottom: 0xcfe4f6, goop: 0x74dcc8, ground: 0xb8cfe0, fog: 0xa8ccec }, // Thin air
+  9: { skyTop: 0x3a5a9a, skyBottom: 0x88aad4, goop: 0x6ad8d8, ground: 0x5a74a0, fog: 0x4a6aaa }, // The stratosphere
+  10: { skyTop: 0x131c48, skyBottom: 0x4a6aa8, goop: 0x66d8e8, ground: 0x2a3a66, fog: 0x1c2a56 }, // Edge of space
+  11: { skyTop: 0x0a1030, skyBottom: 0x1a2a6a, goop: 0x66e0ff, ground: 0x141c3a, fog: 0x0a1030 }, // Low orbit
+  12: { skyTop: 0x070a20, skyBottom: 0x141c44, goop: 0x8ab8ff, ground: 0x0e1430, fog: 0x080c24 }, // Moon's neighborhood
+  13: { skyTop: 0x05010f, skyBottom: 0x180a3a, goop: 0xc060ff, ground: 0x0a0620, fog: 0x05010f }, // Deep space
+  14: { skyTop: 0x1c0a2e, skyBottom: 0x4a1c5a, goop: 0xe882d8, ground: 0x2a1038, fog: 0x220e34 }, // Goopiverse rim
+  15: { skyTop: 0xfff4d6, skyBottom: 0xffd36a, goop: 0xffe066, ground: 0xf0e0b0, fog: 0xfff0c0 }, // Past God
 };
 
 export function paletteFor(zoneIndex: number): ZonePalette {
@@ -42,7 +50,7 @@ interface Anchor {
 }
 const ANCHORS: Anchor[] = [
   ...ZONES.map((z) => ({ raw: z.minHeight, p: P[z.index] ?? P[0]! })),
-  { raw: WIN_HEIGHT, p: P[7]! },
+  { raw: WIN_HEIGHT, p: P[15]! },
 ];
 
 function lerpChannel(a: number, b: number, t: number): number {

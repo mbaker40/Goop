@@ -52,6 +52,20 @@ function frontTexture(draw: Draw, size = 256): THREE.CanvasTexture {
   o.globalAlpha = 0.92; // let a whisper of board show through the marker drawing
   o.drawImage(art, 0, 0);
   o.globalAlpha = 1;
+  // Form shading: a soft top-light gradient clipped to the cutout, so boards read as lit objects
+  // instead of flat stickers (cheap depth cue).
+  const shade = document.createElement('canvas');
+  shade.width = shade.height = size;
+  const sh = shade.getContext('2d')!;
+  sh.drawImage(out, 0, 0);
+  sh.globalCompositeOperation = 'source-in';
+  const grad = sh.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, 'rgba(255,255,255,0.14)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0)');
+  grad.addColorStop(1, 'rgba(20,10,0,0.22)');
+  sh.fillStyle = grad;
+  sh.fillRect(0, 0, size, size);
+  o.drawImage(shade, 0, 0);
   return toTexture(out);
 }
 
@@ -521,3 +535,106 @@ export const ART: Record<string, Draw> = {
     c.stroke();
   },
 };
+
+// ---- extra environmental pieces (counter diorama + landscape depth) ----
+Object.assign(ART, {
+  mug: ((c: CanvasRenderingContext2D) => {
+    rr(c, 60, 70, 120, 130, 22, '#d96a4a');
+    c.strokeStyle = '#b4523a';
+    c.lineWidth = 10;
+    c.beginPath();
+    c.arc(196, 130, 38, -1.2, 1.2);
+    c.stroke();
+    ell(c, 120, 78, 58, 18, '#8a4a3a');
+    ell(c, 120, 76, 48, 12, '#5a3028');
+    // Steam curls.
+    c.strokeStyle = '#e9e4f5';
+    c.lineWidth = 6;
+    c.beginPath();
+    c.moveTo(100, 52);
+    c.quadraticCurveTo(88, 36, 100, 22);
+    c.moveTo(140, 52);
+    c.quadraticCurveTo(152, 36, 140, 22);
+    c.stroke();
+  }) as Draw,
+  spoon: ((c: CanvasRenderingContext2D) => {
+    c.save();
+    c.translate(128, 128);
+    c.rotate(0.7);
+    ell(c, 0, -62, 34, 46, '#c7ccd6');
+    ell(c, 0, -62, 22, 32, '#aab1bf');
+    rr(c, -9, -18, 18, 130, 9, '#c7ccd6');
+    c.restore();
+  }) as Draw,
+  fence: ((c: CanvasRenderingContext2D) => {
+    c.fillStyle = '#e8e2d4';
+    for (let i = 0; i < 5; i++) {
+      const x = 24 + i * 46;
+      c.fillRect(x, 96, 26, 110);
+      c.beginPath();
+      c.moveTo(x, 96);
+      c.lineTo(x + 13, 74);
+      c.lineTo(x + 26, 96);
+      c.fill();
+    }
+    rr(c, 12, 116, 232, 16, 6, '#d4cbb8');
+    rr(c, 12, 164, 232, 16, 6, '#d4cbb8');
+  }) as Draw,
+  bush: ((c: CanvasRenderingContext2D) => {
+    ell(c, 90, 160, 62, 48, '#5a9a48');
+    ell(c, 160, 150, 58, 52, '#67aa52');
+    ell(c, 126, 120, 52, 42, '#74b85c');
+    ell(c, 78, 120, 12, 12, '#8fd06a');
+    ell(c, 170, 108, 10, 10, '#8fd06a');
+  }) as Draw,
+  hills: ((c: CanvasRenderingContext2D) => {
+    c.fillStyle = '#7ba86a';
+    c.beginPath();
+    c.moveTo(0, 210);
+    c.quadraticCurveTo(60, 120, 130, 170);
+    c.quadraticCurveTo(190, 210, 256, 150);
+    c.lineTo(256, 240);
+    c.lineTo(0, 240);
+    c.fill();
+    c.fillStyle = '#639257';
+    c.beginPath();
+    c.moveTo(0, 232);
+    c.quadraticCurveTo(90, 170, 170, 215);
+    c.quadraticCurveTo(220, 238, 256, 218);
+    c.lineTo(256, 248);
+    c.lineTo(0, 248);
+    c.fill();
+    // A tiny distant house on the hill.
+    rr(c, 60, 148, 22, 16, 2, '#e8e2d4');
+    c.fillStyle = '#a0522d';
+    c.beginPath();
+    c.moveTo(56, 150);
+    c.lineTo(71, 138);
+    c.lineTo(86, 150);
+    c.fill();
+  }) as Draw,
+  windowFrame: ((c: CanvasRenderingContext2D) => {
+    // The kitchen window behind everything: morning light + a curtain.
+    rr(c, 24, 20, 208, 216, 12, '#8a6f4e');
+    rr(c, 40, 36, 176, 184, 6, '#ffe9b0');
+    c.fillStyle = '#ffd98a';
+    c.fillRect(40, 130, 176, 90);
+    c.strokeStyle = '#8a6f4e';
+    c.lineWidth = 10;
+    c.beginPath();
+    c.moveTo(128, 36);
+    c.lineTo(128, 220);
+    c.moveTo(40, 128);
+    c.lineTo(216, 128);
+    c.stroke();
+    // Curtain.
+    c.fillStyle = '#d96a8a';
+    c.beginPath();
+    c.moveTo(40, 36);
+    c.quadraticCurveTo(70, 130, 44, 218);
+    c.lineTo(40, 218);
+    c.fill();
+    // A sun.
+    ell(c, 186, 70, 22, 22, '#ffb03a');
+  }) as Draw,
+});
