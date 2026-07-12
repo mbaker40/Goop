@@ -24,6 +24,17 @@ import { displayMeters, rawForMeters } from '../config/zones';
 
 /** World-units of vertical travel per raw-height unit of climbing. */
 const K = 0.55;
+/** metersPerWorld at the run-start guard floor — the reference the world shrinks FROM. */
+const START_M_PER_W = Math.max(0.02, displayMeters(0.35)) / 0.5;
+
+/** Global ground-frame shrink factor (1 at run start → 0 as the goop dwarfs the world).
+ *  Shared by prop POSITIONS here and the counter disc in zone1.ts so sizes, gaps, and the tile
+ *  grid all shrink together — that coherence is what reads as "the goop is growing" instead of
+ *  "the items are shrinking and drifting apart". */
+export function groundShrink(topRaw: number, topY: number): number {
+  const mPerW = Math.max(0.02, displayMeters(Math.max(0.35, topRaw))) / Math.max(0.5, topY);
+  return Math.min(1, Math.max(0.04, START_M_PER_W / mPerW));
+}
 /** Flybys further than this (in raw units) from the tower top are hidden. */
 const WINDOW = 9;
 /** Hard cap on any prop's rendered size (world units). */
@@ -38,6 +49,10 @@ interface GroundProp {
   shadow: THREE.Mesh;
   /** Board-center height as a fraction of size — lower for art with big bottom padding. */
   yOff: number;
+  /** Rendered size at run start (cap regime) — position convergence is measured against it. */
+  startSize: number;
+  /** Position-scale floor so a converging prop never enters the tower's footprint. */
+  minPosScale: number;
 }
 
 interface Flyby {
@@ -73,7 +88,17 @@ export class ScaleMarkers {
       shadow.position.set(x, 0.02, z);
       shadow.renderOrder = -2; // after the ground disc (-3), before the cutouts (0) — see zone1.ts
       this.group.add(shadow);
-      this.ground.push({ board: b, meters, x, z, cap, shadow, yOff });
+      this.ground.push({
+        board: b,
+        meters,
+        x,
+        z,
+        cap,
+        shadow,
+        yOff,
+        startSize: Math.min(cap, meters / START_M_PER_W),
+        minPosScale: 3.4 / Math.max(3.4, Math.hypot(x, z)),
+      });
     };
     // Counter clutter (near layer). The mug/spoon art has deep bottom padding — sit them lower.
     g('mug', 0.14, 2.1, -4, 0.18, 3.2, 0.29);
@@ -157,7 +182,9 @@ export class ScaleMarkers {
     // Meters represented by one world unit at the current height (guarded near zero).
     const mPerW = Math.max(0.02, displayMeters(Math.max(0.35, topRaw))) / Math.max(0.5, topY);
 
-    // Ground scenery: true proportion, fading with the ground.
+    // Ground scenery: true proportion, fading with the ground. Positions CONVERGE with the same
+    // factor the sizes shrink by ("a growing giant sees the neighborhood pull together beneath
+    // it") — fixed positions read as "items shrinking apart", the exact wrong story.
     const alpha = clamp01(1 - (topRaw - 14) / 12);
     for (const p of this.ground) {
       const size = Math.min(p.cap, p.meters / mPerW);
@@ -165,9 +192,13 @@ export class ScaleMarkers {
       p.board.group.visible = visible;
       p.shadow.visible = visible;
       if (!visible) continue;
+      const s = Math.max(p.minPosScale, Math.min(1, size / p.startSize));
+      const px = p.x * s;
+      const pz = p.z * s;
       p.board.group.scale.setScalar(size);
-      p.board.group.position.set(p.x, size * p.yOff, p.z);
+      p.board.group.position.set(px, size * p.yOff, pz);
       p.board.setOpacity(alpha);
+      p.shadow.position.set(px, 0.02, pz);
       p.shadow.scale.setScalar(size * 0.9);
       (p.shadow.material as THREE.MeshBasicMaterial).opacity = 0.32 * alpha;
     }

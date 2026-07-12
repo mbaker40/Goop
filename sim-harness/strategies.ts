@@ -33,14 +33,17 @@ export const GreedyBot: Bot = {
   },
 };
 
-/** Max active play: clicks every tick AND buys greedily, plus quality-of-life upgrades. */
+/** Max active play: clicks every tick AND buys greedily, plus quality-of-life upgrades.
+ *  Handles chaos events like an attentive player: clears targets, declines risky deals. */
 export const ClickerBot: Bot = {
   name: 'ClickerBot',
   act(game, _dt, tick) {
     game.click(); // ~tickHz clicks/sec
+    game.tapEventTarget(); // one target per tick ≈ a focused tap-spree
     if (tick % Math.round(tickHz / 2) === 0) {
       greedyBuy(game);
       buyQoL(game);
+      game.answerEvent(false); // no deals; melt is scary enough
     }
   },
 };
@@ -67,6 +70,9 @@ export function makeChaoticBot(seed = 999): Bot {
     name: 'ChaoticBot',
     act(game, _dt, tick) {
       if (rng.chance(0.4)) game.click();
+      // Sometimes notices event targets; sometimes takes the deal. Chaos befits chaos.
+      if (rng.chance(0.3)) game.tapEventTarget();
+      if (rng.chance(0.01)) game.answerEvent(rng.chance(0.5));
       if (tick % Math.round(tickHz / 2) === 0 && rng.chance(0.5)) {
         // Buy a random affordable producer.
         const shuffled = [...PRODUCERS].sort(() => rng.next() - 0.5);

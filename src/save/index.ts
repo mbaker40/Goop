@@ -46,6 +46,10 @@ export function deserializeRun(s: SerializedRun): RunState {
     lifetimeGoop: D(new Decimal(s.lifetimeGoop)),
     structuralGoop: D(new Decimal(s.structuralGoop)),
     emaIncome: D(new Decimal(s.emaIncome)),
+    // Chaos-event fields arrived mid-M3 — default them for older mid-run saves.
+    eventCooldown: s.eventCooldown ?? 120,
+    activeEvent: s.activeEvent ?? null,
+    eventEffects: s.eventEffects ?? [],
   };
 }
 

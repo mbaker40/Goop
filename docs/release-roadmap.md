@@ -17,9 +17,11 @@ smoke via `node scripts/smoke.mjs`).
   WebGL context-loss recovery.
 
 ## Must-do before calling it "released" (M3-ish)
-1. **Chaos events** (PLAN §8) — the sim scheduler is a stub (`src/sim/events.ts`). Ship 4–6 events
-   (Golden Goober, Goop Meteor, Health Inspector, Investor) with DOM banners + simple 3D cues.
-   This is the biggest missing moment-to-moment hook for an "active" incremental.
+1. ~~Chaos events~~ ✅ shipped 2026-07-12 (PLAN §8): 6-event pool (Goober Swarm, Meteor,
+   Inspector, Investor, Heat Wave aura w/ altitude renames, the Barber bit), DOM banner +
+   tappable targets + effect chips + outcome toasts; state rides RunState into saves; bots
+   handle events per temperament. Remaining ideas: 3D cues (meteor blob dropping in-scene),
+   Goop Umbrella consumable, Endless escalation.
 2. **Zone 7 boss — "The Flick"** (PLAN §3): 120s Divine Disapproval meter, melt ×5, hand prop.
    Winning is currently a silent threshold crossing; the game's climax doesn't exist yet.
 3. ~~Zone set dressing~~ ✅ phase 1 shipped 2026-07-12 as the **continuous ascent** system (design
@@ -50,6 +52,10 @@ smoke via `node scripts/smoke.mjs`).
 12. Streamer mode (PLAN §17 M5): bigger UI text toggle.
 
 ## Later (M4+)
+- **Friend leaderboard + 2-goop multiplayer** (user-pinned 2026-07-12, preferred over share-card
+  virality): needs a backend (auth-light friend codes, run submissions) and a second RenderSource
+  lane for the rival tower. Design before building — sim determinism makes async "ghost" races
+  (replay a friend's seeded run beside yours) far cheaper than live sync, same fun.
 - Endless Mode + GOOP TRANSCENDENT cap (re-tune GE soft cap alongside — see balance-notes) + §14.5 test.
 - Goobers currency + cosmetics shop + fossils/trophy shelf (menu stat was removed until real).
 - Raymarched tower upgrade behind a quality toggle (marching cubes stays the fallback).

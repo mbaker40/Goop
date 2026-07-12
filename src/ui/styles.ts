@@ -42,7 +42,8 @@ body[data-screen="run"] #scene, body[data-screen="paused"] #scene { display: blo
 body[data-screen="run"] #app, body[data-screen="paused"] #app {
   position: fixed; inset: 0; max-width: none; margin: 0; padding: 0; transform: translateZ(0); }
 /* Extra safety: each fixed HUD piece is also its own composited layer. */
-#hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig, #ach-overlay {
+#hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig, #ach-overlay,
+#event-banner, #event-chips, .event-tgt {
   will-change: transform; }
 /* Mobile input hygiene: kill the gray tap-highlight flash, double-tap zoom on buttons, and stray
    text selection / long-press callouts during rapid tapping. Buttons + the whole run HUD are
@@ -114,6 +115,36 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
   80% { opacity: 1; }
   100% { opacity: 0; transform: translate(-50%, -80%) scale(1); }
 }
+
+/* ---- Chaos events (PLAN §8) ---- */
+#event-banner { position: fixed; z-index: 4; top: calc(64px + env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); width: min(420px, 92vw); text-align: center;
+  background: #241d33; border: 1px solid #6a4fd0; border-radius: 12px; padding: 8px 12px;
+  box-shadow: 0 6px 24px rgba(60,20,140,.5); animation: eventpop .35s ease-out; }
+@keyframes eventpop { 0% { opacity: 0; transform: translateX(-50%) scale(.8); } 100% { opacity: 1; transform: translateX(-50%) scale(1); } }
+#event-banner .en { font-weight: bold; color: #c9b2ff; letter-spacing: .5px; }
+#event-banner .ef { font-size: 12px; color: #cfc8e2; margin-top: 2px; }
+#event-banner .et { font-size: 12px; color: #8f86ab; margin-top: 2px; font-variant-numeric: tabular-nums; }
+#event-banner .row { justify-content: center; gap: 8px; margin-top: 6px; }
+#event-banner button.deal { background: var(--accent); color: #0f2410; font-weight: bold; }
+.event-tgt { position: fixed; z-index: 4; width: 56px; height: 56px; border-radius: 50%;
+  border: 2px solid #ffd96a; background: radial-gradient(circle at 35% 30%, #fff3c4, #f0b429 70%);
+  font-size: 26px; line-height: 1; box-shadow: 0 4px 18px rgba(255,200,60,.55);
+  transform: translate(-50%, -50%); animation: tgtbob 1.1s ease-in-out infinite; touch-action: manipulation; }
+@keyframes tgtbob { 0%,100% { margin-top: 0; } 50% { margin-top: -8px; } }
+/* Centered under the melt banner (the top corners belong to the stat cards). While an event
+   banner is up it covers this spot for its ~1s linger — acceptable, chips run for 20-90s. */
+#event-chips { position: fixed; z-index: 3; top: calc(64px + env(safe-area-inset-top)); left: 50%;
+  transform: translateX(-50%); display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px;
+  justify-content: center; max-width: 92vw; pointer-events: none; }
+#event-chips .chip { background: #241d33; border: 1px solid var(--border); border-radius: 999px;
+  padding: 3px 10px; font-size: 12px; color: #e6ddff; white-space: nowrap; font-variant-numeric: tabular-nums; }
+#event-toast { position: fixed; z-index: 2147483000; left: 50%; bottom: calc(120px + env(safe-area-inset-bottom));
+  transform: translateX(-50%); background: #241d33; border: 1px solid #6a4fd0; border-radius: 10px;
+  color: #e6ddff; padding: 8px 14px; font-size: 13px; max-width: 92vw; text-align: center;
+  pointer-events: none; animation: eventtoast 2.6s ease-out forwards; }
+@keyframes eventtoast { 0% { opacity: 0; margin-bottom: -12px; } 10% { opacity: 1; margin-bottom: 0; }
+  80% { opacity: 1; } 100% { opacity: 0; margin-bottom: 18px; } }
 
 #hud-stats { position: fixed; z-index: 3; top: calc(10px + env(safe-area-inset-top)); left: 10px; min-width: 178px; }
 #hud-stats .title { color: var(--goop); font-weight: bold; letter-spacing: 1px; }

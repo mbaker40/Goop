@@ -90,6 +90,17 @@ export const balance = {
     gpsPctEach: 0.005,
   },
 
+  /** Chaos events (PLAN §8): scheduler mechanics. The event POOL lives in config/events.ts. */
+  events: {
+    /** Never two at once; at least this long between events. */
+    minGapSeconds: 45,
+    /** Random extra gap on top of the minimum (events land every ~2-4 min). */
+    extraGapMin: 75,
+    extraGapMax: 165,
+    /** No events until the run has been active this long past grace (don't ambush the tutorial). */
+    warmupSeconds: 30,
+  },
+
   /** Offline progress (PLAN §12): capped GPS credit, melt paused. */
   offline: {
     maxCreditSeconds: 600,

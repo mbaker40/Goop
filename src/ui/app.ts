@@ -16,6 +16,7 @@ import { balance } from '../config/balance';
 import { PRODUCERS } from '../config/producers';
 import { META_UPGRADES } from '../config/upgrades';
 import { ACHIEVEMENTS, ACHIEVEMENT_BY_ID, type AchievementDef } from '../config/achievements';
+import { EVENT_BY_ID, eventDisplay } from '../config/events';
 import { achIcon } from './icons';
 import { ZONES, displayMeters } from '../config/zones';
 import { metaUpgradeCost, canBuyMeta } from '../sim/prestige';
@@ -40,6 +41,8 @@ export class GoopUI {
   private lastZoneIdx = 0;
   /** Run status last seen (fires collapse audio once). */
   private lastStatus = '';
+  /** Chaos-event instance last rendered ('' = none) — rebuilds banner/targets only on change. */
+  private lastEventKey = '';
   private floaters = 0;
   /** Achievement-toast queue (unlocks are detected by diffing meta.achievements growth). */
   private lastAchCount = 0;
@@ -115,6 +118,18 @@ export class GoopUI {
   // ---- Input (event delegation on the stable #app root) ----
 
   private onPointer(e: PointerEvent): void {
+    // Chaos-event targets (goobers/meteor/inspector) — snappy pointerdown path like the tower.
+    const tgt = (e.target as HTMLElement).closest('[data-action="event-target"]');
+    if (tgt) {
+      e.preventDefault();
+      if (this.store.tapEventTarget(e.clientX, e.clientY)) {
+        this.buzz(12);
+        audio.purchaseBlip();
+        this.spawnFloater(e.clientX, e.clientY, '✨');
+        tgt.remove();
+      }
+      return;
+    }
     const el = (e.target as HTMLElement).closest('[data-action="click-tower"]');
     if (el) {
       e.preventDefault();
@@ -162,6 +177,8 @@ export class GoopUI {
         this.updateBuyAmtButtons();
         break;
       }
+      case 'event-accept': if (this.store.answerEvent(true)) { this.buzz(20); audio.purchaseBlip(); } break;
+      case 'event-decline': this.store.answerEvent(false); break;
       case 'toggle-silly': this.store.toggleSilly(); break;
       case 'ach-info': {
         const a = ACHIEVEMENT_BY_ID[id];
@@ -357,6 +374,8 @@ export class GoopUI {
     </div>
 
     <div class="banner grace" id="sr-banner" aria-live="polite">…</div>
+    <div id="event-banner" style="display:none" aria-live="polite"></div>
+    <div id="event-chips"></div>
 
     <div id="hud-readout">
       <div class="h" id="sr-height">0 m</div>
@@ -517,6 +536,101 @@ export class GoopUI {
 
     this.updateProducers();
     this.updateUpgradePanels();
+    this.updateEvents();
+  }
+
+  // ---- Chaos events (PLAN §8): banner, tappable targets, effect chips, outcome toasts ----
+
+  private updateEvents(): void {
+    const g = this.store.game;
+    const r = g.run;
+
+    for (const t of this.store.drainEventToasts()) this.spawnEventToast(t);
+
+    const banner = this.el('event-banner');
+    const a = r.activeEvent;
+    const def = a ? EVENT_BY_ID[a.id] : undefined;
+    const key = a && def ? `${a.id}:${a.resolved ? 'r' : 'live'}` : '';
+
+    if (banner) {
+      if (!a || !def) {
+        if (banner.style.display !== 'none') banner.style.display = 'none';
+      } else {
+        if (key !== this.lastEventKey) {
+          const d = eventDisplay(def, g.currentZone().index);
+          const buttons =
+            def.kind === 'decision' && !a.resolved
+              ? `<div class="row"><button data-action="event-accept" class="deal">🤝 DEAL</button>
+                 <button data-action="event-decline">No thanks</button></div>`
+              : '';
+          banner.innerHTML = `<div class="en">${d.icon} ${d.name}</div><div class="ef">${def.flavor}</div>${buttons}<div class="et" id="event-timer"></div>`;
+          banner.style.display = '';
+          if (this.lastEventKey === '' || !this.lastEventKey.startsWith(a.id + ':')) {
+            audio.zoneSting();
+            this.buzz(25);
+          }
+        }
+        const timer = this.el('event-timer');
+        if (timer) {
+          const left = Math.max(0, Math.ceil(a.remaining));
+          const need = def.kind === 'targets' && !a.resolved ? ` · ${a.targetsLeft} left` : '';
+          timer.textContent = a.resolved ? '' : `${left}s${need}`;
+        }
+      }
+    }
+    this.lastEventKey = key;
+
+    // Tappable targets: reconcile DOM count with targetsLeft (taps remove their own node).
+    const wantTargets = a && def && def.kind === 'targets' && !a.resolved ? a.targetsLeft : 0;
+    const have = document.querySelectorAll('.event-tgt').length;
+    if (have > wantTargets) {
+      const extras = Array.from(document.querySelectorAll('.event-tgt')).slice(wantTargets);
+      for (const n of extras) n.remove();
+    } else if (have < wantTargets && a && def) {
+      const total = def.targets ?? 1;
+      for (let i = have; i < wantTargets; i++) {
+        const idx = total - a.targetsLeft + i; // stable per-target slot for positioning
+        const b = document.createElement('button');
+        b.className = 'event-tgt';
+        b.dataset.action = 'event-target';
+        b.setAttribute('aria-label', `${def.name} target`);
+        b.textContent = def.icon;
+        // Deterministic scatter: golden-ratio sequence spreads slots evenly (a plain hash gave
+        // overlapping pairs), jittered a touch by a hash so it doesn't read as a lattice.
+        const g1 = (idx * 0.618034 + hash01(def.id) ) % 1;
+        const g2 = (idx * 0.381966 + hash01(def.id + 'y')) % 1;
+        b.style.left = `${12 + g1 * 76}vw`;
+        b.style.top = `${22 + g2 * 42}vh`;
+        b.style.animationDelay = `${(idx % 5) * 0.17}s`;
+        this.root.appendChild(b);
+      }
+    }
+
+    // Lingering effect chips (buffs/debuffs with their countdown). Anchored just below the melt
+    // banner at runtime — static offsets collide with the full-width stats card on portrait.
+    const chips = this.el('event-chips');
+    if (chips) {
+      const html = r.eventEffects
+        .map((e) => `<span class="chip">${e.icon} ${e.label} · ${Math.max(0, Math.ceil(e.remaining))}s</span>`)
+        .join('');
+      if (chips.innerHTML !== html) chips.innerHTML = html;
+      if (html) {
+        const anchor = this.el('sr-banner');
+        if (anchor) {
+          const top = `${Math.round(anchor.getBoundingClientRect().bottom + 6)}px`;
+          if (chips.style.top !== top) chips.style.top = top;
+        }
+      }
+    }
+  }
+
+  private spawnEventToast(text: string): void {
+    document.getElementById('event-toast')?.remove();
+    const el = document.createElement('div');
+    el.id = 'event-toast';
+    el.textContent = text;
+    document.body.appendChild(el);
+    el.addEventListener('animationend', () => el.remove());
   }
 
   private meltBanner(status: string, buffer: number): { cls: string; text: string } {
@@ -706,4 +820,14 @@ export class GoopUI {
       <button data-action="to-menu" class="primary" style="font-size:18px;padding:12px">Continue ▶</button>
     </div>`;
   }
+}
+
+/** Tiny deterministic string hash → [0,1) — event targets scatter the same way every time. */
+function hash01(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 10000) / 10000;
 }
