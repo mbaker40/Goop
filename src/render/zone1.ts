@@ -199,6 +199,20 @@ export class Environment {
   setTowerShadow(scale: number): void {
     this.towerShadow.scale.setScalar(Math.max(0.1, scale));
   }
+
+  /** Shrink the whole counter diorama (disc + tile grid + rim) with the world — same factor as
+   *  the scenery convergence in markers.ts (see groundShrink there). The tiles shrinking under
+   *  the goop is the strongest "I am growing" cue on screen. */
+  setGroundShrink(s: number): void {
+    // Floor: the disc must always outsize the tower's footprint (radius 26 × 0.42 ≈ 11 world
+    // units vs foot ~5), or its rim draws as a ring cutting through the goop. By the time the
+    // floor binds, the altitude fade + planet-recession cutout are taking over anyway.
+    const g = Math.max(0.42, s);
+    // The disc is rotated flat, so local x/y span world x/z; the texture shrinks with the mesh.
+    this.ground.scale.set(g, g, 1);
+    this.edge.scale.set(g, g, g);
+    this.edge.position.y = -0.82 * g;
+  }
 }
 
 function clamp01(v: number): number {

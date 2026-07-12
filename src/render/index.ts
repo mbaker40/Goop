@@ -13,7 +13,7 @@ import { GoopTower } from './tower';
 import { SplatSystem } from './splats';
 import { ProducerFx } from './producerFx';
 import { Environment } from './zone1';
-import { ScaleMarkers } from './markers';
+import { ScaleMarkers, groundShrink } from './markers';
 import { detectQuality } from './quality';
 import type { RenderSource } from './source';
 
@@ -181,6 +181,7 @@ export class GoopRenderer {
     const zoom = this.source.viewZoom || 1;
     this.markers.update(this.worldRaw, this.worldTop, this.t, zoom);
     this.env.setTowerShadow(this.tower.groundFootprint);
+    this.env.setGroundShrink(groundShrink(this.worldRaw, this.worldTop));
 
     // Ambient producer signatures — each "tool" you buy is visible working on the tower.
     if (status === 'active' || status === 'grace') {

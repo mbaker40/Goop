@@ -162,7 +162,24 @@ Stats & Settings; state in GoopUI.menuSections survives re-renders).
 - **No world bounce on taps**: renderer feeds markers/camera a slow follower of tower top
   (`wk = 1−exp(−dt/0.9)` in `render/index.ts`), never the sprung mesh height.
 
-**Next (see `docs/release-roadmap.md` for the full ordered list):** chaos events (sim stub at
-`src/sim/events.ts`), Zone 15 boss "The Flick" (the hand cutout already waits at raw 96),
-real-device iOS/Android QA, prestige-path mid-zone-wall smoothing, save/offline test coverage +
-export/import UI, Endless GE scaling (win pays 95K GE — revisit in M4).
+**Done: M3 (slice 5) — Chaos events (2026-07-12, PLAN §8).** 6-event pool in `config/events.ts`
+(Golden Goober Swarm ✨, Goop Meteor ☄️, Health Inspector 📋, The Investor 💼, Heat Wave/Solar
+Flare/Divine Side-Eye aura, The Barber 💈 bit); logic in `sim/events.ts` (pure functions over an
+`EventHost` slice of Game — no circular import). Event state (`eventCooldown`/`activeEvent`/
+`eventEffects`) is PLAIN JSON on RunState → serialized in saves for free; deserializeRun defaults
+it for old saves. Kinds: 'targets' (tap N before expiry; per-tap GPS payout; expiry = onFail),
+'decision' (DEAL/decline buttons; expiry = decline), 'aura' (multipliers while live), 'bit'.
+Multipliers thread through `gps()`/`meltRate()`/`clickGain()`. Rules: one at a time, ≥45s gap,
+fires 120-210s apart, only in 'active' status past grace+30s warmup (balance.events). UI: purple
+`#event-banner` (name/flavor/countdown), bobbing `.event-tgt` buttons (golden-ratio scatter,
+pointerdown path — NOTE Playwright can't `.tap()` them, infinitely-animated = never "stable";
+probes tap by coordinates), `#event-chips` effect countdown row (centered under melt banner),
+`#event-toast` outcome lines. Bots: Clicker clears targets/declines deals, Chaotic dabbles,
+Greedy/Idle eat the failures (intended attention tax). Median win 45:32. `scripts/_eventshot.mjs`
+captures every event's UI via `?debug` store injection.
+
+**Next (see `docs/release-roadmap.md` for the full ordered list):** Zone 15 boss "The Flick"
+(the hand cutout already waits at raw 96), real-device iOS/Android QA, prestige-path
+mid-zone-wall smoothing, save/offline test coverage + export/import UI, Endless GE scaling
+(win pays 95K GE — revisit in M4). Pinned for later: friend leaderboard + 2-goop multiplayer
+(ghost-race design sketch in the roadmap).

@@ -127,6 +127,32 @@ export class Store {
     this.emit();
   }
 
+  /** Tap a chaos-event target (goober/meteor/inspector). Also counts as a splat point. */
+  tapEventTarget(x?: number, y?: number): boolean {
+    const ok = this.game.tapEventTarget();
+    if (ok) {
+      if (x !== undefined && y !== undefined) {
+        this.clickPoints.push({ x, y });
+        if (this.clickPoints.length > 16) this.clickPoints.shift();
+      }
+      this.emit();
+    }
+    return ok;
+  }
+
+  /** Answer the active decision event (The Investor). */
+  answerEvent(accept: boolean): boolean {
+    const ok = this.game.answerEvent(accept);
+    if (ok) this.emit();
+    return ok;
+  }
+
+  /** Drain queued event-outcome toast lines (UI shows them like achievement toasts). */
+  drainEventToasts(): string[] {
+    if (this.game.eventToasts.length === 0) return [];
+    return this.game.eventToasts.splice(0);
+  }
+
   /** Renderer contract (RenderSource): return-and-clear tap positions since the last frame. */
   drainClickPoints(): { x: number; y: number }[] {
     if (this.clickPoints.length === 0) return this.clickPoints;

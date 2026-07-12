@@ -169,3 +169,26 @@ for the M4 Endless/GE pass alongside the existing "win pays too much" residual.
 
 All 29 tests green. NOTE for tuners: zone INDEX thresholds moved — anything keyed to `zone >= N`
 (events, FX, copy) must be re-read against the 15-zone table, not the old 7-zone one.
+
+---
+
+## 2026-07-12 (chaos events) — PLAN §8 lands
+
+6-event pool (`config/events.ts`), scheduler + effects in `sim/events.ts` (state serialized on
+RunState — saves carry mid-run events for free). Mechanics: never two at once, ≥45s gap, next
+event 120-210s after the last ends, zone-gated, nothing fires until grace+30s. Ledger:
+
+| Event | Kind | Zone≥ | Deal |
+|---|---|---|---|
+| Golden Goober Swarm | 8 taps | 1 | 48s of GPS, paid per tap |
+| Goop Meteor | 10 taps | 2 | 30s GPS · fail: −25% buffer, slaps ×3/20s |
+| Health Inspector | 1 tap in 8s | 2 | 6s GPS · fail: GPS ×0.5/30s |
+| The Investor | deal button | 3 | goop ×10 now, melt +25%/90s |
+| Heat Wave → Solar Flare → Divine Side-Eye | aura 15s | 4 | melt ×3 while live |
+| The Barber | bit | 3 | nothing. He's lost. |
+
+Bots: ClickerBot clears targets & declines deals (attentive); ChaoticBot notices 30% of taps and
+coin-flips deals; Greedy/Idle ignore events entirely (they eat inspector citations + heat waves —
+that IS the attention tax working). Median win 46:53 → **45:32**, GreedyBot first-run 13:04 →
+12:07 Z5, ClickerBot no-meta 16:12 → 15:21 Z6 — all inside windows, events are net-neutral-ish
+for attentive play and a mild drag on AFK, as designed. 41 tests green (12 new).

@@ -18,6 +18,17 @@ import { ZONES, WIN_HEIGHT, zoneForHeight, type ZoneDef } from '../config/zones'
 import { Decimal, D, ZERO } from './numbers';
 import { Rng } from './rng';
 import { checkAchievements } from './achievements';
+import {
+  tickEvents,
+  clickEventTarget,
+  decideEvent,
+  initialEventCooldown,
+  eventGpsMult,
+  eventMeltMult,
+  eventClickMult,
+  type ActiveEventState,
+  type EventEffectState,
+} from './events';
 
 export type RunStatus = 'grace' | 'active' | 'won' | 'collapsing' | 'dead';
 
@@ -117,6 +128,10 @@ export interface RunState {
   status: RunStatus;
   collapseTimer: number;
   endlessDepth: number;
+  /** Chaos events (PLAN §8) — plain JSON so saves carry it for free (sim/events.ts). */
+  eventCooldown: number;
+  activeEvent: ActiveEventState | null;
+  eventEffects: EventEffectState[];
 }
 
 export class Game {
@@ -154,6 +169,9 @@ export class Game {
       status: 'grace',
       collapseTimer: 0,
       endlessDepth: 0,
+      eventCooldown: initialEventCooldown(this.rng),
+      activeEvent: null,
+      eventEffects: [],
     };
     this.run = run;
     return run;
@@ -191,6 +209,8 @@ export class Game {
     }
     // Achievements: small permanent goop/sec bonus per unlock (PLAN §7).
     m *= 1 + this.meta.achievements.length * balance.achievements.gpsPctEach;
+    // Chaos events: auras + lingering buffs/debuffs (PLAN §8).
+    m *= eventGpsMult(this);
     return m;
   }
 
@@ -207,7 +227,7 @@ export class Game {
   clickGain(): Decimal {
     const base = balance.click.basePower * this.bonuses.clickPowerMult;
     const fromGps = this.gps().mul(this.clickPctOfGps());
-    return D(base).add(fromGps).mul(this.run.combo);
+    return D(base).add(fromGps).mul(this.run.combo).mul(eventClickMult(this));
   }
 
   meltResistFrac(): number {
@@ -240,7 +260,15 @@ export class Game {
     const endless = 1 + r.endlessDepth * balance.melt.endlessPerDepth;
     const sinceGrace = Math.max(0, r.runTime - balance.melt.graceSeconds);
     const ramp = Math.min(1, sinceGrace / balance.melt.rampSeconds);
-    return r.emaIncome.toNumber() * balance.melt.meltFracBase * zoneMult * endless * ramp * (1 - this.meltResistFrac());
+    return (
+      r.emaIncome.toNumber() *
+      balance.melt.meltFracBase *
+      zoneMult *
+      endless *
+      ramp *
+      eventMeltMult(this) *
+      (1 - this.meltResistFrac())
+    );
   }
 
   /** Seconds of structural buffer left at the current melt rate (Infinity if not melting). */
@@ -342,6 +370,32 @@ export class Game {
     r.structuralGoop = r.structuralGoop.add(amount.mul(balance.melt.structuralRatio));
   }
 
+  // ---- Chaos events (PLAN §8; logic in sim/events.ts, pool in config/events.ts) ----
+
+  /** Outcome toast lines queued for the UI (drained by the store on emit). */
+  readonly eventToasts: string[] = [];
+
+  /** EventHost hooks (events.ts stays decoupled from this class). */
+  addGoopFromEvent(amount: Decimal): void {
+    this.addGoop(amount);
+  }
+  pushEventToast(text: string): void {
+    this.eventToasts.push(text);
+    if (this.eventToasts.length > 4) this.eventToasts.shift();
+  }
+
+  /** Tap one target of the active 'targets' event (goobers/meteor/inspector). */
+  tapEventTarget(): boolean {
+    if (this.run.status !== 'active' && this.run.status !== 'grace') return false;
+    return clickEventTarget(this);
+  }
+
+  /** Answer the active 'decision' event (The Investor's deal button). */
+  answerEvent(accept: boolean): boolean {
+    if (this.run.status !== 'active' && this.run.status !== 'grace') return false;
+    return decideEvent(this, accept);
+  }
+
   // ---- The tick (PLAN §5.3, §13: fixed 10 Hz) ----
 
   tick(dt: number): void {
@@ -366,6 +420,9 @@ export class Game {
 
     // Exit grace once the guardrail window passes (PLAN §6).
     if (r.status === 'grace' && r.runTime >= balance.melt.graceSeconds) r.status = 'active';
+
+    // Chaos events: effects tick, expiry resolution, and (post-warmup) new firings.
+    tickEvents(this, dt);
 
     // Income from producers.
     const gpsNow = this.gps();
