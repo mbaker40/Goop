@@ -7,6 +7,7 @@
 import { balance } from './config/balance';
 import { Game, createMetaState, type MetaState } from './sim/game';
 import { bankRun, geEarned, buyMeta } from './sim/prestige';
+import { checkAchievements } from './sim/achievements';
 
 export type Screen = 'menu' | 'run' | 'paused' | 'win' | 'puddle';
 
@@ -98,6 +99,7 @@ export class Store {
       this.screen = 'win';
     } else if (status === 'dead') {
       this.lastGe = bankRun(this.meta, this.game.run.peakHeightRaw, false);
+      checkAchievements(this.game); // puddle/GE-count achievements land with the payout
       this.screen = 'puddle';
     }
   }
@@ -158,6 +160,7 @@ export class Store {
   /** Bank a won run (applies the ×3 win multiplier via geEarned) and return to menu. */
   bankWin(): void {
     bankRun(this.meta, this.game.run.peakHeightRaw, true);
+    checkAchievements(this.game); // win-count/GE achievements land with the bank
     this.toMenu();
   }
 

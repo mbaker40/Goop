@@ -175,8 +175,31 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
   padding: 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--panel2); }
 .shopitem .info { min-width: 0; }
 .shopitem .name { font-weight: bold; }
+.shopitem .name .icon { display: inline-block; margin-right: 6px; font-size: 18px; }
 .shopitem .flavor { color: var(--muted); font-size: 12px; }
 .shopitem .cost { white-space: nowrap; color: var(--goop); font-variant-numeric: tabular-nums; }
+.subtitle { margin: -2px 0 8px; }
+
+/* ---- Achievements ---- */
+.ach-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+.ach { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 18px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel2);
+  filter: grayscale(1) brightness(.45); cursor: pointer; }
+.ach.on { filter: none; border-color: var(--goop); box-shadow: 0 0 6px rgba(182,232,74,.35); }
+#ach-toast { position: fixed; z-index: 2147483100; top: calc(64px + env(safe-area-inset-top)); right: 10px;
+  display: flex; gap: 10px; align-items: center; background: #1d1a28; border: 1px solid var(--goop);
+  border-radius: 12px; padding: 8px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.5), 0 0 14px rgba(182,232,74,.25);
+  animation: achpop 2.8s ease forwards; will-change: transform, opacity; pointer-events: none; }
+#ach-toast .i { font-size: 26px; }
+#ach-toast .t { font-size: 13px; line-height: 1.25; }
+#ach-toast .t b { color: var(--goop); display: block; }
+#ach-toast .t i { display: block; font-style: normal; color: var(--muted); font-size: 11px; }
+@keyframes achpop {
+  0% { opacity: 0; transform: translateX(40px); }
+  8% { opacity: 1; transform: translateX(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-16px); }
+}
 .combo { height: 10px; background: var(--panel2); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
 .combo > i { display: block; height: 100%; background: linear-gradient(90deg, var(--goop), var(--accent)); }
 .combo.maxed { border-color: var(--goop); box-shadow: 0 0 12px rgba(182,232,74,.7); }

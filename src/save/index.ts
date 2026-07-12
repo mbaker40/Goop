@@ -94,8 +94,9 @@ export function buildSave(meta: MetaState, run: RunState | null, settings: Setti
 /** Migration chain scaffold (PLAN §12). Currently a single version; extend as versions grow. */
 function migrate(data: SaveData): SaveData {
   let d = data;
-  // Fill any missing top-level fields defensively.
-  if (!d.meta) d = { ...d, meta: createMetaState() };
+  // Fill any missing fields defensively — meta merges over defaults so fields added in updates
+  // (puddles, lifetimeGe, achievements, …) exist on older saves.
+  d = { ...d, meta: { ...createMetaState(), ...(d.meta ?? {}) } };
   if (!d.settings) d = { ...d, settings: defaultSettings() };
   // Future: while (d.version < SAVE_VERSION) { ...bump... }
   d.version = SAVE_VERSION;

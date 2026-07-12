@@ -46,11 +46,13 @@ export function buyMeta(meta: MetaState, id: string): boolean {
   return true;
 }
 
-/** Bank a finished run into MetaState: award GE, bump win count. */
+/** Bank a finished run into MetaState: award GE, bump win/puddle counts. */
 export function bankRun(meta: MetaState, peakHeightRaw: number, won: boolean): number {
   const ge = geEarned(peakHeightRaw, won, meta);
   meta.ge += ge;
+  meta.lifetimeGe += ge;
   if (won) meta.wins++;
+  else meta.puddles++;
   if (peakHeightRaw > meta.bestHeightRaw) meta.bestHeightRaw = peakHeightRaw;
   return ge;
 }

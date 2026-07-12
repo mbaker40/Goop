@@ -34,7 +34,8 @@ smoke via `node scripts/smoke.mjs`).
    export/import save UI on the menu (the functions exist in `src/save/`).
 
 ## Should-do (quality bar for store-front-style polish)
-7. Achievements + toasts (PLAN §7; ~20 at launch is enough) — wire "First Splat" end-to-end first.
+7. ~~Achievements + toasts~~ ✅ shipped 2026-07-12: 100 achievements (Steam cap), +0.5% goop/sec
+   each, menu board + unlock toasts. Remaining: Goobers payouts per achievement (M4, with shop).
 8. Onboarding coach-marks: first-run pointer at the shop FAB; melt explainer when grace ends.
 9. Audio pass 2: GPS ambience layers, melt-warning pulse, distinct per-producer purchase sounds.
 10. Service worker + offline PWA (the manifest/icons are already in); wake-lock during runs.
