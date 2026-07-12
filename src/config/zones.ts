@@ -1,12 +1,12 @@
 /**
- * zones.ts — the 15 main-game zones + endless zone naming. Thresholds are on raw sim height
- * (balance.height), NOT the flavor "real-world" meters in the display table — see
+ * zones.ts - the 15 main-game zones + endless zone naming. Thresholds are on raw sim height
+ * (balance.height), NOT the flavor "real-world" meters in the display table - see
  * docs/decisions/0001-m0-scope-and-height-tension.md.
  *
  * Raw thresholds are calibrated against sim-harness/trajectory.ts: early zones are quick dopamine
  * (a first-run, no-meta player sees zones 1-5 before their tutorial death), later zones take
  * progressively longer, and a median-meta winning run crosses all 15 in ~45-55 min. The flavor
- * meters ramp exponentially ("but not TOO quick") — roughly ×3-4 per zone until space, then the
+ * meters ramp exponentially ("but not TOO quick") - roughly ×3-4 per zone until space, then the
  * big leaps.
  */
 

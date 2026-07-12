@@ -1,9 +1,9 @@
 /**
- * zone1.ts — the environment (PLAN §3 / §9.1). A gradient sky, a ground plane, and a starfield
+ * zone1.ts - the environment (PLAN §3 / §9.1). A gradient sky, a ground plane, and a starfield
  * for the space altitudes (set dressing lives in markers.ts as 2D cutouts).
  *
  * The environment is a CONTINUOUS ascent: sky/fog/ground blend smoothly with ALTITUDE
- * (palette.ts paletteAt), like a balloon ride — warm kitchen light thins into attic dust, blue
+ * (palette.ts paletteAt), like a balloon ride - warm kitchen light thins into attic dust, blue
  * sky, stratosphere haze, then black starfield. There is no per-zone color cut; zone identity is
  * carried by the toast/sting and the fixed-altitude scale markers (markers.ts). The ground (and
  * its props) fade out as the tower leaves the planet, and the stars fade in.
@@ -91,14 +91,19 @@ export class Environment {
     this.skyTex = new THREE.CanvasTexture(this.skyCanvas);
     this.skyTex.colorSpace = THREE.SRGBColorSpace;
 
-    // Ground: a COUNTER-TOP DIORAMA BASE — smaller tiled island with a visible edge, like the
+    // Ground: a COUNTER-TOP DIORAMA BASE - smaller tiled island with a visible edge, like the
     // whole scene sits on a kitchen table (was: featureless 60-radius disc).
-    this.groundMat = new THREE.MeshStandardMaterial({ map: makeCounterTexture(), color: 0xffffff, roughness: 0.9, metalness: 0, transparent: true });
+    const counterTex = makeCounterTexture();
+    // Wrapped + center-anchored so setGroundShrink can keep the TILE size shrinking (via repeat)
+    // even after the disc's mesh-scale floor binds.
+    counterTex.wrapS = counterTex.wrapT = THREE.RepeatWrapping;
+    counterTex.center.set(0.5, 0.5);
+    this.groundMat = new THREE.MeshStandardMaterial({ map: counterTex, color: 0xffffff, roughness: 0.9, metalness: 0, transparent: true });
     this.ground = new THREE.Mesh(new THREE.CircleGeometry(26, 48), this.groundMat);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
     // The counter is transparent (it fades with altitude), and three.js sorts transparent objects
-    // back-to-front by OBJECT CENTER — the disc's center is nearer than the scenery cutouts', so
+    // back-to-front by OBJECT CENTER - the disc's center is nearer than the scenery cutouts', so
     // without an explicit order it draws AFTER them and paints over their lower halves (the
     // "fence sunk into the counter" bug). Force ground → shadows → cutouts.
     this.ground.renderOrder = -3;
@@ -138,7 +143,7 @@ export class Environment {
   }
 
   /** Advance the continuous ascent blend; call every frame. Returns true on a zone CHANGE (the
-   *  caller fires the toast/sting/camera pulse — identity beats, not color cuts). */
+   *  caller fires the toast/sting/camera pulse - identity beats, not color cuts). */
   apply(scene: THREE.Scene, heightRaw: number, zoneIndex: number, dt: number): boolean {
     let changed = false;
     if (zoneIndex !== this.currentZone) {
@@ -178,8 +183,9 @@ export class Environment {
     // Tint the tiled counter toward the altitude palette (subtle; texture carries the detail).
     this.groundMat.color.copy(this.cur.ground).lerp(this.tmp.setHex(0xffffff), 0.55);
 
-    // Ground/props fade with ALTITUDE (leaving the planet around the cloud layer), stars fade in.
-    const targetAlpha = clamp01(1 - (heightRaw - 14) / 12);
+    // Ground fades with ALTITUDE - the counter is left behind around "Through the Ceiling"
+    // (scenery has its own per-prop bands in markers.ts; the planet recession takes over at 13).
+    const targetAlpha = clamp01(1 - (heightRaw - 10) / 8);
     if (Math.abs(this.groundAlpha - targetAlpha) > 0.004) {
       this.groundAlpha += (targetAlpha - this.groundAlpha) * Math.min(1, 2.2 * dt);
       this.groundMat.opacity = this.groundAlpha;
@@ -200,18 +206,22 @@ export class Environment {
     this.towerShadow.scale.setScalar(Math.max(0.1, scale));
   }
 
-  /** Shrink the whole counter diorama (disc + tile grid + rim) with the world — same factor as
+  /** Shrink the whole counter diorama (disc + tile grid + rim) with the world - same factor as
    *  the scenery convergence in markers.ts (see groundShrink there). The tiles shrinking under
    *  the goop is the strongest "I am growing" cue on screen. */
   setGroundShrink(s: number): void {
     // Floor: the disc must always outsize the tower's footprint (radius 26 × 0.42 ≈ 11 world
-    // units vs foot ~5), or its rim draws as a ring cutting through the goop. By the time the
-    // floor binds, the altitude fade + planet-recession cutout are taking over anyway.
+    // units vs foot ~5), or its rim draws as a ring cutting through the goop.
     const g = Math.max(0.42, s);
     // The disc is rotated flat, so local x/y span world x/z; the texture shrinks with the mesh.
     this.ground.scale.set(g, g, 1);
     this.edge.scale.set(g, g, g);
     this.edge.position.y = -0.82 * g;
+    // Past the mesh floor, keep the TILES honest by tiling the texture more - otherwise the grid
+    // freezes at a constant size and reads as growing along with the goop.
+    const repeat = Math.min(8, g / Math.max(0.04, s));
+    const map = this.groundMat.map as THREE.CanvasTexture;
+    if (Math.abs(map.repeat.x - repeat) > 0.01) map.repeat.set(repeat, repeat);
   }
 }
 

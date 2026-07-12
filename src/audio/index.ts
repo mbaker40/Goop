@@ -1,15 +1,15 @@
 /**
- * audio/index.ts — first audio pass (PLAN §11): synthesized squelches, no asset files.
+ * audio/index.ts - first audio pass (PLAN §11): synthesized squelches, no asset files.
  *
  * Everything is generated with WebAudio (a pitch-dropping sine "blup" + a bandpassed noise burst),
  * with random pitch/volume jitter so mashing never sounds like a machine gun. Rate limiting per
- * §11: beyond 8 squelches/sec, clicks coalesce — every 4th spam-click plays one fatter
+ * §11: beyond 8 squelches/sec, clicks coalesce - every 4th spam-click plays one fatter
  * "mega-squelch" instead (rewards spam, saves ears). The AudioContext is created lazily on the
- * first un-muted user gesture (browser autoplay policy — CLAUDE.md footgun).
+ * first un-muted user gesture (browser autoplay policy - CLAUDE.md footgun).
  *
  * iOS Safari lifecycle footguns (this file defends against all of them):
  *  1. User-activation timing: iOS only counts `pointerup`/`touchend`/`click`/`keydown` as a
- *     "real" user activation for creating/resuming an AudioContext — `pointerdown`/`touchstart`
+ *     "real" user activation for creating/resuming an AudioContext - `pointerdown`/`touchstart`
  *     (what ui/app.ts fires squelches from) are NOT reliable activations. A context created there
  *     can be born (or stay) 'suspended' and never make sound. So this module also listens on
  *     `window` (capture phase) for the activation-safe event types and opportunistically
@@ -19,8 +19,8 @@
  *     retries `resume()` when the page becomes visible again.
  *  3. Restored-run boot: a reload can land straight on the run screen (persisted save) with no
  *     button press before the first tower tap. The window-level unlock listeners above cover this
- *     the same as any other first gesture — they don't require a specific element/button.
- *  4. Never wedge: none of the unlock listeners are "fire once and forget" — they're ordinary
+ *     the same as any other first gesture - they don't require a specific element/button.
+ *  4. Never wedge: none of the unlock listeners are "fire once and forget" - they're ordinary
  *     listeners left attached for the life of the page, and every one is a no-op once the context
  *     is already 'running'. So if a resume() attempt fails or its promise rejects, the very next
  *     qualifying gesture (or the next visibilitychange) just tries again.
@@ -57,7 +57,7 @@ function createContext(): AudioContext | null {
   return c;
 }
 
-/** Create the context if needed and (re)try resuming it. Safe to call speculatively — it's a
+/** Create the context if needed and (re)try resuming it. Safe to call speculatively - it's a
  * no-op once muted or once the context is already 'running'. Never throws: a rejected resume()
  * just leaves the context suspended for the next attempt to retry. */
 function tryUnlock(): void {
@@ -65,7 +65,7 @@ function tryUnlock(): void {
   if (!ctx) ctx = createContext();
   if (ctx && ctx.state !== 'running') {
     ctx.resume().catch(() => {
-      /* still stuck (e.g. no real activation yet) — listeners below stay armed to retry */
+      /* still stuck (e.g. no real activation yet) - listeners below stay armed to retry */
     });
   }
 }
@@ -73,7 +73,7 @@ function tryUnlock(): void {
 if (typeof window !== 'undefined') {
   // Capture phase, on window, so this fires regardless of which element ends up handling the
   // event (or if something downstream calls stopPropagation). These are the event types iOS
-  // Safari actually honors as user activations for WebAudio — NOT pointerdown/touchstart.
+  // Safari actually honors as user activations for WebAudio - NOT pointerdown/touchstart.
   for (const type of ['pointerup', 'touchend', 'click', 'keydown'] as const) {
     window.addEventListener(type, tryUnlock, { capture: true, passive: true });
   }
@@ -107,10 +107,10 @@ if (typeof window !== 'undefined' && typeof location !== 'undefined' && location
 }
 
 /** One WET goop slap. Three layers make it read as goo, not a beep:
- *  1. "Smack" — a 15ms high noise tick (hand meets goop).
- *  2. "Squish" — the body: noise squeezed through a RESONANT lowpass whose cutoff dives
+ *  1. "Smack" - a 15ms high noise tick (hand meets goop).
+ *  2. "Squish" - the body: noise squeezed through a RESONANT lowpass whose cutoff dives
  *     2.2kHz→150Hz (the classic wet-squelch gesture; the resonance is what sounds slimy).
- *  3. "Blub" — a low sine that burps down 150→45Hz with a wobble, the goop mass settling.
+ *  3. "Blub" - a low sine that burps down 150→45Hz with a wobble, the goop mass settling.
  *  `heat` 0..1 (combo) raises pitch/brightness; `fat` scales everything (mega-squelch). */
 function squelchVoice(c: AudioContext, heat: number, fat: number): void {
   const t = c.currentTime;
@@ -129,7 +129,7 @@ function squelchVoice(c: AudioContext, heat: number, fat: number): void {
   smack.start(t);
   smack.stop(t + 0.03);
 
-  // 2. Squish: resonant lowpass dive over noise — the wet core of the sound.
+  // 2. Squish: resonant lowpass dive over noise - the wet core of the sound.
   const noise = c.createBufferSource();
   noise.buffer = noiseBuf;
   noise.playbackRate.value = 0.7 + Math.random() * 0.5;

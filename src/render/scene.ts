@@ -1,5 +1,5 @@
 /**
- * scene.ts — WebGL renderer, scene, and lights (PLAN §9.1). No post-fx (that's M5).
+ * scene.ts - WebGL renderer, scene, and lights (PLAN §9.1). No post-fx (that's M5).
  */
 
 import * as THREE from 'three';
@@ -17,7 +17,7 @@ export function createScene(canvas: HTMLCanvasElement, maxDpr = 2): SceneBundle 
 
   // Mobile browsers drop the WebGL context on backgrounding/memory pressure. preventDefault on
   // `lost` opts into the restore path; three re-uploads GPU resources on `restored` and the render
-  // loop (which never stopped) picks back up — instead of a permanent silent black screen.
+  // loop (which never stopped) picks back up - instead of a permanent silent black screen.
   canvas.addEventListener('webglcontextlost', (e) => e.preventDefault(), false);
 
   const scene = new THREE.Scene();

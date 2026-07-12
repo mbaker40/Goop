@@ -1,5 +1,5 @@
 /**
- * game.ts — the PURE, deterministic game simulation (PLAN §10 architecture rule #1).
+ * game.ts - the PURE, deterministic game simulation (PLAN §10 architecture rule #1).
  * Zero three.js/DOM imports. Fixed-timestep tick() at balance.tickHz. Fully testable;
  * the sim-harness (§14) and Vitest drive this exact code.
  */
@@ -40,7 +40,7 @@ export interface MetaState {
   bestHeightRaw: number;
   totalClicks: number;
   wins: number;
-  /** Lost (melted) run count — several achievements celebrate failure (PLAN §7). */
+  /** Lost (melted) run count - several achievements celebrate failure (PLAN §7). */
   puddles: number;
   /** Total GE ever banked (spending doesn't reduce it). */
   lifetimeGe: number;
@@ -128,7 +128,7 @@ export interface RunState {
   status: RunStatus;
   collapseTimer: number;
   endlessDepth: number;
-  /** Chaos events (PLAN §8) — plain JSON so saves carry it for free (sim/events.ts). */
+  /** Chaos events (PLAN §8) - plain JSON so saves carry it for free (sim/events.ts). */
   eventCooldown: number;
   activeEvent: ActiveEventState | null;
   eventEffects: EventEffectState[];
@@ -464,7 +464,7 @@ export class Game {
     if (h > r.peakHeightRaw) r.peakHeightRaw = h;
     if (h > this.meta.bestHeightRaw) this.meta.bestHeightRaw = h;
 
-    // Win check (reach Zone 15's finish — the boss itself is M4).
+    // Win check (reach Zone 15's finish - the boss itself is M4).
     if (r.status === 'active' && r.endlessDepth === 0 && h >= WIN_HEIGHT) {
       r.status = 'won';
       checkAchievements(this); // win-conditioned achievements fire on the transition

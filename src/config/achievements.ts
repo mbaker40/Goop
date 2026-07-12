@@ -1,22 +1,22 @@
 /**
- * achievements.ts — 100 achievements (PLAN §7), data-driven. 100 is the Steam per-app cap, so the
- * board is already store-shaped. Each achievement grants +0.5% goop/sec (balance.achievements) —
+ * achievements.ts - 100 achievements (PLAN §7), data-driven. 100 is the Steam per-app cap, so the
+ * board is already store-shaped. Each achievement grants +0.5% goop/sec (balance.achievements) -
  * small, permanent, Cookie-Clicker style.
  *
  * Conditions are pure predicates over an AchievementCtx snapshot (built by sim/achievements.ts
  * from the live Game) so the whole system stays deterministic and testable. Flavor must be funny
- * (CLAUDE.md style rule) — if a name could appear in a serious game, rename it.
+ * (CLAUDE.md style rule) - if a name could appear in a serious game, rename it.
  */
 
 export interface AchievementCtx {
-  // Lifetime (meta) —
+  // Lifetime (meta) -
   totalClicks: number;
   wins: number;
   puddles: number;
   lifetimeGe: number;
   bestMeters: number;
   metaLevelsTotal: number;
-  // Current run —
+  // Current run -
   zone: number;
   runTime: number;
   runClicks: number;
@@ -34,9 +34,9 @@ export interface AchievementCtx {
 export interface AchievementDef {
   id: string;
   name: string;
-  /** Icon KEY into the handmade SVG set (src/ui/icons.ts) — config stays DOM-free. */
+  /** Icon KEY into the handmade SVG set (src/ui/icons.ts) - config stays DOM-free. */
   icon: string;
-  /** Tier within a family (1-based) — rendered as pips on the board tile. */
+  /** Tier within a family (1-based) - rendered as pips on the board tile. */
   tier?: number;
   flavor: string;
   test: (c: AchievementCtx) => boolean;

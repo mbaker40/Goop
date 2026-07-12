@@ -1,13 +1,13 @@
 # 🟢 Goop Tower
 
 A deliberately-stupid 3D incremental game where you slap goop onto a wobbling tower and climb it
-from a kitchen counter to "Past God" across 15 zones — or melt into a puddle trying. Every puddle
+from a kitchen counter to "Past God" across 15 zones - or melt into a puddle trying. Every puddle
 makes you stronger (losing grants meta-currency), so no run is wasted.
 
 **▶ Play: https://mbaker40.github.io/Goop/**
 
-> Status: **Milestone 0 — "playable ugly."** The game is fully playable as text (click to earn goop,
-> buy producers, climb zones, win or melt, then prestige) but not yet goopy — the three.js tower,
+> Status: **Milestone 0 - "playable ugly."** The game is fully playable as text (click to earn goop,
+> buy producers, climb zones, win or melt, then prestige) but not yet goopy - the three.js tower,
 > juice, and audio arrive in later milestones. See [`PLAN.md`](./PLAN.md) for the full design and
 > [`CLAUDE.md`](./CLAUDE.md) for the dev guide.
 

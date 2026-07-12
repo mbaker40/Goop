@@ -1,5 +1,5 @@
 /**
- * sprites.ts — 2D "cardboard cutout" background assets (Little Big Planet style, per design
+ * sprites.ts - 2D "cardboard cutout" background assets (Little Big Planet style, per design
  * direction). Each asset is drawn once with canvas 2D, run through a sticker pipeline (thick pale
  * outline + soft drop shadow), and mounted on a THREE.Sprite so it always faces the camera like a
  * paper cutout on a stick. No image files; everything is drawn in code.
@@ -78,7 +78,7 @@ export function cutout(draw: Draw, w: number, h: number, size = 256): THREE.Spri
 }
 
 /** A cardboard cutout WITH THICKNESS: the drawn front face plus offset corrugation layers behind
- *  it, on a group that stays world-oriented (given a slight per-prop tilt, the edge shows — like a
+ *  it, on a group that stays world-oriented (given a slight per-prop tilt, the edge shows - like a
  *  kid's cardboard cutout on a stick). Returns the group + an opacity setter for ground fading. */
 export interface Board {
   group: THREE.Group;

@@ -1,5 +1,5 @@
 /**
- * report.ts — `npm run sim`. Runs every bot and prints the balance table (PLAN §14).
+ * report.ts - `npm run sim`. Runs every bot and prints the balance table (PLAN §14).
  * Paste the output into docs/balance-notes.md after any balance-affecting change.
  */
 

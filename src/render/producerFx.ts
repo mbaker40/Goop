@@ -1,5 +1,5 @@
 /**
- * producerFx.ts — every producer ("tool") gets its own visible signature in the world (PLAN
+ * producerFx.ts - every producer ("tool") gets its own visible signature in the world (PLAN
  * pillar #1: the number must be FELT). Data-driven emitter table keyed by producer id (same
  * pattern as palette.ts: render-side flavour for sim config). Emission cadence scales gently
  * with owned count and is globally budgeted so 400 drippers don't melt a phone.
@@ -17,7 +17,7 @@ interface FxDef {
   burst: (topY: number) => BurstOptions;
 }
 
-/** Visual signature per producer — matches each one's flavor text. */
+/** Visual signature per producer - matches each one's flavor text. */
 const FX: Record<string, FxDef> = {
   // A leaky faucet, but goop: slow fat drips down the tower's flank.
   dripper: {
@@ -122,7 +122,7 @@ export class ProducerFx {
       this.timers[id] = (this.timers[id] ?? Math.random() * interval) - dt;
       if (this.timers[id]! > 0) continue;
       this.timers[id] = interval;
-      if (this.budget < 1) continue; // over budget this frame — skip, don't queue
+      if (this.budget < 1) continue; // over budget this frame - skip, don't queue
       this.budget -= 1;
 
       fx.origin(topY, t, this.origin);

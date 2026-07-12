@@ -1,5 +1,5 @@
 /**
- * main.ts — boot: load save -> Store -> UI -> 3D renderer -> loop -> autosave (PLAN §10).
+ * main.ts - boot: load save -> Store -> UI -> 3D renderer -> loop -> autosave (PLAN §10).
  */
 
 import { injectStyles } from './ui/styles';
@@ -45,7 +45,7 @@ function boot(): void {
   const settings = { ...defaultSettings(), ...(saved?.settings ?? {}) };
   const store = new Store(meta, settings);
   // Apply the persisted mute setting to the audio module here (not in ui/app.ts) so it's set at
-  // boot regardless of UI construction order — covers the restored-run path where the run screen
+  // boot regardless of UI construction order - covers the restored-run path where the run screen
   // renders immediately with no prior settings-menu interaction. Idempotent; ui/app.ts's
   // constructor also calls this on every settings change.
   audio.setMuted(settings.muted);
@@ -64,7 +64,7 @@ function boot(): void {
         store.screen = 'run';
       }
     } catch {
-      /* corrupt run — fall back to menu with meta intact */
+      /* corrupt run - fall back to menu with meta intact */
     }
   }
 

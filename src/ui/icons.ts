@@ -1,7 +1,8 @@
 /**
- * icons.ts — handmade inline-SVG icon set for the achievements board (no emoji, no asset files).
+ * icons.ts - handmade inline-SVG icon set for the whole UI (no emoji, no asset files).
  * Flat shapes in the game palette, drawn on a 24×24 grid; kept deliberately chunky so they read
- * at 20-24px tile size. Achievement configs reference these by key (config stays DOM-free).
+ * at 20-24px tile size. Configs (achievements, producers, upgrades, events) reference these by
+ * key (config stays DOM-free); the UI renders them via achIcon()/icon()/ic().
  */
 
 const GOOP = '#b6e84a';
@@ -64,9 +65,44 @@ export const ICONS: Record<string, string> = {
   wrench: svg(`<path fill="${INK}" d="M20.8 6.6a5.2 5.2 0 0 1-6.9 6.3L7.6 19.2a2.2 2.2 0 0 1-3.1-3.1l6.3-6.3a5.2 5.2 0 0 1 6.3-6.9l-3 3 .6 2.9 2.9.6z"/><circle fill="${GOOP}" cx="6" cy="17.7" r="1.1"/>`),
   drum: svg(`<ellipse fill="${GOOP}" cx="12" cy="9" rx="8" ry="3.2"/><path fill="${INK}" d="M4 9v7c0 1.8 3.6 3.2 8 3.2s8-1.4 8-3.2V9c0 1.8-3.6 3.2-8 3.2S4 10.8 4 9z"/><path stroke="${MUTED}" stroke-width="1.6" stroke-linecap="round" d="M5.4 3.4 10 8M18.6 3.4 14 8"/>`),
   medal: svg(`<circle fill="${WARN}" cx="12" cy="15" r="6"/><circle fill="${DARK}" cx="12" cy="15" r="3.8"/><path fill="${GOOP}" d="M12 12.4c.9 1.3 1.8 2.2 1.8 3.2a1.8 1.8 0 1 1-3.6 0c0-1 .9-1.9 1.8-3.2z"/><path fill="#ff5d5d" d="M8 2h3.4l-2 5.4L6 6z"/><path fill="#66e0ff" d="M16 2h-3.4l2 5.4L18 6z"/>`),
+
+  // ---- UI chrome / shop / events (the emoji replacements) ----
+  'goop-dot': svg(`<circle fill="${GOOP}" cx="12" cy="11.2" r="7.6"/><path fill="${GOOP}" d="M8.2 16.8h2.4v3.2a1.2 1.2 0 0 1-2.4 0zM13.6 17.4H16v1.8a1.2 1.2 0 0 1-2.4 0z"/><ellipse fill="${INK}" opacity=".55" cx="9.2" cy="8.8" rx="1.6" ry="2.4" transform="rotate(-24 9.2 8.8)"/>`),
+  shield: svg(`<path fill="${INK}" d="M12 2.2 20 5v6.4c0 4.9-3.2 8.3-8 10.4-4.8-2.1-8-5.5-8-10.4V5z"/><path fill="${GOOP}" d="M12 6.4c1.9 2.9 3.8 4.9 3.8 7.2A3.8 3.8 0 0 1 12 17.4a3.8 3.8 0 0 1-3.8-3.8c0-2.3 1.9-4.3 3.8-7.2z"/>`),
+  telescope: svg(`<path fill="none" stroke="${MUTED}" stroke-width="1.8" stroke-linecap="round" d="M11.4 13.8 7.6 21M13 14l3.6 7M12.2 14.4v4"/><rect fill="${INK}" x="3.6" y="9.4" width="14.4" height="5.2" rx="1.6" transform="rotate(-26 10.8 12)"/><rect fill="${GOOP}" x="16.2" y="7.6" width="4" height="6.4" rx="1.4" transform="rotate(-26 18.2 10.8)"/>`),
+  'sound-on': svg(`<path fill="${INK}" d="M3.6 9.4H7l5-4.4v14l-5-4.4H3.6z"/><path fill="none" stroke="${GOOP}" stroke-width="2" stroke-linecap="round" d="M15.2 9a4.6 4.6 0 0 1 0 6M18 6.4a8.2 8.2 0 0 1 0 11.2"/>`),
+  'sound-off': svg(`<path fill="${INK}" d="M3.6 9.4H7l5-4.4v14l-5-4.4H3.6z"/><path fill="none" stroke="${HOT}" stroke-width="2.2" stroke-linecap="round" d="m15 9.2 5.6 5.6M20.6 9.2 15 14.8"/>`),
+  pause: svg(`<rect fill="${INK}" x="6.2" y="4.4" width="4.2" height="15.2" rx="1.6"/><rect fill="${INK}" x="13.6" y="4.4" width="4.2" height="15.2" rx="1.6"/>`),
+  cart: svg(`<path fill="none" stroke="${INK}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M2.6 4.4h2.8l2.2 10.4h10.6l2.2-7.6H6.2"/><circle fill="${INK}" cx="9" cy="19.4" r="1.9"/><circle fill="${INK}" cx="16.4" cy="19.4" r="1.9"/><path fill="${GOOP}" d="M13.2 5.2c.9 1.3 1.8 2.2 1.8 3.2a1.8 1.8 0 1 1-3.6 0c0-1 .9-1.9 1.8-3.2z" opacity=".9"/>`),
+  mountain: svg(`<path fill="${MUTED}" d="M2.4 19.6 8.6 8.4l4 7.2-2.2 4z"/><path fill="${INK}" d="M8.4 19.6 15 6.4l6.6 13.2z"/><path fill="${GOOP}" d="m15 6.4 2.3 4.6-1.5 1.4-1.6-1.2-1.6 1.2-1.5-1.4z" opacity=".9"/>`),
+  sparkle: svg(`<path fill="${WARN}" d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8z"/><path fill="${INK}" d="m18.6 15.2.9 2.5 2.5.9-2.5.9-.9 2.5-.9-2.5-2.5-.9 2.5-.9z" opacity=".85"/>`),
+  meteor: svg(`<path fill="none" stroke="${WARN}" stroke-width="2" stroke-linecap="round" d="M20.2 3.4 14 9.6M21.2 8.8l-3.6 3.6M15.2 2.8l-3.6 3.6"/><circle fill="${HOT}" cx="9" cy="15" r="5.8"/><circle fill="${WARN}" cx="7" cy="13.2" r="1.5"/><circle fill="${WARN}" cx="10.8" cy="17" r="1.1"/>`),
+  briefcase: svg(`<rect fill="${INK}" x="3" y="7.4" width="18" height="12.8" rx="2"/><path fill="none" stroke="${MUTED}" stroke-width="2" d="M9 7.2V5.4a1.8 1.8 0 0 1 1.8-1.8h2.4A1.8 1.8 0 0 1 15 5.4v1.8"/><rect fill="${DARK}" x="3" y="12.2" width="18" height="1.6"/><rect fill="${GOOP}" x="10.3" y="11.2" width="3.4" height="3.6" rx="1"/>`),
+  heat: svg(`<circle fill="${HOT}" cx="12" cy="8" r="4.6"/><path fill="none" stroke="${WARN}" stroke-width="1.9" stroke-linecap="round" d="M4.4 15.6c1.3-1.3 2.5-1.3 3.8 0s2.5 1.3 3.8 0 2.5-1.3 3.8 0 2.5 1.3 3.8 0M4.4 19.8c1.3-1.3 2.5-1.3 3.8 0s2.5 1.3 3.8 0 2.5-1.3 3.8 0 2.5 1.3 3.8 0"/>`),
+  sun: svg(`<circle fill="${WARN}" cx="12" cy="12" r="4.8"/><path fill="none" stroke="${WARN}" stroke-width="2" stroke-linecap="round" d="M12 2.4v2.8M12 18.8v2.8M2.4 12h2.8M18.8 12h2.8M5.2 5.2l2 2M16.8 16.8l2 2M18.8 5.2l-2 2M7.2 16.8l-2 2"/>`),
+  eye: svg(`<path fill="${INK}" d="M12 5.6c4.9 0 8.5 3.3 10 6.4-1.5 3.1-5.1 6.4-10 6.4S3.5 15.1 2 12c1.5-3.1 5.1-6.4 10-6.4z"/><circle fill="#66e0ff" cx="12" cy="12" r="3.6"/><circle fill="${DARK}" cx="12" cy="12" r="1.7"/>`),
+  barber: svg(`<rect fill="${INK}" x="8.4" y="4.6" width="7.2" height="14.4" rx="2"/><path fill="none" stroke="${HOT}" stroke-width="2.2" stroke-linecap="round" d="m9.2 8.8 5.6-2.6M9.2 13l5.6-2.6M9.2 17.2l5.6-2.6"/><rect fill="${MUTED}" x="7.2" y="2.4" width="9.6" height="2.6" rx="1.3"/><rect fill="${MUTED}" x="7.2" y="19" width="9.6" height="2.6" rx="1.3"/>`),
+  anger: svg(`<path fill="${HOT}" d="m12 2.4 1.9 4.3 4.4-1.9-1.9 4.4 4.3 1.9-4.3 1.9 1.9 4.4-4.4-1.9-1.9 4.3-1.9-4.3-4.4 1.9 1.9-4.4-4.3-1.9 4.3-1.9-1.9-4.4 4.4 1.9z"/><circle fill="${WARN}" cx="12" cy="11.1" r="3"/>`),
+  handshake: svg(`<rect fill="${INK}" x="1.4" y="8" width="4" height="5" rx="1.2" transform="rotate(18 3.4 10.5)"/><rect fill="${INK}" x="18.6" y="8" width="4" height="5" rx="1.2" transform="rotate(-18 20.6 10.5)"/><rect fill="${GOOP}" x="3.4" y="9.8" width="9.8" height="5.4" rx="2.7" transform="rotate(18 8.3 12.5)"/><rect fill="#7ee081" x="10.8" y="9.8" width="9.8" height="5.4" rx="2.7" transform="rotate(-18 15.7 12.5)"/>`),
+  gem: svg(`<path fill="#66e0ff" d="M7 4h10l4 5.2-9 10.8L3 9.2z"/><path fill="${INK}" d="M7 4 3 9.2h6zM17 4l4 5.2h-6z" opacity=".55"/><path fill="${DARK}" d="M9 9.2h6l-3 8.4z" opacity=".25"/>`),
+  lock: svg(`<rect fill="${WARN}" x="5" y="10.4" width="14" height="10" rx="2"/><path fill="none" stroke="${INK}" stroke-width="2.4" d="M8 10.4V7.6a4 4 0 0 1 8 0v2.8"/><circle fill="${DARK}" cx="12" cy="14.8" r="1.7"/><rect fill="${DARK}" x="11.2" y="15.4" width="1.6" height="2.8" rx=".8"/>`),
+  gear: svg(`<path fill="${INK}" d="M10.6 2.6h2.8l.5 2.5c.8.3 1.5.7 2.2 1.3l2.4-.8 1.4 2.4-1.9 1.7a7 7 0 0 1 0 2.6l1.9 1.7-1.4 2.4-2.4-.8a7 7 0 0 1-2.2 1.3l-.5 2.5h-2.8l-.5-2.5a7 7 0 0 1-2.2-1.3l-2.4.8-1.4-2.4 1.9-1.7a7 7 0 0 1 0-2.6L4.1 8l1.4-2.4 2.4.8c.7-.6 1.4-1 2.2-1.3z"/><circle fill="${DARK}" cx="12" cy="12" r="3"/>`),
+  wind: svg(`<path fill="none" stroke="${INK}" stroke-width="2.2" stroke-linecap="round" d="M3 8h9.6a2.8 2.8 0 1 0-2.8-2.8M3 13h14.6a3 3 0 1 1-3 3M3 18h6.4a2.4 2.4 0 1 1-2.4 2.4"/>`),
+  brain: svg(`<path fill="#ff9ad5" d="M12 3.6c1.6 0 2.9.9 3.4 2.2 1.8.2 3.2 1.7 3.2 3.6 0 .8-.2 1.5-.7 2.1.7.7 1.1 1.6 1.1 2.6 0 2-1.7 3.7-3.7 3.7-.4 1.5-1.8 2.6-3.3 2.6s-2.9-1.1-3.3-2.6c-2 0-3.7-1.7-3.7-3.7 0-1 .4-1.9 1.1-2.6-.5-.6-.7-1.3-.7-2.1 0-1.9 1.4-3.4 3.2-3.6.5-1.3 1.8-2.2 3.4-2.2z"/><path fill="none" stroke="${DARK}" stroke-width="1.5" d="M12 4.4v15.2" opacity=".55"/>`),
+  underwear: svg(`<path fill="#66e0ff" d="M3.6 6.4h16.8v4.2L14 18.8h-4L3.6 10.6z"/><rect fill="${INK}" x="3.6" y="6.4" width="16.8" height="2.6"/><path fill="${DARK}" d="M6 12.6c1.6 0 2.8 1 3.4 2.4l-1.2 1.6C7.6 14.8 7 14 6 13.8zM18 12.6c-1.6 0-2.8 1-3.4 2.4l1.2 1.6c.6-1.8 1.2-2.6 2.2-2.8z" opacity=".4"/>`),
+  arm: svg(`<path fill="${GOOP}" d="M6.2 3.4h3.2l1 5.8a6.8 6.8 0 0 1 8.4 6.6c0 1.7-.6 3.3-1.7 4.5l-2.2-2.2c.6-.6.9-1.4.9-2.3a3.8 3.8 0 0 0-6.2-3l-2 1.6L4.8 7z"/><circle fill="${DARK}" cx="7.6" cy="6.2" r=".9" opacity=".5"/><circle fill="${DARK}" cx="14.8" cy="14.4" r=".9" opacity=".5"/>`),
+  ice: svg(`<path fill="none" stroke="#9ad9ff" stroke-width="2" stroke-linecap="round" d="M12 2.8v18.4M4 7.4l16 9.2M20 7.4 4 16.6"/><path fill="none" stroke="#9ad9ff" stroke-width="1.6" stroke-linecap="round" d="M12 2.8 9.8 5M12 2.8 14.2 5M12 21.2 9.8 19M12 21.2l2.2-2.2"/>`),
 };
 
 /** Look up an achievement icon by key; falls back to the goop drop. */
 export function achIcon(key: string): string {
   return ICONS[key] ?? ICONS['drop']!;
+}
+
+/** General icon lookup - same table, non-achievement callers (shop rows, HUD, events). */
+export const icon = achIcon;
+
+/** Inline icon wrapped for text flow: sized 1em and baseline-aligned via the .ic class. */
+export function ic(key: string): string {
+  return `<span class="ic">${achIcon(key)}</span>`;
 }

@@ -1,8 +1,8 @@
 /**
- * camera.ts — perspective camera + smooth dolly that keeps the tower framed as it grows, plus an
+ * camera.ts - perspective camera + smooth dolly that keeps the tower framed as it grows, plus an
  * **anchor** so the tower can be placed inside a DOM "stage" region rather than dead screen-centre
  * (PLAN §9.2 responsive HUD). The anchor pins the tower's BASE to a screen line (`yBase`, NDC
- * -1..1): the goop sits on that line and grows upward from it — on portrait phones the base hugs
+ * -1..1): the goop sits on that line and grows upward from it - on portrait phones the base hugs
  * the bottom of the stage instead of floating at mid-screen. A lazy idle orbit runs on the menu
  * (PLAN §9.1).
  */

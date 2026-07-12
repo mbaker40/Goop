@@ -1,5 +1,5 @@
 /**
- * rng.ts — seeded, deterministic RNG (PLAN §10 architecture rule #1).
+ * rng.ts - seeded, deterministic RNG (PLAN §10 architecture rule #1).
  * mulberry32: tiny, fast, good enough for gameplay/event rolls; fully reproducible.
  */
 

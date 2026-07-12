@@ -1,6 +1,6 @@
 /**
- * index.ts — GoopRenderer: owns the 60fps render loop and reads a RenderSource each frame
- * (never mutates it — PLAN §10; drainClickPoints is the one sanctioned, presentation-only
+ * index.ts - GoopRenderer: owns the 60fps render loop and reads a RenderSource each frame
+ * (never mutates it - PLAN §10; drainClickPoints is the one sanctioned, presentation-only
  * exception in the contract). The sim ticks at 10 Hz; the tower springs between those states so
  * motion stays smooth. `store.game` is re-read every frame (it's swapped on startRun).
  */
@@ -58,10 +58,12 @@ export class GoopRenderer {
   private axisB = new THREE.Vector3();
   private lightTint = new THREE.Color();
   private lastTopY = 1;
-  /** Slow follower of the tower top — the WORLD (camera, markers) tracks this, so the goop's
+  /** Slow follower of the tower top - the WORLD (camera, markers) tracks this, so the goop's
    *  spring jiggle never bounces the background or the framing. */
   private worldTop = 1;
   private worldRaw = 0;
+  private worldSnap = true;
+  private lastGame: unknown = null;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -108,7 +110,7 @@ export class GoopRenderer {
   }
 
   /** Splat origin for a tap: cast the tap ray and find its closest point on the tower's axis, so
-   *  goop visibly lands where the finger touched — each tap feels locally causal. */
+   *  goop visibly lands where the finger touched - each tap feels locally causal. */
   private tapOrigin(x: number, y: number, topY: number, out: THREE.Vector3): void {
     this.ndc.set((x / Math.max(1, this.w)) * 2 - 1, -((y / Math.max(1, this.h)) * 2 - 1));
     this.raycaster.setFromCamera(this.ndc, this.cam.camera);
@@ -122,9 +124,17 @@ export class GoopRenderer {
     this.t += dt;
 
     const game = this.source.game; // re-read every frame (swapped on startRun)
+    // New game instance = fresh run OR a resumed save. Snap the growth spring and the smoothed
+    // world reference to the real height so a mid-run reload doesn't replay the whole grow-in
+    // (props flashing to start size and re-shrinking).
+    if (game !== this.lastGame) {
+      this.lastGame = game;
+      this.tower.snap(game.heightRaw());
+      this.worldSnap = true;
+    }
     const zone = game.currentZone();
     // Continuous ascent: the environment blends with altitude; a zone CHANGE is still the big
-    // dopamine beat (toast/sting fire in the UI) — pull the camera back for it.
+    // dopamine beat (toast/sting fire in the UI) - pull the camera back for it.
     if (this.env.apply(this.bundle.scene, game.heightRaw(), zone.index, dt)) {
       this.cam.pulse();
       this.tower.impact(undefined, undefined, 0.6); // celebratory jiggle
@@ -173,6 +183,11 @@ export class GoopRenderer {
     this.lastTopY = topY;
 
     // Smooth world reference (~0.9s time constant): the goop jiggles, the world doesn't.
+    if (this.worldSnap) {
+      this.worldSnap = false;
+      this.worldTop = topY;
+      this.worldRaw = this.tower.debugHeight;
+    }
     const wk = 1 - Math.exp(-dt / 0.9);
     this.worldTop += (topY - this.worldTop) * wk;
     this.worldRaw += (this.tower.debugHeight - this.worldRaw) * wk;
@@ -183,7 +198,7 @@ export class GoopRenderer {
     this.env.setTowerShadow(this.tower.groundFootprint);
     this.env.setGroundShrink(groundShrink(this.worldRaw, this.worldTop));
 
-    // Ambient producer signatures — each "tool" you buy is visible working on the tower.
+    // Ambient producer signatures - each "tool" you buy is visible working on the tower.
     if (status === 'active' || status === 'grace') {
       this.producerFx.update(dt, game.run.producersOwned, topY, this.t, this.splats);
     }
@@ -200,7 +215,7 @@ export class GoopRenderer {
     this.splats.update(dt);
 
     // Frame the tower into the DOM stage rect: centre horizontally, and pin the goop's BASE near
-    // the BOTTOM of the stage so it sits on the ground and grows upward — instead of floating at
+    // the BOTTOM of the stage so it sits on the ground and grows upward - instead of floating at
     // mid-screen with a band of empty ground under it (the old centre-anchor bug). Portrait's
     // stage ends above the readout, so the base can hug the stage bottom (97%); landscape's
     // readout OVERLAYS the stage bottom-centre, so keep the base above it (78%).

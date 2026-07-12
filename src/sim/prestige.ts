@@ -1,5 +1,5 @@
 /**
- * prestige.ts — Goop Essence math + meta-upgrade purchasing (PLAN §4, §6).
+ * prestige.ts - Goop Essence math + meta-upgrade purchasing (PLAN §4, §6).
  * Pure functions over MetaState; no side effects on the running game.
  */
 

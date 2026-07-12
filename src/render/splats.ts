@@ -1,5 +1,5 @@
 /**
- * splats.ts — goop droplet bursts on each slap (PLAN §2.1 "SPLATS on … ripple") plus ambient
+ * splats.ts - goop droplet bursts on each slap (PLAN §2.1 "SPLATS on … ripple") plus ambient
  * producer effects. A small InstancedMesh pool with PER-INSTANCE colour (so a click splat, a
  * collapse drip and a Goop Cannon shot can coexist without recolouring each other); each droplet
  * arcs out under gravity and shrinks away. Cheap (one draw call, fixed pool).
@@ -69,7 +69,7 @@ export class SplatSystem {
 
   /** Blobs that CONVERGE on `target` and are absorbed there (PLAN §2.1 "a goop blob launches …
    *  and SPLATS on"). They spawn on a loose ring around the target, fly straight in over their
-   *  short lifetime and shrink away exactly on arrival — reading as goop being ADDED to the
+   *  short lifetime and shrink away exactly on arrival - reading as goop being ADDED to the
    *  tower, not knocked off it. */
   absorb(target: THREE.Vector3, color: number, opts: { count?: number; size?: number; radius?: number } = {}): void {
     const count = opts.count ?? 5;

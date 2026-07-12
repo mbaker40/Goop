@@ -1,6 +1,6 @@
 /**
- * achievements.test.ts — the 100-achievement system (PLAN §7).
- * Config sanity (exactly 100, unique ids — Steam's per-app cap), unlock mechanics,
+ * achievements.test.ts - the 100-achievement system (PLAN §7).
+ * Config sanity (exactly 100, unique ids - Steam's per-app cap), unlock mechanics,
  * the +0.5%/unlock GPS bonus, and save-migration defaults for older saves.
  */
 

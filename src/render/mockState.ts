@@ -1,5 +1,5 @@
 /**
- * mockState.ts — a scriptable mock RenderSource (PLAN §16.2, §17).
+ * mockState.ts - a scriptable mock RenderSource (PLAN §16.2, §17).
  * Lets the renderer be exercised in isolation (via `?mockrender`) without running the sim:
  * ramps height 0→WIN across all 15 zones, cycles run.status, sweeps combo, and hits the
  * Infinity-buffer (no-melt) case. Self-drives on rAF.

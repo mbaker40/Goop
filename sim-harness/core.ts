@@ -1,7 +1,7 @@
 /**
- * core.ts — headless balance simulator (PLAN §14). Drives the PURE sim (src/sim)
+ * core.ts - headless balance simulator (PLAN §14). Drives the PURE sim (src/sim)
  * with bot strategies at high speed and reports run-length / fail-point tables.
- * This is the tool that tunes src/config/balance.ts — build it in M0, keep it green.
+ * This is the tool that tunes src/config/balance.ts - build it in M0, keep it green.
  */
 
 import { balance } from '../src/config/balance';
@@ -25,9 +25,9 @@ export interface SimResult {
   runTimeSec: number;
   ge: number;
   producersBought: number;
-  /** log10 of lifetime goop at end — diagnostic for tuning height/zones. */
+  /** log10 of lifetime goop at end - diagnostic for tuning height/zones. */
   lifetimeLog10: number;
-  /** log10 of final GPS at end — diagnostic. */
+  /** log10 of final GPS at end - diagnostic. */
   gpsLog10: number;
 }
 
@@ -86,11 +86,11 @@ interface BuyAction {
 
 /** How long a sensible player will save toward a big-ticket item, in seconds of current income.
  *  Without saving, greedy play grinds 80 drippers while the Reactor (≈70s of income) sits
- *  unbought forever — the late producer ladder becomes unreachable (the M2 progression bug). */
+ *  unbought forever - the late producer ladder becomes unreachable (the M2 progression bug). */
 const SAVE_HORIZON_SEC = 300;
 
 export interface BuyPlan {
-  /** Best ratio within the save horizon — possibly unaffordable (the savings target). */
+  /** Best ratio within the save horizon - possibly unaffordable (the savings target). */
   best: BuyAction | null;
   /** Best ratio among currently AFFORDABLE items (what to nibble on while saving). */
   bestAffordable: BuyAction | null;
@@ -155,7 +155,7 @@ function costAsDecimal(n: number) {
   return D(n);
 }
 
-/** Buy greedily. When the best target isn't affordable yet, SAVE toward it — but keep nibbling on
+/** Buy greedily. When the best target isn't affordable yet, SAVE toward it - but keep nibbling on
  *  affordable items whose ratio is still decent (≥30% of the target's), like a real player does.
  *  Never stall income entirely: melt punishes flat GPS (PLAN §5.3), saving included. */
 export function greedyBuy(game: Game, maxBuys = 500): number {

@@ -1,5 +1,5 @@
 /**
- * sim.test.ts — unit tests for the pure sim (PLAN §10). Fast, deterministic.
+ * sim.test.ts - unit tests for the pure sim (PLAN §10). Fast, deterministic.
  */
 
 import { describe, it, expect } from 'vitest';
