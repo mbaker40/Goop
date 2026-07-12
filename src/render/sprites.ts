@@ -9,53 +9,90 @@ import * as THREE from 'three';
 
 type Draw = (c: CanvasRenderingContext2D, s: number) => void;
 
-/** Render `draw` onto a canvas, then add the sticker outline + shadow. */
-function cutoutTexture(draw: Draw, size = 256): THREE.CanvasTexture {
-  // 1. Draw the art on its own layer.
+/** Expanded silhouette of the art (stamped at ring offsets), filled with `color`. */
+function silhouette(art: HTMLCanvasElement, size: number, color: string, grow = 1): HTMLCanvasElement {
+  const edge = document.createElement('canvas');
+  edge.width = edge.height = size;
+  const e = edge.getContext('2d')!;
+  const R = Math.max(3, size * 0.018) * grow;
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    e.drawImage(art, Math.cos(ang) * R, Math.sin(ang) * R);
+  }
+  e.globalCompositeOperation = 'source-in';
+  e.fillStyle = color;
+  e.fillRect(0, 0, size, size);
+  return edge;
+}
+
+function drawArt(draw: Draw, size: number): HTMLCanvasElement {
   const art = document.createElement('canvas');
   art.width = art.height = size;
   const a = art.getContext('2d')!;
   a.save();
   draw(a, size);
   a.restore();
+  return art;
+}
 
-  // 2. Build the expanded silhouette (the cardboard edge) by stamping the art at ring offsets.
-  const edge = document.createElement('canvas');
-  edge.width = edge.height = size;
-  const e = edge.getContext('2d')!;
-  const R = Math.max(3, size * 0.018);
-  for (let i = 0; i < 12; i++) {
-    const ang = (i / 12) * Math.PI * 2;
-    e.drawImage(art, Math.cos(ang) * R, Math.sin(ang) * R);
-  }
-  e.globalCompositeOperation = 'source-in';
-  e.fillStyle = '#f4efe2'; // warm paper edge
-  e.fillRect(0, 0, size, size);
-
-  // 3. Compose: shadow, edge, art.
-  const out = document.createElement('canvas');
-  out.width = out.height = size;
-  const o = out.getContext('2d')!;
-  o.save();
-  o.globalAlpha = 0.3;
-  o.filter = 'blur(3px)';
-  o.drawImage(edge, size * 0.02, size * 0.035);
-  o.restore();
-  o.drawImage(edge, 0, 0);
-  o.drawImage(art, 0, 0);
-
-  const tex = new THREE.CanvasTexture(out);
+function toTexture(cv: HTMLCanvasElement): THREE.CanvasTexture {
+  const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 2;
   return tex;
 }
 
-/** A camera-facing cutout sprite, `w`×`h` in world units. */
+/** Front face: cardboard-colored cut shape with the kid's drawing on it. */
+function frontTexture(draw: Draw, size = 256): THREE.CanvasTexture {
+  const art = drawArt(draw, size);
+  const out = document.createElement('canvas');
+  out.width = out.height = size;
+  const o = out.getContext('2d')!;
+  o.drawImage(silhouette(art, size, '#d9bd8a'), 0, 0); // the cardboard the shape was cut from
+  o.globalAlpha = 0.92; // let a whisper of board show through the marker drawing
+  o.drawImage(art, 0, 0);
+  o.globalAlpha = 1;
+  return toTexture(out);
+}
+
+/** A camera-facing cutout sprite, `w`×`h` in world units (used for the receding planet). */
 export function cutout(draw: Draw, w: number, h: number, size = 256): THREE.Sprite {
-  const mat = new THREE.SpriteMaterial({ map: cutoutTexture(draw, size), transparent: true, depthWrite: false });
+  const mat = new THREE.SpriteMaterial({ map: frontTexture(draw, size), transparent: true, depthWrite: false });
   const s = new THREE.Sprite(mat);
   s.scale.set(w, h, 1);
   return s;
+}
+
+/** A cardboard cutout WITH THICKNESS: the drawn front face plus offset corrugation layers behind
+ *  it, on a group that stays world-oriented (given a slight per-prop tilt, the edge shows — like a
+ *  kid's cardboard cutout on a stick). Returns the group + an opacity setter for ground fading. */
+export interface Board {
+  group: THREE.Group;
+  setOpacity(o: number): void;
+}
+
+export function board(draw: Draw, w: number, h: number, tilt = 0, size = 256): Board {
+  const group = new THREE.Group();
+  const art = drawArt(draw, size);
+  const mats: THREE.MeshBasicMaterial[] = [];
+  const layer = (tex: THREE.Texture, z: number): void => {
+    const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    mats.push(m);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+    p.position.z = z;
+    group.add(p);
+  };
+  // Back to front: dark corrugation core, mid board, drawn face. The offsets are the thickness.
+  layer(toTexture(silhouette(art, size, '#8a6b3e', 1.15)), -0.1);
+  layer(toTexture(silhouette(art, size, '#b28e57')), -0.05);
+  layer(frontTexture(draw, size), 0);
+  group.rotation.y = tilt;
+  return {
+    group,
+    setOpacity(o: number) {
+      for (const m of mats) m.opacity = o;
+    },
+  };
 }
 
 // ---- drawing helpers ----

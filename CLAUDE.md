@@ -122,9 +122,14 @@ Starfield fades in above raw 30; ground/shaker fade out ~raw 14-26. Env exposes 
 palette consumed by tower/splats/light.
 
 **Done: M3 (slice 3) — Ascent phase 2: cardboard-cutout world (2026-07-12).** All background
-assets are now 2D "cardboard cutout" sprites (LBP style): `render/sprites.ts` draws each asset
-with canvas 2D and runs it through a sticker pipeline (offset-stamped silhouette outline + soft
-drop shadow) onto THREE.Sprites that wobble like paper. `markers.ts` gained the cat photo, kite,
+assets are 2D-on-3D "cardboard cutouts" (LBP style): `render/sprites.ts` draws each asset with
+canvas 2D and mounts it as a `board()` — three stacked planes (drawn face over two offset
+cardboard-tan silhouette layers) with a per-prop y-tilt so the THICKNESS edge shows; the camera
+settles to the front view during runs (orbit eases home) so tilts read consistently. Props split
+into GROUND SCENERY (shaker/toaster/houses/water tower standing at staggered depths from frame
+one, fading with the ground) and ALTITUDE FLYBYS. Slap feedback is a radial SWELL (squash is
+collapse-only) and camera framing ignores tap deformation — no per-tap screen bob. PORTRAIT
+frustum check: halfW ≈ 0.215 × depth-from-camera (camera ~7 back at zoom 1) — keep props inside. `markers.ts` gained the cat photo, kite,
 hot-air balloon, UFO, goop whale (raw 66), marble hand w/ cocked flick finger (raw 96), the salt
 shaker (now a cutout; 3D prop removed), and the **planet recession** — the home planet (counter-
 tile ball w/ goop continents) shrinks away below from raw ~13-72. A **view zoom** (🔭 HUD button,
