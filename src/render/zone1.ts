@@ -1,15 +1,16 @@
 /**
- * zone1.ts — minimal environment (PLAN §3 Zone 1 / §9.1). A gradient sky, a ground plane, and one
- * primitive sight-gag (the giant salt shaker). Zone changes CROSSFADE (PLAN §9.1 "environment
- * crossfade") instead of hard-cutting: the live palette lerps toward the new zone's over ~1.5s,
- * the sky gradient is redrawn while blending, and the ground fades out as the tower leaves the
- * planet. Full per-zone set-dressing is a later slice.
+ * zone1.ts — the environment (PLAN §3 / §9.1). A gradient sky, a ground plane, one primitive
+ * sight-gag (the giant salt shaker), and a starfield for the space altitudes.
+ *
+ * The environment is a CONTINUOUS ascent: sky/fog/ground blend smoothly with ALTITUDE
+ * (palette.ts paletteAt), like a balloon ride — warm kitchen light thins into attic dust, blue
+ * sky, stratosphere haze, then black starfield. There is no per-zone color cut; zone identity is
+ * carried by the toast/sting and the fixed-altitude scale markers (markers.ts). The ground (and
+ * its props) fade out as the tower leaves the planet, and the stars fade in.
  */
 
 import * as THREE from 'three';
-import type { ZonePalette } from './palette';
-
-const FADE_K = 2.2; // palette lerp rate (≈1.5s to settle)
+import { paletteAt, type ZonePalette } from './palette';
 
 export class Environment {
   readonly group = new THREE.Group();
@@ -18,19 +19,20 @@ export class Environment {
   private shaker: THREE.Group;
   private skyTex: THREE.CanvasTexture;
   private skyCanvas: HTMLCanvasElement;
+  private stars: THREE.Points;
+  private starMat: THREE.PointsMaterial;
   private currentZone = -1;
-  private blending = false;
-
-  // Live (displayed) colours, lerped toward the target palette each frame.
-  private skyTop = new THREE.Color();
-  private skyBottom = new THREE.Color();
-  private groundCol = new THREE.Color();
-  private fogCol = new THREE.Color();
-  private tSkyTop = new THREE.Color();
-  private tSkyBottom = new THREE.Color();
-  private tGround = new THREE.Color();
-  private tFog = new THREE.Color();
   private groundAlpha = 1;
+
+  /** Live palette (smoothed toward the altitude target each frame); read by the renderer for
+   *  goop/splat tinting so everything shares the same blend. */
+  readonly live: ZonePalette = { skyTop: 0, skyBottom: 0, goop: 0xb6e84a, ground: 0, fog: 0 };
+  private target: ZonePalette = { skyTop: 0, skyBottom: 0, goop: 0, ground: 0, fog: 0 };
+  private cur = { skyTop: new THREE.Color(), skyBottom: new THREE.Color(), goop: new THREE.Color(), ground: new THREE.Color(), fog: new THREE.Color() };
+  private tmp = new THREE.Color();
+  private lastDrawnTop = -1;
+  private lastDrawnBottom = -1;
+  private booted = false;
 
   constructor() {
     // Gradient sky as a screen background texture.
@@ -61,66 +63,83 @@ export class Environment {
     this.shaker.position.set(7.5, 0, -3);
     this.shaker.scale.setScalar(1.1);
     this.group.add(this.shaker);
+
+    // Starfield: a shell of points that fades in with altitude (space is continuous too).
+    const STARS = 260;
+    const pos = new Float32Array(STARS * 3);
+    for (let i = 0; i < STARS; i++) {
+      // Random directions on the upper-ish hemisphere of a big shell.
+      const a = Math.random() * Math.PI * 2;
+      const y = Math.random() * 1.6 - 0.3; // bias upward
+      const r = Math.sqrt(Math.max(0, 1 - y * y));
+      pos[i * 3] = Math.cos(a) * r * 140;
+      pos[i * 3 + 1] = y * 140;
+      pos[i * 3 + 2] = Math.sin(a) * r * 140;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.starMat = new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0 });
+    this.stars = new THREE.Points(geo, this.starMat);
+    this.stars.frustumCulled = false;
+    this.group.add(this.stars);
   }
 
-  /** Advance toward the current zone's palette; call every frame. Returns true on a zone CHANGE. */
-  apply(scene: THREE.Scene, zoneIndex: number, palette: ZonePalette, dt: number): boolean {
+  /** Advance the continuous ascent blend; call every frame. Returns true on a zone CHANGE (the
+   *  caller fires the toast/sting/camera pulse — identity beats, not color cuts). */
+  apply(scene: THREE.Scene, heightRaw: number, zoneIndex: number, dt: number): boolean {
     let changed = false;
     if (zoneIndex !== this.currentZone) {
-      const first = this.currentZone === -1;
+      changed = this.currentZone !== -1 && zoneIndex > this.currentZone;
       this.currentZone = zoneIndex;
-      this.tSkyTop.setHex(palette.skyTop);
-      this.tSkyBottom.setHex(palette.skyBottom);
-      this.tGround.setHex(palette.ground);
-      this.tFog.setHex(palette.fog);
-      if (first) {
-        // Boot: snap, no fade-in from black.
-        this.skyTop.copy(this.tSkyTop);
-        this.skyBottom.copy(this.tSkyBottom);
-        this.groundCol.copy(this.tGround);
-        this.fogCol.copy(this.tFog);
-      } else {
-        changed = true;
-      }
-      this.blending = true;
     }
 
-    if (this.blending) {
-      const k = Math.min(1, FADE_K * dt);
-      this.skyTop.lerp(this.tSkyTop, k);
-      this.skyBottom.lerp(this.tSkyBottom, k);
-      this.groundCol.lerp(this.tGround, k);
-      this.fogCol.lerp(this.tFog, k);
-      this.redrawSky(scene);
-      if (scene.fog) (scene.fog as THREE.Fog).color.copy(this.fogCol);
-      this.groundMat.color.copy(this.groundCol);
-      // Close enough → stop redrawing the sky every frame.
-      if (this.skyTop.getHex() === this.tSkyTop.getHex() && this.skyBottom.getHex() === this.tSkyBottom.getHex()) {
-        this.blending = false;
-      }
-    }
+    // Altitude-driven target palette, smoothed so fast height spikes don't strobe the sky.
+    paletteAt(heightRaw, this.target);
+    const k = this.booted ? Math.min(1, 2.2 * dt) : 1;
+    this.booted = true;
+    this.cur.skyTop.lerp(this.tmp.setHex(this.target.skyTop), k);
+    this.cur.skyBottom.lerp(this.tmp.setHex(this.target.skyBottom), k);
+    this.cur.goop.lerp(this.tmp.setHex(this.target.goop), k);
+    this.cur.ground.lerp(this.tmp.setHex(this.target.ground), k);
+    this.cur.fog.lerp(this.tmp.setHex(this.target.fog), k);
+    this.live.skyTop = this.cur.skyTop.getHex();
+    this.live.skyBottom = this.cur.skyBottom.getHex();
+    this.live.goop = this.cur.goop.getHex();
+    this.live.ground = this.cur.ground.getHex();
+    this.live.fog = this.cur.fog.getHex();
 
-    // Later zones are in space — fade the ground/props out as we leave the planet.
-    const grounded = zoneIndex <= 3;
-    const targetAlpha = grounded ? 1 : 0;
-    if (Math.abs(this.groundAlpha - targetAlpha) > 0.005) {
-      this.groundAlpha += (targetAlpha - this.groundAlpha) * Math.min(1, FADE_K * dt);
+    // Redraw the sky texture only when the blend actually moved (cheap 4×256 canvas).
+    if (this.live.skyTop !== this.lastDrawnTop || this.live.skyBottom !== this.lastDrawnBottom) {
+      this.lastDrawnTop = this.live.skyTop;
+      this.lastDrawnBottom = this.live.skyBottom;
+      const ctx = this.skyCanvas.getContext('2d')!;
+      const grad = ctx.createLinearGradient(0, 0, 0, this.skyCanvas.height);
+      grad.addColorStop(0, '#' + this.cur.skyTop.getHexString());
+      grad.addColorStop(1, '#' + this.cur.skyBottom.getHexString());
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, this.skyCanvas.width, this.skyCanvas.height);
+      this.skyTex.needsUpdate = true;
+      scene.background = this.skyTex;
+    }
+    if (scene.fog) (scene.fog as THREE.Fog).color.copy(this.cur.fog);
+    this.groundMat.color.copy(this.cur.ground);
+
+    // Ground/props fade with ALTITUDE (leaving the planet around the cloud layer), stars fade in.
+    const targetAlpha = clamp01(1 - (heightRaw - 14) / 12);
+    if (Math.abs(this.groundAlpha - targetAlpha) > 0.004) {
+      this.groundAlpha += (targetAlpha - this.groundAlpha) * Math.min(1, 2.2 * dt);
       this.groundMat.opacity = this.groundAlpha;
       this.ground.visible = this.groundAlpha > 0.02;
       this.shaker.visible = this.groundAlpha > 0.02;
       this.shaker.scale.setScalar(1.1 * (0.2 + 0.8 * this.groundAlpha));
     }
+    this.starMat.opacity = clamp01((heightRaw - 30) / 20) * 0.9;
+    this.stars.visible = this.starMat.opacity > 0.02;
+
     return changed;
   }
+}
 
-  private redrawSky(scene: THREE.Scene): void {
-    const ctx = this.skyCanvas.getContext('2d')!;
-    const grad = ctx.createLinearGradient(0, 0, 0, this.skyCanvas.height);
-    grad.addColorStop(0, '#' + this.skyTop.getHexString());
-    grad.addColorStop(1, '#' + this.skyBottom.getHexString());
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, this.skyCanvas.width, this.skyCanvas.height);
-    this.skyTex.needsUpdate = true;
-    scene.background = this.skyTex;
-  }
+function clamp01(v: number): number {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
 }

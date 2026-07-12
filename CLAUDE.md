@@ -112,6 +112,16 @@ the ground. Verified with a headless smoke at 1920×1080 and 390×844. **M1 (The
   HUD says "Goop/sec" and "Melt shield: Ns" (seconds only); combo is "Slap Combo"; shop panels
   are "Goop Makers / ×2 Boosts / Upgrades" with plain-language subtitles + per-maker rate lines.
 
+**Done: M3 (slice 2) — Continuous ascent environment (2026-07-12).** Design decision: the sky is a
+smooth ALTITUDE gradient (`palette.ts paletteAt()` blending zone palettes by raw height — no
+per-zone color cuts; zone identity = toast/sting/props). `render/markers.ts` adds fixed-altitude
+scale markers that sweep past the climbing tower top (toaster → birds → house/water tower →
+"WHY" blimp → clouds/jet → satellite/astronaut → Moon → face-planet; K=0.55 world-units per raw,
+±9 raw visibility window; portrait frustum is the tight axis — keep |x| ≤ ~4.5 and push z back).
+Starfield fades in above raw 30; ground/shaker fade out ~raw 14-26. Env exposes `live` blended
+palette consumed by tower/splats/light.
+
 **Next (see `docs/release-roadmap.md` for the full ordered list):** chaos events (sim stub at
-`src/sim/events.ts`), Zone 7 boss "The Flick", per-zone set dressing, real-device iOS/Android QA,
-prestige-path Z4-wall smoothing, save/offline test coverage + export/import UI.
+`src/sim/events.ts`), Zone 7 boss "The Flick", ascent phase 2 (planet-ball recession, whale,
+marble hand, keep-top framing), real-device iOS/Android QA, prestige-path Z4-wall smoothing,
+save/offline test coverage + export/import UI.
