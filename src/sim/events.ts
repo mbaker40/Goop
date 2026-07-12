@@ -81,7 +81,13 @@ function applyOutcome(host: EventHost, outcome: EventOutcome | undefined): void 
     if (grant.gt(0)) host.addGoopFromEvent(grant);
   }
   if (outcome.goopMult && outcome.goopMult !== 1) {
-    const bonus = host.run.goop.mul(outcome.goopMult - 1);
+    let bonus = host.run.goop.mul(outcome.goopMult - 1);
+    // Cap in seconds-of-GPS terms (see config/events.ts: the uncapped Investor was a
+    // hoard-the-bank compounding exploit).
+    if (outcome.goopMultCapGpsSeconds) {
+      const cap = host.gps().mul(outcome.goopMultCapGpsSeconds);
+      if (bonus.gt(cap)) bonus = cap;
+    }
     if (bonus.gt(0)) host.addGoopFromEvent(bonus);
   }
   if (outcome.structuralLossFrac) {

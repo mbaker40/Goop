@@ -4,7 +4,7 @@
  */
 
 import { runSimulation, type SimResult } from './core';
-import { GreedyBot, ClickerBot, IdleBot, ChaoticBot, MEDIAN_META } from './strategies';
+import { GreedyBot, ClickerBot, IdleBot, ChaoticBot, DealerBot, MEDIAN_META } from './strategies';
 import { formatTime, formatHeight } from '../src/sim/numbers';
 import { displayMeters } from '../src/config/zones';
 
@@ -25,6 +25,8 @@ function main(): void {
     row('ChaoticBot (no meta)', runSimulation(ChaoticBot, { metaLevels: {} }), 'distracted'),
     row('ClickerBot (no meta)', runSimulation(ClickerBot, { metaLevels: {} }), 'first-run active'),
     row('ClickerBot (median meta)', runSimulation(ClickerBot, { metaLevels: MEDIAN_META }), 'target win'),
+    row('DealerBot (no meta)', runSimulation(DealerBot, { metaLevels: {} }), 'event exploiter'),
+    row('DealerBot (median meta)', runSimulation(DealerBot, { metaLevels: MEDIAN_META }), 'deals + meta'),
     row('GreedyBot (median meta)', runSimulation(GreedyBot, { metaLevels: MEDIAN_META }), 'passive w/ meta'),
   ];
 

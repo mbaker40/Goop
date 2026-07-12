@@ -196,6 +196,28 @@ tight for low gags like the cat photo) with convergence measured from band entry
 (`mPerWAt(raw)`); ground fade moved to raw 10-18. (6) Resumed saves SNAP the tower spring +
 world followers (`tower.snap()`, `worldSnap` on game-instance change) - no replayed grow-in.
 
+**Done: M3 (slice 7) - the first-try-win patch + world feel (2026-07-12, user QA round 2).**
+- **Balance**: a human won run #1 in <1h via the uncapped Investor (hoard bank, x10 it every
+  ~3 min; bots decline deals so the harness was blind). Investor bonus now capped at 90s of
+  GPS (`goopMultCapGpsSeconds`), target payouts trimmed (28/18/4s), zoneMeltMult 10-15
+  steepened to 2.0 max, new **DealerBot** keeps deal-taking measured. Prestige path now first
+  win run #9/~3.3h; median win 46:13. See balance-notes.
+- **Goop physics**: slap-stacked metaballs - each tap adds a transient blob at the impact
+  point that lands, quivers, oozes down and merges (`tower.addBlob`, blob pool in the field
+  rebuild). Wobble/swell springs softened + underdamped (STIFFNESS 42/DAMPING 5.2, swell
+  -85/-8.5), boil raised. Taps now literally build the tower.
+- **True backgrounds** (`render/backdrop.ts`): two concentric inside-facing cylinder shells
+  with seamless period-exact canvas strips - rolling hills+rooftops / cloud banks / nebula+
+  stars - crossfading by altitude era (ERA_MID [5,22,44]) and persisting forever (era 2 holds
+  into Endless). Different rotation/sink rates per shell = parallax; fog tints the far shell.
+  The finite `hills` cutout prop is GONE (its edges were visible).
+- **Art rework** (sprites.ts): facePlanet is planet-first (bands, Saturn ring in 3 passes,
+  craters, tiny face), whale has real flukes/fin/spout + belly drips, hand is a proper marble
+  flick pose (fingers + cocked index pinned by thumb, veins). Cat photo kept (band-limited).
+- **Camera-growth feel**: camera distance eases with tau ~2.1s (goop visibly outgrows the
+  frame in spurts, then the camera pulls back; lag bounded at 18% linear so the mock's
+  30s-WIN ramp still frames), zoom button gets a 0.35s boost window.
+
 **Next (see `docs/release-roadmap.md` for the full ordered list):** Zone 15 boss "The Flick"
 (the hand cutout already waits at raw 96), real-device iOS/Android QA, prestige-path
 mid-zone-wall smoothing, save/offline test coverage + export/import UI, Endless GE scaling

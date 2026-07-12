@@ -25,6 +25,8 @@ export class TowerCamera {
   private anchorY = 0;
   /** Temporary extra pull-back (zone-transition moment, PLAN §9.1); decays back to 0. */
   private pulseDist = 0;
+  private lastZoom = 1;
+  private zoomBoost = 0;
 
   constructor(aspect: number) {
     this.camera = new THREE.PerspectiveCamera(50, aspect, 0.1, 2000);
@@ -47,7 +49,20 @@ export class TowerCamera {
     const targetDist = (6 + towerTopY * 1.15) * zoom + this.pulseDist;
     const k = 1 - Math.pow(0.001, dt);
     this.lookY += (targetLookY - this.lookY) * k;
-    this.dist += (targetDist - this.dist) * k;
+    // Distance eases SLOWLY (~2s time constant): during a growth spurt the goop visibly
+    // outgrows the frame before the camera pulls back - "the goop grows and the camera scales
+    // with it", not "the world shrinks". The zoom BUTTON stays snappy via a short boost.
+    if (zoom !== this.lastZoom) {
+      this.lastZoom = zoom;
+      this.zoomBoost = 1;
+    }
+    this.zoomBoost = Math.max(0, this.zoomBoost - dt);
+    const tau = this.zoomBoost > 0 ? 0.35 : 2.1;
+    const kDist = 1 - Math.exp(-dt / tau);
+    this.dist += (targetDist - this.dist) * kDist;
+    // Bound the lag: the goop may overflow the frame by ~20% during a spurt, never more (the
+    // mock's 30-second WIN ramp otherwise leaves the camera hopelessly behind).
+    if (this.dist < targetDist * 0.82) this.dist = targetDist * 0.82;
 
     // The camera pans so its LOOK point (tower mid, lookY) lands on anchorY. To pin the BASE
     // (world y=0) to `yBase` instead, offset the look-point anchor upward by the base→look-point

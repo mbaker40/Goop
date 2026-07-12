@@ -148,8 +148,8 @@ export class ScaleMarkers {
     g('house', 8, -4.5, -14, -0.15, 10, 0.42, [12, 14, 20, 26]);
     g('waterTower', 12, 5, -17, 0.22, 11, 0.42, [12.5, 14.5, 21, 27]);
     g('house', 10, 8, -22, 0.3, 12, 0.42, [12, 14, 20, 26]);
-    // Distant landscape (visible longest before the planet recession takes over).
-    g('hills', 60, -6, -27, 0, 20, 0.42, [13, 15, 24, 30]);
+    // (The distant landscape is now the 360-degree parallax panorama - see backdrop.ts. A
+    // finite hills cutout here had visible left/right edges.)
 
     // ---- Altitude flybys: placed at REAL altitudes, sized honestly with a readable floor ----
     const add = (

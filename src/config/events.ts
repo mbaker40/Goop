@@ -28,6 +28,11 @@ export interface EventOutcome {
   gpsSeconds?: number;
   /** Multiply the current goop bank (The Investor's "×10 goop now" is goopMult: 10). */
   goopMult?: number;
+  /** Cap on the goopMult bonus, in seconds of current GPS. WITHOUT this the Investor is a
+   *  compounding exploit: hoard the bank for the deal window and every deal pays 9x bank (a
+   *  human beat zone 15 on their FIRST RUN this way - bots decline deals, so the harness never
+   *  saw it). With the cap the deal is a nice hit, not a second economy. */
+  goopMultCapGpsSeconds?: number;
   /** Drain this fraction of the structural buffer (meteor impact). */
   structuralLossFrac?: number;
   /** A lingering buff/debuff. */
@@ -72,7 +77,7 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
     weight: 3,
     durationSec: 12,
     targets: 8,
-    onSuccess: { gpsSeconds: 48, toast: 'Swarm harvested! The goop glitters faintly.' },
+    onSuccess: { gpsSeconds: 28, toast: 'Swarm harvested! The goop glitters faintly.' },
     onFail: { gpsSeconds: 0, toast: 'The stragglers waddle away, offended.' },
   },
   {
@@ -85,7 +90,7 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
     weight: 2,
     durationSec: 9,
     targets: 10,
-    onSuccess: { gpsSeconds: 30, toast: 'Meteor absorbed. Tastes like commitment.' },
+    onSuccess: { gpsSeconds: 18, toast: 'Meteor absorbed. Tastes like commitment.' },
     onFail: {
       structuralLossFrac: 0.25,
       effect: { clickMult: 3, durationSec: 20, label: 'Anger goop ×3 slap', icon: 'anger' },
@@ -102,7 +107,7 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
     weight: 2,
     durationSec: 8,
     targets: 1,
-    onSuccess: { gpsSeconds: 6, toast: 'Inspector shooed. The violations remain unread.' },
+    onSuccess: { gpsSeconds: 4, toast: 'Inspector shooed. The violations remain unread.' },
     onFail: {
       effect: { gpsMult: 0.5, durationSec: 30, label: 'Citation: GPS ×0.5', icon: 'clipboard' },
       toast: 'CITED. Production halved while the paperwork clears.',
@@ -119,6 +124,7 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
     durationSec: 12,
     onAccept: {
       goopMult: 10,
+      goopMultCapGpsSeconds: 90,
       effect: { meltMult: 1.25, durationSec: 90, label: 'Hostile melt +25%', icon: 'briefcase' },
       toast: 'Deal closed. The goop is now a growth-stage startup.',
     },

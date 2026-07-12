@@ -192,3 +192,35 @@ coin-flips deals; Greedy/Idle ignore events entirely (they eat inspector citatio
 that IS the attention tax working). Median win 46:53 → **45:32**, GreedyBot first-run 13:04 →
 12:07 Z5, ClickerBot no-meta 16:12 → 15:21 Z6 - all inside windows, events are net-neutral-ish
 for attentive play and a mild drag on AFK, as designed. 41 tests green (12 new).
+
+---
+
+## 2026-07-12 (the first-try-win patch) - Investor cap + late-zone wall
+
+A real human beat zone 15 on their FIRST RUN in under an hour. Root cause: The Investor's
+uncapped "goop x10 now" - hoard the bank for the deal window and every deal pays 9x bank,
+roughly 15+ minutes of production, every ~3 minutes. Bots DECLINE deals, so the harness never
+measured the path. Fixes:
+
+- **Investor capped**: goopMult bonus now bounded by `goopMultCapGpsSeconds: 90` (90s of GPS).
+- **Event payouts trimmed**: goober 48 -> 28s, meteor 30 -> 18s, inspector 6 -> 4s of GPS.
+- **Late wall steepened**: zoneMeltMult zones 10-15 now [1.3, 1.4, 1.52, 1.66, 1.82, 2.0]
+  (was tops 1.58) - attentive event play adds ~+30% income the bots never measured.
+- **New DealerBot** (ClickerBot + accepts every deal) keeps this exploit class measured.
+
+```
+Scenario                  Outcome     Zone  Height      Time   GE     log10 G  log10 GPS
+GreedyBot (no meta)       COLLAPSING  Z5    70 m        12:07  1      4.9      2.2
+IdleBot (no meta)         COLLAPSING  Z3    10 m        11:12  0      4.3      1.4
+ChaoticBot (no meta)      COLLAPSING  Z4    28 m        17:06  1      4.6      1.9
+ClickerBot (no meta)      COLLAPSING  Z6    373 m       15:40  3      5.3      2.6
+ClickerBot (median meta)  WIN         Z15   6.69e+2 AU  46:13  95542  11.1     8.4
+DealerBot (no meta)       COLLAPSING  Z6    590 m       16:09  4      5.4      2.8
+DealerBot (median meta)   WIN         Z15   6.73e+2 AU  45:24  95686  11.1     8.4
+GreedyBot (median meta)   COLLAPSING  Z6    259 m       8:33   3      5.2      2.8
+```
+
+DealerBot no-meta now COLLAPSES at Z6 (that row is the closed exploit); with median meta deals
+shave only ~49s off the win. Prestige path: first win **run #9, ~3.3h** (was #13/4.3h - the
+steeper late wall pays more GE from deeper mid-run deaths, which is a nicer ramp). All windows
+green (43 tests).
