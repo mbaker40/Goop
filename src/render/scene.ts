@@ -11,9 +11,14 @@ export interface SceneBundle {
   resize(width: number, height: number): void;
 }
 
-export function createScene(canvas: HTMLCanvasElement): SceneBundle {
+export function createScene(canvas: HTMLCanvasElement, maxDpr = 2): SceneBundle {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
+
+  // Mobile browsers drop the WebGL context on backgrounding/memory pressure. preventDefault on
+  // `lost` opts into the restore path; three re-uploads GPU resources on `restored` and the render
+  // loop (which never stopped) picks back up — instead of a permanent silent black screen.
+  canvas.addEventListener('webglcontextlost', (e) => e.preventDefault(), false);
 
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(0x14121a, 12, 60);

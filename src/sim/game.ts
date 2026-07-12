@@ -243,6 +243,19 @@ export class Game {
     return this.run.goop.gte(cost);
   }
 
+  /** Largest `count` of a producer the current goop balance affords (closed-form geometric sum). */
+  maxAffordableProducer(id: string): number {
+    const def = PRODUCER_BY_ID[id];
+    if (!def) return 0;
+    const owned = this.run.producersOwned[id] ?? 0;
+    const g = balance.producerCostGrowth;
+    const first = D(def.baseCost).mul(Decimal.pow(g, owned));
+    // goop >= first * (g^n - 1) / (g - 1)  =>  n = floor( log_g( goop*(g-1)/first + 1 ) )
+    const x = this.run.goop.mul(g - 1).div(first).add(1);
+    if (x.lte(1)) return 0;
+    return Math.max(0, Math.floor(x.log10() / Math.log10(g)));
+  }
+
   buyProducer(id: string, count = 1): boolean {
     if (!PRODUCER_BY_ID[id] || count < 1) return false;
     const cost = this.producerCost(id, count);

@@ -79,21 +79,41 @@ export function runSimulation(bot: Bot, opts: SimOptions = {}): SimResult {
 
 interface BuyAction {
   ratio: number; // added GPS per goop spent
+  cost: number;
+  affordable: boolean;
   apply: () => boolean;
 }
 
-/** Best affordable GPS-per-cost purchase right now (producer, tier, or global-GPS upgrade). */
-export function bestGpsBuy(game: Game): BuyAction | null {
+/** How long a sensible player will save toward a big-ticket item, in seconds of current income.
+ *  Without saving, greedy play grinds 80 drippers while the Reactor (≈70s of income) sits
+ *  unbought forever — the late producer ladder becomes unreachable (the M2 progression bug). */
+const SAVE_HORIZON_SEC = 300;
+
+export interface BuyPlan {
+  /** Best ratio within the save horizon — possibly unaffordable (the savings target). */
+  best: BuyAction | null;
+  /** Best ratio among currently AFFORDABLE items (what to nibble on while saving). */
+  bestAffordable: BuyAction | null;
+}
+
+/** Best GPS-per-cost purchases within the save horizon (producer, tier, or global-GPS upgrade). */
+export function bestGpsBuy(game: Game): BuyPlan {
   const globalMult = game.globalGpsMult();
   const currentGps = game.gps().toNumber();
+  const horizon = Math.max(1_000, currentGps * SAVE_HORIZON_SEC);
   let best: BuyAction | null = null;
+  let bestAffordable: BuyAction | null = null;
 
   const consider = (addedGps: number, costD: { toNumber: () => number }, apply: () => boolean) => {
     const cost = costD.toNumber();
     if (!Number.isFinite(cost) || cost <= 0 || addedGps <= 0) return;
-    if (!game.canAfford(costAsDecimal(cost))) return;
+    if (cost > horizon) return; // beyond a reasonable savings target
     const ratio = addedGps / cost;
-    if (!best || ratio > best.ratio) best = { ratio, apply };
+    const affordable = game.canAfford(costAsDecimal(cost));
+    if (!best || ratio > best.ratio) best = { ratio, cost, affordable, apply };
+    if (affordable && (!bestAffordable || ratio > bestAffordable.ratio)) {
+      bestAffordable = { ratio, cost, affordable, apply };
+    }
   };
 
   for (const p of PRODUCERS) {
@@ -118,7 +138,7 @@ export function bestGpsBuy(game: Game): BuyAction | null {
     }
   }
 
-  return best;
+  return { best, bestAffordable };
 }
 
 function tierMultFor(game: Game, producerId: string): number {
@@ -135,13 +155,17 @@ function costAsDecimal(n: number) {
   return D(n);
 }
 
-/** Buy greedily until nothing affordable improves GPS (bounded to avoid infinite loops). */
+/** Buy greedily. When the best target isn't affordable yet, SAVE toward it — but keep nibbling on
+ *  affordable items whose ratio is still decent (≥30% of the target's), like a real player does.
+ *  Never stall income entirely: melt punishes flat GPS (PLAN §5.3), saving included. */
 export function greedyBuy(game: Game, maxBuys = 500): number {
   let count = 0;
   for (let i = 0; i < maxBuys; i++) {
-    const action = bestGpsBuy(game);
-    if (!action) break;
-    if (!action.apply()) break;
+    const { best, bestAffordable } = bestGpsBuy(game);
+    if (!best) break;
+    const pick = best.affordable ? best : bestAffordable && bestAffordable.ratio >= best.ratio * 0.15 ? bestAffordable : null;
+    if (!pick) break; // full-save mode: target is close and nothing cheap is worth it
+    if (!pick.apply()) break;
     count++;
   }
   return count;

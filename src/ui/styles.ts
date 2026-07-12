@@ -44,11 +44,20 @@ body[data-screen="run"] #app, body[data-screen="paused"] #app {
 /* Extra safety: each fixed HUD piece is also its own composited layer. */
 #hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig {
   will-change: transform; }
+/* Mobile input hygiene: kill the gray tap-highlight flash, double-tap zoom on buttons, and stray
+   text selection / long-press callouts during rapid tapping. Buttons + the whole run HUD are
+   game chrome, not documents. (Pinch-zoom stays available on page-flow screens.) */
+button, .shopitem, .hud-card, #stage, #hud-readout, #sr-banner {
+  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
+  user-select: none; -webkit-user-select: none; touch-action: manipulation; }
 h1 { font-size: 28px; letter-spacing: 2px; margin: 8px 0; }
 h2 { font-size: 16px; margin: 12px 0 6px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
 button { font: inherit; cursor: pointer; background: var(--panel2); color: var(--ink);
-  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  transition: transform .06s ease, border-color .12s ease, filter .06s ease; }
 button:hover:not(:disabled) { border-color: var(--accent); }
+/* Mobile has no hover — a pressed button must LOOK pressed. */
+button:active:not(:disabled) { transform: scale(.94); filter: brightness(1.25); }
 button:disabled { opacity: .4; cursor: not-allowed; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .grid { display: grid; grid-template-columns: 1fr 340px; gap: 14px; align-items: start; }
@@ -74,9 +83,37 @@ html, body { overflow-x: hidden; }
 
 .hud-card { background: #1d1a28; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
   box-shadow: 0 6px 24px rgba(0,0,0,.45); }
-button { min-height: 40px; }
-button.mini { min-height: 34px; padding: 4px 12px; }
+button { min-height: 44px; min-width: 44px; } /* PLAN §9.2: tap targets ≥44px */
+button.mini { min-height: 44px; padding: 4px 12px; }
 button.primary { background: var(--accent); color: #0f2410; border-color: var(--accent); font-weight: bold; }
+button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
+.buyamt { gap: 6px; margin-bottom: 8px; }
+.buyamt .mini { min-width: 52px; }
+
+/* Purchase feedback: bought rows flash green. */
+.shopitem.bought { animation: boughtflash .45s ease-out; }
+@keyframes boughtflash { 0% { background: #3a5a1e; border-color: var(--goop); } 100% { background: var(--panel2); } }
+
+/* Floating "+N" gain readout at the tap point (spawned on <body>, above everything). */
+.floater { position: fixed; z-index: 2147483000; pointer-events: none; color: var(--goop);
+  font-weight: bold; font-size: 18px; text-shadow: 0 2px 8px rgba(0,0,0,.9);
+  transform: translate(-50%, -100%); animation: floatup .7s ease-out forwards; will-change: transform, opacity; }
+@keyframes floatup { 0% { opacity: 1; margin-top: 0; } 100% { opacity: 0; margin-top: -64px; } }
+
+/* Zone transition toast: the run's biggest beat gets a big centred stamp. */
+#zone-toast { position: fixed; z-index: 5; top: 30%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; pointer-events: none; opacity: 0; will-change: transform, opacity; }
+#zone-toast b { display: block; font-size: 40px; letter-spacing: 6px; color: var(--goop);
+  text-shadow: 0 4px 24px rgba(0,0,0,.9); }
+#zone-toast span { display: block; font-size: 18px; color: #fff; text-shadow: 0 2px 12px #000; }
+#zone-toast.show { animation: zonetoast 2.4s ease-out forwards; }
+@keyframes zonetoast {
+  0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); }
+  12% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+  20% { transform: translate(-50%, -50%) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -80%) scale(1); }
+}
 
 #hud-stats { position: fixed; z-index: 3; top: calc(10px + env(safe-area-inset-top)); left: 10px; min-width: 178px; }
 #hud-stats .title { color: var(--goop); font-weight: bold; letter-spacing: 1px; }
@@ -93,6 +130,9 @@ button.primary { background: var(--accent); color: #0f2410; border-color: var(--
 #shop-toggle { width: 100%; position: sticky; top: 0; }
 #shop-body .panel { margin-bottom: 12px; }
 #shop-fab { position: fixed; z-index: 4; display: none; }
+/* Nudge the closed drawer button when something in the shop is affordable. */
+#shop-fab.attn { border-color: var(--goop); animation: fabpulse 1.2s ease-in-out infinite; }
+@keyframes fabpulse { 0%,100% { box-shadow: 0 0 0 0 rgba(182,232,74,.55); } 55% { box-shadow: 0 0 0 12px rgba(182,232,74,0); } }
 
 #pause-overlay { position: fixed; inset: 0; z-index: 6; align-items: center; justify-content: center;
   background: rgba(8,6,14,.72); padding: 20px; }
@@ -110,15 +150,19 @@ button.primary { background: var(--accent); color: #0f2410; border-color: var(--
 
 /* Portrait: shop is a right side-drawer opened by a floating button; stage = the upper area. */
 @media (orientation: portrait) {
-  #hud-stats { left: 8px; right: 8px; min-width: 0; }
-  #hud-stats .stat { display: inline-flex; gap: 6px; padding: 0; margin: 2px 12px 0 0; }
-  #sr-banner { top: calc(118px + env(safe-area-inset-top)); max-width: 92vw; }
+  #hud-stats { left: 8px; right: 8px; min-width: 0; padding: 8px 10px; }
+  /* Slim stat bar: tighter type + gaps so Goop/GPS/Buffer fit one line at 390px. */
+  #hud-stats .stat { display: inline-flex; gap: 5px; padding: 0; margin: 2px 10px 0 0; font-size: 13px; }
+  #hud-stats .title { font-size: 14px; }
+  #sr-banner { top: calc(112px + env(safe-area-inset-top)); max-width: 92vw; }
   #stage { top: 0; left: 0; right: 0; bottom: 22vh; }
   #hud-readout { left: 0; right: 0; }
   /* Drawer slide is driven by an inline transform in applyShopState() (JS) — see app.ts. */
   #hud-shop { top: 0; right: 0; bottom: 0; width: min(86vw, 330px); height: 100dvh;
-    border-radius: 16px 0 0 16px; padding: 12px; transition: transform .25s ease; box-shadow: -14px 0 44px rgba(0,0,0,.55); }
-  #shop-fab { display: block; right: 14px; bottom: calc(16px + env(safe-area-inset-bottom));
+    border-radius: 16px 0 0 16px; padding: 12px;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom)); padding-right: calc(12px + env(safe-area-inset-right));
+    transition: transform .25s ease; box-shadow: -14px 0 44px rgba(0,0,0,.55); }
+  #shop-fab { display: block; right: calc(14px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom));
     border-radius: 24px; padding: 10px 18px; font-weight: bold; }
 }
 .banner { padding: 10px 12px; border-radius: 10px; margin: 10px 0; text-align: center; font-weight: bold; }
@@ -135,6 +179,9 @@ button.primary { background: var(--accent); color: #0f2410; border-color: var(--
 .shopitem .cost { white-space: nowrap; color: var(--goop); font-variant-numeric: tabular-nums; }
 .combo { height: 10px; background: var(--panel2); border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
 .combo > i { display: block; height: 100%; background: linear-gradient(90deg, var(--goop), var(--accent)); }
+.combo.maxed { border-color: var(--goop); box-shadow: 0 0 12px rgba(182,232,74,.7); }
+.combo.maxed > i { animation: comboglow .5s ease-in-out infinite alternate; }
+@keyframes comboglow { from { filter: brightness(1); } to { filter: brightness(1.5); } }
 .center { text-align: center; }
 .big { font-size: 42px; color: var(--goop); }
 .tag { font-size: 12px; color: var(--muted); }

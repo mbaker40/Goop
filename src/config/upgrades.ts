@@ -20,9 +20,10 @@ export interface ProducerTierUpgrade {
   flavor: string;
 }
 
-const TIER_STEPS = [10, 25, 50, 100] as const;
+const TIER_STEPS = [10, 25, 50, 100, 200, 400] as const;
 
-/** ×2 per tier, unlocking at 10/25/50/100 owned (PLAN §5.2). Cost scales off producer base. */
+/** ×2 per tier, unlocking at 10/25/…/400 owned (PLAN §5.2 + two late rungs so the growth engine
+ *  keeps compounding between producer unlocks). Cost scales off producer base. */
 export const PRODUCER_TIER_UPGRADES: readonly ProducerTierUpgrade[] = PRODUCERS.flatMap((p) =>
   TIER_STEPS.map((step, i) => ({
     id: `${p.id}_tier${step}`,
@@ -58,13 +59,20 @@ export const RUN_UPGRADES: readonly RunUpgrade[] = [
   { id: 'grease2', name: 'Grease the Gears II', costGoop: 2e6, effect: { kind: 'globalGps', mult: 1.5 }, flavor: '+50% GPS. The goop has unionized with itself.' },
   { id: 'coolant1', name: 'Emergency Goop Coolant', costGoop: 25_000, effect: { kind: 'meltResist', frac: 0.15 }, flavor: 'Melts 15% slower. Smells of blue raspberry.' },
   { id: 'coolant2', name: 'Industrial Goop Coolant', costGoop: 3e7, effect: { kind: 'meltResist', frac: 0.2 }, flavor: 'Another 20% melt resistance. Do not drink.' },
+  // Late-run shelf (Zones 5-7 shopping; a winning run keeps finding things to want).
+  { id: 'slap4', name: 'Slap Harder IV', costGoop: 2e8, effect: { kind: 'clickPctOfGps', addPct: 0.06 }, flavor: 'Your palm is now load-bearing infrastructure (+6% GPS).' },
+  { id: 'grease3', name: 'Grease the Gears III', costGoop: 6e8, effect: { kind: 'globalGps', mult: 1.75 }, flavor: '+75% GPS. The grease is goop. It was always goop.' },
+  { id: 'coolant3', name: 'Cryogenic Goop Coolant', costGoop: 2.5e9, effect: { kind: 'meltResist', frac: 0.2 }, flavor: 'Another 20% melt resistance. The goop wears a tiny scarf.' },
+  { id: 'slap5', name: 'Slap Harder V', costGoop: 1.2e10, effect: { kind: 'clickPctOfGps', addPct: 0.1 }, flavor: 'NASA has questions about your hand (+10% GPS).' },
+  { id: 'grease4', name: 'Grease the Gears IV', costGoop: 4e10, effect: { kind: 'globalGps', mult: 2 }, flavor: 'GPS ×2. The gears have achieved a state of pure lubrication.' },
 ];
 
 /** Meta upgrades bought with Goop Essence (GE); persist across runs (PLAN §6). */
 export interface MetaUpgrade {
   id: string;
   name: string;
-  /** Base GE cost; scales ×2.5 per level (PLAN §6). */
+  /** Base GE cost; scales ×costGrowth per level (2.0 — softened from PLAN §6's 2.5 so the
+   *  first win lands within a handful of prestiges; see docs/balance-notes.md). */
   baseCostGE: number;
   maxLevel: number;
   costGrowth: number;
@@ -81,12 +89,12 @@ export type MetaEffect =
   | { kind: 'clickPowerMult'; perLevel: number };
 
 export const META_UPGRADES: readonly MetaUpgrade[] = [
-  { id: 'starterDrippers', name: 'Pre-Installed Plumbing', baseCostGE: 2, maxLevel: 10, costGrowth: 2.5, effect: { kind: 'startProducers', producerId: 'dripper', perLevel: 5 }, flavor: 'Start each run with drippers already leaking.' },
-  { id: 'gpsBoost', name: 'Ambient Goopiness', baseCostGE: 3, maxLevel: 20, costGrowth: 2.5, effect: { kind: 'globalGpsPct', perLevel: 0.1 }, flavor: '+10% all GPS per level. The air itself is moist.' },
-  { id: 'meltResist', name: 'Thermal Goop Underwear', baseCostGE: 4, maxLevel: 10, costGrowth: 2.5, effect: { kind: 'meltResistPct', perLevel: 0.05 }, flavor: '-5% melt per level. Surprisingly comfortable.' },
-  { id: 'comboDur', name: 'Momentum Memory', baseCostGE: 3, maxLevel: 8, costGrowth: 2.5, effect: { kind: 'comboDurationPct', perLevel: 0.15 }, flavor: 'Your combo lingers 15% longer per level.' },
-  { id: 'clickPow', name: 'Reinforced Slapping Hand', baseCostGE: 3, maxLevel: 15, costGrowth: 2.5, effect: { kind: 'clickPowerMult', perLevel: 0.25 }, flavor: '+25% base click power per level.' },
-  { id: 'geGain', name: 'Essence Distillery', baseCostGE: 5, maxLevel: 15, costGrowth: 2.5, effect: { kind: 'geGainPct', perLevel: 0.1 }, flavor: '+10% Goop Essence from every run.' },
+  { id: 'starterDrippers', name: 'Pre-Installed Plumbing', baseCostGE: 2, maxLevel: 10, costGrowth: 2.0, effect: { kind: 'startProducers', producerId: 'dripper', perLevel: 5 }, flavor: 'Start each run with drippers already leaking.' },
+  { id: 'gpsBoost', name: 'Ambient Goopiness', baseCostGE: 3, maxLevel: 20, costGrowth: 2.0, effect: { kind: 'globalGpsPct', perLevel: 0.1 }, flavor: '+10% all GPS per level. The air itself is moist.' },
+  { id: 'meltResist', name: 'Thermal Goop Underwear', baseCostGE: 4, maxLevel: 10, costGrowth: 2.0, effect: { kind: 'meltResistPct', perLevel: 0.05 }, flavor: '-5% melt per level. Surprisingly comfortable.' },
+  { id: 'comboDur', name: 'Momentum Memory', baseCostGE: 3, maxLevel: 8, costGrowth: 2.0, effect: { kind: 'comboDurationPct', perLevel: 0.15 }, flavor: 'Your combo lingers 15% longer per level.' },
+  { id: 'clickPow', name: 'Reinforced Slapping Hand', baseCostGE: 3, maxLevel: 15, costGrowth: 2.0, effect: { kind: 'clickPowerMult', perLevel: 0.25 }, flavor: '+25% base click power per level.' },
+  { id: 'geGain', name: 'Essence Distillery', baseCostGE: 5, maxLevel: 15, costGrowth: 2.0, effect: { kind: 'geGainPct', perLevel: 0.1 }, flavor: '+10% Goop Essence from every run.' },
 ];
 
 export const META_BY_ID: Readonly<Record<string, MetaUpgrade>> = Object.fromEntries(
