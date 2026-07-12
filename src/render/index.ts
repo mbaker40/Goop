@@ -58,6 +58,10 @@ export class GoopRenderer {
   private axisB = new THREE.Vector3();
   private lightTint = new THREE.Color();
   private lastTopY = 1;
+  /** Slow follower of the tower top — the WORLD (camera, markers) tracks this, so the goop's
+   *  spring jiggle never bounces the background or the framing. */
+  private worldTop = 1;
+  private worldRaw = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -168,9 +172,15 @@ export class GoopRenderer {
     const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, dt);
     this.lastTopY = topY;
 
-    // Fixed-altitude scale markers sweep past the climbing top (birds → blimp → jet → Moon …).
+    // Smooth world reference (~0.9s time constant): the goop jiggles, the world doesn't.
+    const wk = 1 - Math.exp(-dt / 0.9);
+    this.worldTop += (topY - this.worldTop) * wk;
+    this.worldRaw += (this.tower.debugHeight - this.worldRaw) * wk;
+
+    // Scale markers + ground scenery track the smoothed reference.
     const zoom = this.source.viewZoom || 1;
-    this.markers.update(this.tower.debugHeight, topY, this.t, zoom);
+    this.markers.update(this.worldRaw, this.worldTop, this.t, zoom);
+    this.env.setTowerShadow(this.tower.groundFootprint);
 
     // Ambient producer signatures — each "tool" you buy is visible working on the tower.
     if (status === 'active' || status === 'grace') {
@@ -204,7 +214,7 @@ export class GoopRenderer {
       };
     }
     const idle = this.source.screen !== 'run' && this.source.screen !== 'paused';
-    this.cam.update(topY, idle, dt, anchor, zoom);
+    this.cam.update(this.worldTop, idle, dt, anchor, zoom);
 
     // Tint the key light slightly toward the sky for cohesion.
     this.bundle.keyLight.color.setHex(0xffffff).lerp(this.lightTint.setHex(palette.skyTop), 0.2);

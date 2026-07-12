@@ -9,53 +9,104 @@ import * as THREE from 'three';
 
 type Draw = (c: CanvasRenderingContext2D, s: number) => void;
 
-/** Render `draw` onto a canvas, then add the sticker outline + shadow. */
-function cutoutTexture(draw: Draw, size = 256): THREE.CanvasTexture {
-  // 1. Draw the art on its own layer.
+/** Expanded silhouette of the art (stamped at ring offsets), filled with `color`. */
+function silhouette(art: HTMLCanvasElement, size: number, color: string, grow = 1): HTMLCanvasElement {
+  const edge = document.createElement('canvas');
+  edge.width = edge.height = size;
+  const e = edge.getContext('2d')!;
+  const R = Math.max(3, size * 0.018) * grow;
+  for (let i = 0; i < 12; i++) {
+    const ang = (i / 12) * Math.PI * 2;
+    e.drawImage(art, Math.cos(ang) * R, Math.sin(ang) * R);
+  }
+  e.globalCompositeOperation = 'source-in';
+  e.fillStyle = color;
+  e.fillRect(0, 0, size, size);
+  return edge;
+}
+
+function drawArt(draw: Draw, size: number): HTMLCanvasElement {
   const art = document.createElement('canvas');
   art.width = art.height = size;
   const a = art.getContext('2d')!;
   a.save();
   draw(a, size);
   a.restore();
+  return art;
+}
 
-  // 2. Build the expanded silhouette (the cardboard edge) by stamping the art at ring offsets.
-  const edge = document.createElement('canvas');
-  edge.width = edge.height = size;
-  const e = edge.getContext('2d')!;
-  const R = Math.max(3, size * 0.018);
-  for (let i = 0; i < 12; i++) {
-    const ang = (i / 12) * Math.PI * 2;
-    e.drawImage(art, Math.cos(ang) * R, Math.sin(ang) * R);
-  }
-  e.globalCompositeOperation = 'source-in';
-  e.fillStyle = '#f4efe2'; // warm paper edge
-  e.fillRect(0, 0, size, size);
-
-  // 3. Compose: shadow, edge, art.
-  const out = document.createElement('canvas');
-  out.width = out.height = size;
-  const o = out.getContext('2d')!;
-  o.save();
-  o.globalAlpha = 0.3;
-  o.filter = 'blur(3px)';
-  o.drawImage(edge, size * 0.02, size * 0.035);
-  o.restore();
-  o.drawImage(edge, 0, 0);
-  o.drawImage(art, 0, 0);
-
-  const tex = new THREE.CanvasTexture(out);
+function toTexture(cv: HTMLCanvasElement): THREE.CanvasTexture {
+  const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 2;
   return tex;
 }
 
-/** A camera-facing cutout sprite, `w`×`h` in world units. */
+/** Front face: cardboard-colored cut shape with the kid's drawing on it. */
+function frontTexture(draw: Draw, size = 256): THREE.CanvasTexture {
+  const art = drawArt(draw, size);
+  const out = document.createElement('canvas');
+  out.width = out.height = size;
+  const o = out.getContext('2d')!;
+  o.drawImage(silhouette(art, size, '#d9bd8a'), 0, 0); // the cardboard the shape was cut from
+  o.globalAlpha = 0.92; // let a whisper of board show through the marker drawing
+  o.drawImage(art, 0, 0);
+  o.globalAlpha = 1;
+  // Form shading: a soft top-light gradient clipped to the cutout, so boards read as lit objects
+  // instead of flat stickers (cheap depth cue).
+  const shade = document.createElement('canvas');
+  shade.width = shade.height = size;
+  const sh = shade.getContext('2d')!;
+  sh.drawImage(out, 0, 0);
+  sh.globalCompositeOperation = 'source-in';
+  const grad = sh.createLinearGradient(0, 0, 0, size);
+  grad.addColorStop(0, 'rgba(255,255,255,0.14)');
+  grad.addColorStop(0.45, 'rgba(255,255,255,0)');
+  grad.addColorStop(1, 'rgba(20,10,0,0.22)');
+  sh.fillStyle = grad;
+  sh.fillRect(0, 0, size, size);
+  o.drawImage(shade, 0, 0);
+  return toTexture(out);
+}
+
+/** A camera-facing cutout sprite, `w`×`h` in world units (used for the receding planet). */
 export function cutout(draw: Draw, w: number, h: number, size = 256): THREE.Sprite {
-  const mat = new THREE.SpriteMaterial({ map: cutoutTexture(draw, size), transparent: true, depthWrite: false });
+  const mat = new THREE.SpriteMaterial({ map: frontTexture(draw, size), transparent: true, depthWrite: false });
   const s = new THREE.Sprite(mat);
   s.scale.set(w, h, 1);
   return s;
+}
+
+/** A cardboard cutout WITH THICKNESS: the drawn front face plus offset corrugation layers behind
+ *  it, on a group that stays world-oriented (given a slight per-prop tilt, the edge shows — like a
+ *  kid's cardboard cutout on a stick). Returns the group + an opacity setter for ground fading. */
+export interface Board {
+  group: THREE.Group;
+  setOpacity(o: number): void;
+}
+
+export function board(draw: Draw, w: number, h: number, tilt = 0, size = 256): Board {
+  const group = new THREE.Group();
+  const art = drawArt(draw, size);
+  const mats: THREE.MeshBasicMaterial[] = [];
+  const layer = (tex: THREE.Texture, z: number): void => {
+    const m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+    mats.push(m);
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
+    p.position.z = z;
+    group.add(p);
+  };
+  // Back to front: dark corrugation core, mid board, drawn face. The offsets are the thickness.
+  layer(toTexture(silhouette(art, size, '#8a6b3e', 1.15)), -0.1);
+  layer(toTexture(silhouette(art, size, '#b28e57')), -0.05);
+  layer(frontTexture(draw, size), 0);
+  group.rotation.y = tilt;
+  return {
+    group,
+    setOpacity(o: number) {
+      for (const m of mats) m.opacity = o;
+    },
+  };
 }
 
 // ---- drawing helpers ----
@@ -484,3 +535,106 @@ export const ART: Record<string, Draw> = {
     c.stroke();
   },
 };
+
+// ---- extra environmental pieces (counter diorama + landscape depth) ----
+Object.assign(ART, {
+  mug: ((c: CanvasRenderingContext2D) => {
+    rr(c, 60, 70, 120, 130, 22, '#d96a4a');
+    c.strokeStyle = '#b4523a';
+    c.lineWidth = 10;
+    c.beginPath();
+    c.arc(196, 130, 38, -1.2, 1.2);
+    c.stroke();
+    ell(c, 120, 78, 58, 18, '#8a4a3a');
+    ell(c, 120, 76, 48, 12, '#5a3028');
+    // Steam curls.
+    c.strokeStyle = '#e9e4f5';
+    c.lineWidth = 6;
+    c.beginPath();
+    c.moveTo(100, 52);
+    c.quadraticCurveTo(88, 36, 100, 22);
+    c.moveTo(140, 52);
+    c.quadraticCurveTo(152, 36, 140, 22);
+    c.stroke();
+  }) as Draw,
+  spoon: ((c: CanvasRenderingContext2D) => {
+    c.save();
+    c.translate(128, 128);
+    c.rotate(0.7);
+    ell(c, 0, -62, 34, 46, '#c7ccd6');
+    ell(c, 0, -62, 22, 32, '#aab1bf');
+    rr(c, -9, -18, 18, 130, 9, '#c7ccd6');
+    c.restore();
+  }) as Draw,
+  fence: ((c: CanvasRenderingContext2D) => {
+    c.fillStyle = '#e8e2d4';
+    for (let i = 0; i < 5; i++) {
+      const x = 24 + i * 46;
+      c.fillRect(x, 96, 26, 110);
+      c.beginPath();
+      c.moveTo(x, 96);
+      c.lineTo(x + 13, 74);
+      c.lineTo(x + 26, 96);
+      c.fill();
+    }
+    rr(c, 12, 116, 232, 16, 6, '#d4cbb8');
+    rr(c, 12, 164, 232, 16, 6, '#d4cbb8');
+  }) as Draw,
+  bush: ((c: CanvasRenderingContext2D) => {
+    ell(c, 90, 160, 62, 48, '#5a9a48');
+    ell(c, 160, 150, 58, 52, '#67aa52');
+    ell(c, 126, 120, 52, 42, '#74b85c');
+    ell(c, 78, 120, 12, 12, '#8fd06a');
+    ell(c, 170, 108, 10, 10, '#8fd06a');
+  }) as Draw,
+  hills: ((c: CanvasRenderingContext2D) => {
+    c.fillStyle = '#7ba86a';
+    c.beginPath();
+    c.moveTo(0, 210);
+    c.quadraticCurveTo(60, 120, 130, 170);
+    c.quadraticCurveTo(190, 210, 256, 150);
+    c.lineTo(256, 240);
+    c.lineTo(0, 240);
+    c.fill();
+    c.fillStyle = '#639257';
+    c.beginPath();
+    c.moveTo(0, 232);
+    c.quadraticCurveTo(90, 170, 170, 215);
+    c.quadraticCurveTo(220, 238, 256, 218);
+    c.lineTo(256, 248);
+    c.lineTo(0, 248);
+    c.fill();
+    // A tiny distant house on the hill.
+    rr(c, 60, 148, 22, 16, 2, '#e8e2d4');
+    c.fillStyle = '#a0522d';
+    c.beginPath();
+    c.moveTo(56, 150);
+    c.lineTo(71, 138);
+    c.lineTo(86, 150);
+    c.fill();
+  }) as Draw,
+  windowFrame: ((c: CanvasRenderingContext2D) => {
+    // The kitchen window behind everything: morning light + a curtain.
+    rr(c, 24, 20, 208, 216, 12, '#8a6f4e');
+    rr(c, 40, 36, 176, 184, 6, '#ffe9b0');
+    c.fillStyle = '#ffd98a';
+    c.fillRect(40, 130, 176, 90);
+    c.strokeStyle = '#8a6f4e';
+    c.lineWidth = 10;
+    c.beginPath();
+    c.moveTo(128, 36);
+    c.lineTo(128, 220);
+    c.moveTo(40, 128);
+    c.lineTo(216, 128);
+    c.stroke();
+    // Curtain.
+    c.fillStyle = '#d96a8a';
+    c.beginPath();
+    c.moveTo(40, 36);
+    c.quadraticCurveTo(70, 130, 44, 218);
+    c.lineTo(40, 218);
+    c.fill();
+    // A sun.
+    ell(c, 186, 70, 22, 22, '#ffb03a');
+  }) as Draw,
+});

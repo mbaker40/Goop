@@ -93,7 +93,7 @@ const FX: Record<string, FxDef> = {
     origin: (topY, t, out) => out.set(-7 + Math.sin(t) * 2, topY + 2, 5),
     burst: () => ({ count: 3, size: 0.9, out: 0.4, up: 1, vel: new THREE.Vector3(6, 0, -4.5), gravity: 0.6, life: 1.2 }),
   },
-  // Foreshadows Zone 7: giant golden droplets from on high.
+  // Foreshadows Zone 15: giant golden droplets from on high.
   bottle: {
     color: 0xffe066,
     interval: 4,

@@ -124,3 +124,48 @@ GreedyBot (median meta)   COLLAPSING  Z4    1.34 km     9:30   9      5.3      3
 
 All 29 tests green (7 new achievement tests). If a future pass wants the win back near ~54 min,
 shave `gpsBoost` perLevel or the achievement bonus — but 46:48 sits comfortably in the target band.
+
+---
+
+## 2026-07-12 (later still) — 15 zones + melt ramp-in ("the carpal-tunnel patch")
+
+Player feedback: the melt countdown was "too unforgiving for new players" and the zone ladder felt
+sparse. Design answer (user-approved): **at least 15 zones** ramping up exponentially "but not TOO
+quick", plus endless zone names from a generator, plus melt that arrives as a slope instead of a
+wall.
+
+- **Zones (`config/zones.ts`) rebuilt: 7 → 15** (Kitchen Counter → Top of the Fridge → Through the
+  Ceiling → The Roofline → Suburban Skyline → Kite & Balloon Alley → The Cloud Layer → Thin Air →
+  The Stratosphere → Edge of Space → Low Orbit → The Moon's Neighborhood → Deep Space → The
+  Goopiverse Rim → PAST GOD). minHeights `[0, 8.5, 11, 13.5, 16, 19, 22.5, 26.5, 31, 36, 42, 49,
+  57, 66, 78]`, WIN raw stays 100 — the same climb now pays ~2× the zone dings, front-loaded where
+  the first sessions live. Display-meter anchors re-seated on the new raws (1.8 m fridge …
+  1e13 "m" Past God). `endlessZoneName(layer)` hands Endless deterministic names ("The Unsalted
+  Hyperkitchen" energy) from adjective×noun tables.
+- **Melt ramp-in (`balance.melt.rampSeconds = 90`)**: after the 90 s grace, melt now scales 0→100%
+  over another 90 s (`game.ts meltRate()`), so a first-time player meets the mechanic around
+  minute 3 as pressure, not a countdown ambush.
+- **zoneMeltMult stretched to 15 entries** `[.5,.6,.7,.8,.9,1,1.08,1.15,1.22,1.28,1.34,1.4,1.46,
+  1.52,1.58]` and `meltFracBase 0.16 → 0.18` (the first gentler draft let a no-meta ClickerBot
+  cruise to Z15 — too soft; 0.18 restores the wall at Z5-6).
+- Achievements' zone milestones remapped onto the new indices (ids preserved — saves keep their
+  unlocks); §14.2's window is now "zones 4-7 of 15" and §14.3 relaxed to ≤9 min post-stall (the
+  ramp makes early stalls survivable longer *by design*).
+
+```
+Scenario                  Outcome     Zone  Height      Time   GE     log10 G  log10 GPS
+GreedyBot (no meta)       COLLAPSING  Z5    86 m        13:04  1      4.9      2.3
+IdleBot (no meta)         COLLAPSING  Z3    10 m        11:12  0      4.3      1.4
+ChaoticBot (no meta)      COLLAPSING  Z4    40 m        19:23  1      4.7      2.0
+ClickerBot (no meta)      COLLAPSING  Z6    390 m       16:12  3      5.3      2.7
+ClickerBot (median meta)  WIN 🏆      Z15   6.74e+2 AU  46:53  95729  11.1     8.4
+GreedyBot (median meta)   COLLAPSING  Z6    672 m       10:40  6      5.5      3.1
+```
+
+Prestige path: **first win run #13, ~4.3 h cumulative** (was #11/4.2 h — one extra tutorial death
+from the softer early game; inside the ≤15-run/<6 h acceptance window). Median win **46:53** ✔.
+Win GE drifted 53.8K → 95.7K because peak display-meters grew with the re-anchored table — noted
+for the M4 Endless/GE pass alongside the existing "win pays too much" residual.
+
+All 29 tests green. NOTE for tuners: zone INDEX thresholds moved — anything keyed to `zone >= N`
+(events, FX, copy) must be re-read against the 15-zone table, not the old 7-zone one.

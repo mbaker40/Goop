@@ -49,6 +49,9 @@ export class GoopTower {
   private velZ = 0;
   private squash = 0;
   private squashVel = 0;
+  /** Radial "puff" on slap (scales the goop outward; never moves the top vertically). */
+  private swell = 0;
+  private swellVel = 0;
   private t = 0;
 
   private baseColor = new THREE.Color(0xb6e84a);
@@ -87,7 +90,9 @@ export class GoopTower {
       this.velX += (Math.cos(a) * 6 + Math.sin(this.t * 12.9) * 3) * power;
       this.velZ += (Math.sin(a) * 6 + Math.cos(this.t * 7.1) * 3) * power;
     }
-    this.squashVel += 9 * power;
+    // Radial swell (goop puffs OUT on a slap) — vertical squash was jarring: it moved the tower
+    // top, which dragged the camera up and down on every tap.
+    this.swellVel += 2.4 * power;
     this.growPulse = Math.min(1.6, this.growPulse + 0.45 * power);
   }
 
@@ -187,10 +192,15 @@ export class GoopTower {
     } else if (dead) {
       this.squash = 0.55;
     } else {
-      // Squash pulse springs back to 0.
+      // Squash relaxes to 0 (it is only ever set by the collapse path now).
       this.squashVel += (-90 * this.squash - 14 * this.squashVel) * dt;
       this.squash += this.squashVel * dt;
     }
+
+    // Radial swell spring (slap feedback): quick puff out, settle back.
+    this.swellVel += (-120 * this.swell - 15 * this.swellVel) * dt;
+    this.swell += this.swellVel * dt;
+    const sw = clamp(this.swell, -0.08, 0.3);
 
     // Idle organic sway grows with combo and with melt danger (worsens as it heats up).
     const swayAmp = 0.02 + 0.03 * ((combo - 1) / 2) + this.warn * 0.06;
@@ -202,9 +212,9 @@ export class GoopTower {
     const leanScale = 0.6 + fill * 0.9;
     this.object.rotation.z = clamp((this.leanX + swayX) * leanScale, -0.17, 0.17);
     this.object.rotation.x = clamp(-(this.leanZ + swayZ) * leanScale, -0.17, 0.17);
-    // Squash from the ground up.
+    // Squash (collapse only) from the ground up + the radial slap swell.
     const sq = clamp(this.squash, -0.35, 0.5);
-    this.object.scale.set(1 + sq * 0.4, 1 - sq, 1 + sq * 0.4);
+    this.object.scale.set((1 + sq * 0.4) * (1 + sw), (1 - sq) * (1 + sw * 0.25), (1 + sq * 0.4) * (1 + sw));
 
     // Colour: lerp toward the hot warning colour as the tower melts / collapses; a faint emissive
     // shimmer while growing makes passive income visible even with no clicks.
@@ -216,8 +226,11 @@ export class GoopTower {
     const glow = this.warn * 0.4 + growth * 0.08 * (0.5 + 0.5 * Math.sin(this.t * 3.2));
     this.material.emissive.copy(this.warn > 0.02 ? this.warnColor : this.baseColor).multiplyScalar(glow);
 
+    // Camera framing height: IGNORE tap deformation (swell) so the view never bobs per slap;
+    // only the collapse slump moves the framing (the camera should follow the tower down).
     const fillTop = 0.07 + fill * 0.8;
-    return TOWER_WORLD_HEIGHT * fillTop * this.object.scale.y;
+    const camScaleY = collapsing || dead ? this.object.scale.y : 1;
+    return TOWER_WORLD_HEIGHT * fillTop * camScaleY;
   }
 
   /** World position near the tower top (for spawning splats at the impact point). */
@@ -227,6 +240,12 @@ export class GoopTower {
 
   get debugHeight(): number {
     return this.renderedHeight;
+  }
+
+  /** Approximate ground footprint diameter (world units) — drives the contact shadow. */
+  get groundFootprint(): number {
+    const fill = Math.min(1, Math.max(0.03, this.renderedHeight / WIN_HEIGHT));
+    return (2.6 + fill * 2.4) * (1 + Math.max(0, this.swell) * 0.5);
   }
 }
 

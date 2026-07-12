@@ -62,7 +62,14 @@ export class TowerCamera {
     this.anchorX += (anchor.x - this.anchorX) * ak;
     this.anchorY += (anchorYTarget - this.anchorY) * ak;
 
-    if (orbiting) this.orbit += dt * 0.15;
+    if (orbiting) {
+      this.orbit += dt * 0.15;
+    } else {
+      // Settle back to the front view during runs: the cardboard cutouts are world-oriented
+      // (their thickness edge shows via a per-prop tilt), so gameplay is always seen from front.
+      const home = Math.round(this.orbit / (Math.PI * 2)) * Math.PI * 2;
+      this.orbit += (home - this.orbit) * Math.min(1, 2.5 * dt);
+    }
 
     // Convert the NDC anchor into a world-space camera pan at the tower's distance.
     const halfW = halfH * this.camera.aspect;

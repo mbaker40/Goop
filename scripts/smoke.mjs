@@ -41,6 +41,9 @@ async function drive(label, viewport, dpr) {
       : undefined,
   });
   const page = await ctx.newPage();
+  // Headless SwiftShader renders 1920×1080 at ~3 fps; the 30 s default screenshot timeout is
+  // marginal when other jobs share the CPU. Give every step slack.
+  page.setDefaultTimeout(90_000);
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${label}] ${m.text()}`); });
   page.on('pageerror', (e) => errors.push(`[${label}] pageerror: ${e.message}`));
 

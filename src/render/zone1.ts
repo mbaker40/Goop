@@ -11,11 +11,61 @@
 
 import * as THREE from 'three';
 import { paletteAt, type ZonePalette } from './palette';
+import { makeShadowTexture } from './markers';
+
+/** Kitchen-counter tile texture for the diorama base (grout lines, coffee stain, crumbs). */
+function makeCounterTexture(): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 512;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#dcc9a4';
+  c.fillRect(0, 0, 512, 512);
+  // Tiles + grout.
+  c.strokeStyle = '#bda87f';
+  c.lineWidth = 6;
+  for (let i = 0; i <= 8; i++) {
+    c.beginPath();
+    c.moveTo(i * 64, 0);
+    c.lineTo(i * 64, 512);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(0, i * 64);
+    c.lineTo(512, i * 64);
+    c.stroke();
+  }
+  // Per-tile shading variation.
+  for (let ty = 0; ty < 8; ty++) {
+    for (let tx = 0; tx < 8; tx++) {
+      const v = ((tx * 7 + ty * 13) % 5) - 2;
+      c.fillStyle = v > 0 ? `rgba(255,245,220,${v * 0.045})` : `rgba(90,60,20,${-v * 0.035})`;
+      c.fillRect(tx * 64 + 3, ty * 64 + 3, 58, 58);
+    }
+  }
+  // Coffee stain.
+  c.strokeStyle = 'rgba(122,74,42,0.4)';
+  c.lineWidth = 9;
+  c.beginPath();
+  c.arc(150, 350, 38, 0, Math.PI * 2);
+  c.stroke();
+  // Crumbs.
+  c.fillStyle = 'rgba(122,90,42,0.55)';
+  for (let i = 0; i < 26; i++) {
+    const a = i * 2.4;
+    c.fillRect(256 + Math.sin(a * 1.7) * 200, 256 + Math.cos(a * 2.3) * 200, 5, 4);
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 export class Environment {
   readonly group = new THREE.Group();
   private ground: THREE.Mesh;
   private groundMat: THREE.MeshStandardMaterial;
+  private edge!: THREE.Mesh;
+  private edgeMat!: THREE.MeshStandardMaterial;
+  private towerShadow!: THREE.Mesh;
+  private towerShadowMat!: THREE.MeshBasicMaterial;
   private skyTex: THREE.CanvasTexture;
   private skyCanvas: HTMLCanvasElement;
   private stars: THREE.Points;
@@ -41,12 +91,31 @@ export class Environment {
     this.skyTex = new THREE.CanvasTexture(this.skyCanvas);
     this.skyTex.colorSpace = THREE.SRGBColorSpace;
 
-    // Ground.
-    this.groundMat = new THREE.MeshStandardMaterial({ color: 0xd9c7a3, roughness: 0.9, metalness: 0, transparent: true });
-    this.ground = new THREE.Mesh(new THREE.CircleGeometry(60, 48), this.groundMat);
+    // Ground: a COUNTER-TOP DIORAMA BASE — smaller tiled island with a visible edge, like the
+    // whole scene sits on a kitchen table (was: featureless 60-radius disc).
+    this.groundMat = new THREE.MeshStandardMaterial({ map: makeCounterTexture(), color: 0xffffff, roughness: 0.9, metalness: 0, transparent: true });
+    this.ground = new THREE.Mesh(new THREE.CircleGeometry(26, 48), this.groundMat);
     this.ground.rotation.x = -Math.PI / 2;
     this.ground.position.y = -0.02;
+    // The counter is transparent (it fades with altitude), and three.js sorts transparent objects
+    // back-to-front by OBJECT CENTER — the disc's center is nearer than the scenery cutouts', so
+    // without an explicit order it draws AFTER them and paints over their lower halves (the
+    // "fence sunk into the counter" bug). Force ground → shadows → cutouts.
+    this.ground.renderOrder = -3;
     this.group.add(this.ground);
+    // The counter's edge (diorama table side).
+    this.edgeMat = new THREE.MeshStandardMaterial({ color: 0xa5854f, roughness: 0.85, metalness: 0, transparent: true });
+    this.edge = new THREE.Mesh(new THREE.CylinderGeometry(26, 26, 1.6, 48, 1, true), this.edgeMat);
+    this.edge.position.y = -0.82;
+    this.edge.renderOrder = -3;
+    this.group.add(this.edge);
+    // Soft contact shadow under the goop (scaled by the renderer via setTowerShadow).
+    this.towerShadowMat = new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false, opacity: 0.4 });
+    this.towerShadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.towerShadowMat);
+    this.towerShadow.rotation.x = -Math.PI / 2;
+    this.towerShadow.position.y = 0.015;
+    this.towerShadow.renderOrder = -2;
+    this.group.add(this.towerShadow);
 
     // Starfield: a shell of points that fades in with altitude (space is continuous too).
     const STARS = 260;
@@ -106,19 +175,29 @@ export class Environment {
       scene.background = this.skyTex;
     }
     if (scene.fog) (scene.fog as THREE.Fog).color.copy(this.cur.fog);
-    this.groundMat.color.copy(this.cur.ground);
+    // Tint the tiled counter toward the altitude palette (subtle; texture carries the detail).
+    this.groundMat.color.copy(this.cur.ground).lerp(this.tmp.setHex(0xffffff), 0.55);
 
     // Ground/props fade with ALTITUDE (leaving the planet around the cloud layer), stars fade in.
     const targetAlpha = clamp01(1 - (heightRaw - 14) / 12);
     if (Math.abs(this.groundAlpha - targetAlpha) > 0.004) {
       this.groundAlpha += (targetAlpha - this.groundAlpha) * Math.min(1, 2.2 * dt);
       this.groundMat.opacity = this.groundAlpha;
+      this.edgeMat.opacity = this.groundAlpha;
+      this.towerShadowMat.opacity = 0.4 * this.groundAlpha;
       this.ground.visible = this.groundAlpha > 0.02;
+      this.edge.visible = this.groundAlpha > 0.02;
+      this.towerShadow.visible = this.groundAlpha > 0.02;
     }
     this.starMat.opacity = clamp01((heightRaw - 30) / 20) * 0.9;
     this.stars.visible = this.starMat.opacity > 0.02;
 
     return changed;
+  }
+
+  /** Scale the goop's contact shadow (renderer passes the tower's ground footprint). */
+  setTowerShadow(scale: number): void {
+    this.towerShadow.scale.setScalar(Math.max(0.1, scale));
   }
 }
 
