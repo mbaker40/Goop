@@ -1,7 +1,7 @@
 /**
- * numbers.ts — break_infinity.js wrappers + formatting (PLAN §9, §13).
+ * numbers.ts - break_infinity.js wrappers + formatting (PLAN §9, §13).
  * ALL goop quantities go through Decimal; never raw JS numbers for goop.
- * (Height stays a plain JS number — it never exceeds the double range, PLAN §5.1.)
+ * (Height stays a plain JS number - it never exceeds the double range, PLAN §5.1.)
  */
 
 import Decimal from 'break_infinity.js';

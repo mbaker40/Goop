@@ -1,5 +1,5 @@
 /**
- * achievements.ts (sim) — pure achievement evaluation (PLAN §7). Builds an AchievementCtx snapshot
+ * achievements.ts (sim) - pure achievement evaluation (PLAN §7). Builds an AchievementCtx snapshot
  * from the live Game and unlocks anything newly earned into MetaState.achievements. Deterministic:
  * no RNG, no wall clock; the Game's own state is the only input.
  */

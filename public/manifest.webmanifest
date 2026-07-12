@@ -1,7 +1,7 @@
 {
   "name": "Goop Tower",
   "short_name": "Goop Tower",
-  "description": "Slap goop onto a wobbling tower and climb from a kitchen counter past God — or melt into a puddle trying.",
+  "description": "Slap goop onto a wobbling tower and climb from a kitchen counter past God - or melt into a puddle trying.",
   "start_url": "./",
   "display": "standalone",
   "orientation": "any",

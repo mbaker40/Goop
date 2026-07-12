@@ -1,5 +1,5 @@
 /**
- * store.ts — tiny custom pub/sub bridging the pure sim to the DOM UI (PLAN §9 state layer).
+ * store.ts - tiny custom pub/sub bridging the pure sim to the DOM UI (PLAN §9 state layer).
  * The UI reads sim state THROUGH this store and calls its actions; it never mutates the sim
  * directly (PLAN §10). The store owns the fixed-timestep loop and screen/prestige flow.
  */
@@ -33,7 +33,7 @@ export class Store {
   /** Screen positions of recent taps (presentation only; drained by the renderer each frame). */
   private clickPoints: { x: number; y: number }[] = [];
   /** View zoom multiplier (presentation only): 1 = framed on the tower, higher = pulled back to
-   *  see the environment/scale markers. Cycled by the HUD 🔭 button. */
+   *  see the environment/scale markers. Cycled by the HUD telescope button. */
   viewZoom = 1;
 
   private listeners = new Set<Listener>();
@@ -80,7 +80,7 @@ export class Store {
       }
       if (this.screen === 'run') this.handleRunTransitions();
       // Only re-render when a logic tick advanced (~10 Hz). Static screens (menu/win/puddle)
-      // render on explicit actions, not every frame — avoids DOM thrash detaching buttons.
+      // render on explicit actions, not every frame - avoids DOM thrash detaching buttons.
       if (ticked) this.emit();
       this.rafId = requestAnimationFrame(frame);
     };
@@ -199,7 +199,7 @@ export class Store {
     this.emit();
   }
 
-  /** Pause an in-progress run (freezes the sim — the loop only ticks on 'run'). */
+  /** Pause an in-progress run (freezes the sim - the loop only ticks on 'run'). */
   pause(): void {
     if (this.screen === 'run') {
       this.screen = 'paused';

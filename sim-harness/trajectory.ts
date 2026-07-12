@@ -1,5 +1,5 @@
 /**
- * trajectory.ts — `npx tsx sim-harness/trajectory.ts [minutes]`. Dumps a minute-by-minute growth
+ * trajectory.ts - `npx tsx sim-harness/trajectory.ts [minutes]`. Dumps a minute-by-minute growth
  * trajectory for ClickerBot (median meta) and GreedyBot (no meta), IGNORING the win threshold, so
  * zone thresholds / WIN_HEIGHT can be placed against measured growth instead of eyeballs
  * (docs/decisions/0001 calibration method, now reproducible).
@@ -11,7 +11,7 @@ import { PRODUCERS } from '../src/config/producers';
 import { ClickerBot, GreedyBot, MEDIAN_META } from './strategies';
 import type { Bot } from './core';
 
-// (No @types/node in this project — reach process via globalThis for the CLI arg.)
+// (No @types/node in this project - reach process via globalThis for the CLI arg.)
 const argv = (globalThis as { process?: { argv?: string[] } }).process?.argv ?? [];
 const minutes = Number(argv[2] ?? 70);
 

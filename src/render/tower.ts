@@ -1,5 +1,5 @@
 /**
- * tower.ts — the marching-cubes goop tower (PLAN §9.1) + wobble/squash juice (PLAN §2.1, §9.1).
+ * tower.ts - the marching-cubes goop tower (PLAN §9.1) + wobble/squash juice (PLAN §2.1, §9.1).
  *
  * The metaball field lives inside a base-pivoted Group so wobble (lean) and squash animate from the
  * ground up. A spring value carries the lean; clicks kick it (and a squash pulse); combo and the
@@ -35,6 +35,13 @@ export class GoopTower {
   private material: THREE.MeshPhysicalMaterial;
   private renderedHeight = 0;
   private heightVel = 0;
+
+  /** Jump the growth spring straight to a height. Used when a saved run resumes so the tower
+   *  (and everything scaled off it) doesn't replay a from-zero grow-in on every app open. */
+  snap(heightRaw: number): void {
+    this.renderedHeight = Math.max(0, heightRaw);
+    this.heightVel = 0;
+  }
   private warn = 0;
   /** Swells the tower top right after fresh goop lands; decays fast. */
   private growPulse = 0;
@@ -90,7 +97,7 @@ export class GoopTower {
       this.velX += (Math.cos(a) * 6 + Math.sin(this.t * 12.9) * 3) * power;
       this.velZ += (Math.sin(a) * 6 + Math.cos(this.t * 7.1) * 3) * power;
     }
-    // Radial swell (goop puffs OUT on a slap) — vertical squash was jarring: it moved the tower
+    // Radial swell (goop puffs OUT on a slap) - vertical squash was jarring: it moved the tower
     // top, which dragged the camera up and down on every tap.
     this.swellVel += 2.4 * power;
     this.growPulse = Math.min(1.6, this.growPulse + 0.45 * power);
@@ -148,7 +155,7 @@ export class GoopTower {
       }
       // Fluid body: every ball breathes (radius wobble) and drifts laterally; amplitude rises with
       // growth so an actively-fed tower visibly churns while a stalled one sits eerily still.
-      // LUMPY by design — it's goop, not a bullet: each ball keeps a persistent pseudo-random
+      // LUMPY by design - it's goop, not a bullet: each ball keeps a persistent pseudo-random
       // girth and lateral offset (hashed off its index, stable frame to frame), so the silhouette
       // reads as a stacked pile of blobs.
       const boil = 0.05 + growth * 0.16;
@@ -167,7 +174,7 @@ export class GoopTower {
         mc.addBall(0.5 + lumpX + swayX, ny, 0.5 + lumpZ + swayZ, (0.85 + girth * 0.45) * lumpR * breathe + fresh, 10);
       }
       // Flank lumps: half-sunk side blobs at persistent pseudo-random heights, slowly oozing
-      // downward — the drips and bulges that make it read as goo.
+      // downward - the drips and bulges that make it read as goo.
       const lumps = Math.max(3, Math.round(fill * 10));
       for (let j = 0; j < lumps; j++) {
         const fh = 0.5 + 0.5 * Math.sin(j * 5.23 + 2.1); // stable height fraction per lump
@@ -242,7 +249,7 @@ export class GoopTower {
     return this.renderedHeight;
   }
 
-  /** Approximate ground footprint diameter (world units) — drives the contact shadow. */
+  /** Approximate ground footprint diameter (world units) - drives the contact shadow. */
   get groundFootprint(): number {
     const fill = Math.min(1, Math.max(0.03, this.renderedHeight / WIN_HEIGHT));
     return (2.6 + fill * 2.4) * (1 + Math.max(0, this.swell) * 0.5);

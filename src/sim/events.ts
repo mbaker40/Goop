@@ -1,9 +1,9 @@
 /**
- * events.ts — chaos-event scheduler + effects (PLAN §8), pure & deterministic.
+ * events.ts - chaos-event scheduler + effects (PLAN §8), pure & deterministic.
  *
  * All runtime state is PLAIN JSON living on RunState (eventCooldown / activeEvent /
  * eventEffects) so saves serialize it for free; this module is just the logic. Event selection
- * uses the game's seeded RNG — same seed, same schedule (the harness/tests rely on this).
+ * uses the game's seeded RNG - same seed, same schedule (the harness/tests rely on this).
  * UI-facing rules (PLAN §8): never two at once, 45s minimum gap, zone-gated pools, expiry of an
  * unfinished 'targets' event = its onFail, expiry of a 'decision' = a polite decline.
  */
@@ -19,7 +19,7 @@ export interface ActiveEventState {
   remaining: number;
   /** 'targets' kind: taps still needed. */
   targetsLeft: number;
-  /** Set once resolved (success/fail/accept/decline) — kept until `remaining` hits 0 only for
+  /** Set once resolved (success/fail/accept/decline) - kept until `remaining` hits 0 only for
    *  UI linger; a resolved event no longer reacts to taps/decisions. */
   resolved: boolean;
 }
@@ -135,7 +135,7 @@ export function tickEvents(host: EventHost, dt: number): void {
     return; // never two at once
   }
 
-  // No firing during grace/warmup — the melt tutorial already owns that window.
+  // No firing during grace/warmup - the melt tutorial already owns that window.
   if (r.status !== 'active') return;
   if (r.runTime < balance.melt.graceSeconds + balance.events.warmupSeconds) return;
 

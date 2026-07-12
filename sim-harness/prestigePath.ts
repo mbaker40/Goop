@@ -1,5 +1,5 @@
 /**
- * prestigePath.ts — simulates the PATH from a fresh account to the first win: run after run of
+ * prestigePath.ts - simulates the PATH from a fresh account to the first win: run after run of
  * ClickerBot play, banking GE and greedily buying the cheapest affordable meta upgrade between
  * runs. This validates PLAN §1/§4's promise ("first win … on a second-or-third prestige") as an
  * actual economy property instead of assuming a hand-picked MEDIAN_META fixture.

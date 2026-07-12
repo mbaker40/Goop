@@ -1,14 +1,14 @@
 /**
- * events.ts — the chaos-event pool (PLAN §8). Data-driven: an event is a config entry, not a
+ * events.ts - the chaos-event pool (PLAN §8). Data-driven: an event is a config entry, not a
  * code path. Numbers here are TUNABLES (weights, durations, payouts); the scheduler mechanics
  * (min gap, one-at-a-time) live in balance.ts.
  *
  * Kinds:
- *  - 'targets'  — tappable things appear; clear them before the timer for onSuccess, else onFail.
+ *  - 'targets'  - tappable things appear; clear them before the timer for onSuccess, else onFail.
  *                 Each target tap pays `gpsSeconds / targets` of current GPS immediately.
- *  - 'decision' — a deal banner with ACCEPT/DECLINE buttons; expiry counts as decline.
- *  - 'aura'     — no interaction; `aura` multipliers apply while the event runs.
- *  - 'bit'      — nothing happens. The bit is the point.
+ *  - 'decision' - a deal banner with ACCEPT/DECLINE buttons; expiry counts as decline.
+ *  - 'aura'     - no interaction; `aura` multipliers apply while the event runs.
+ *  - 'bit'      - nothing happens. The bit is the point.
  */
 
 export interface EventEffectSpec {
@@ -18,6 +18,7 @@ export interface EventEffectSpec {
   durationSec: number;
   /** Short chip label shown in the HUD while active, e.g. "GPS ×5". */
   label: string;
+  /** Icon KEY into src/ui/icons.ts (handmade inline SVG; no emoji). */
   icon: string;
 }
 
@@ -38,6 +39,7 @@ export interface EventOutcome {
 export interface ChaosEventDef {
   id: string;
   name: string;
+  /** Icon KEY into src/ui/icons.ts (handmade inline SVG; no emoji). */
   icon: string;
   flavor: string;
   kind: 'targets' | 'decision' | 'aura' | 'bit';
@@ -63,7 +65,7 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
   {
     id: 'goober',
     name: 'Golden Goober Swarm',
-    icon: '✨',
+    icon: 'sparkle',
     flavor: 'Shiny. Round. Legally goop. TAP THEM ALL.',
     kind: 'targets',
     minZone: 1,
@@ -76,7 +78,7 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
   {
     id: 'meteor',
     name: 'Goop Meteor',
-    icon: '☄️',
+    icon: 'meteor',
     flavor: 'Incoming! Tap it to bits before it lands!',
     kind: 'targets',
     minZone: 2,
@@ -86,14 +88,14 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
     onSuccess: { gpsSeconds: 30, toast: 'Meteor absorbed. Tastes like commitment.' },
     onFail: {
       structuralLossFrac: 0.25,
-      effect: { clickMult: 3, durationSec: 20, label: 'Anger goop ×3 slap', icon: '😡' },
-      toast: 'IMPACT. The tower is furious — slaps hit ×3 for a bit.',
+      effect: { clickMult: 3, durationSec: 20, label: 'Anger goop ×3 slap', icon: 'anger' },
+      toast: 'IMPACT. The tower is furious - slaps hit ×3 for a bit.',
     },
   },
   {
     id: 'inspector',
     name: 'Health Inspector',
-    icon: '📋',
+    icon: 'clipboard',
     flavor: 'He has a clipboard and concerns. Tap him off the tower!',
     kind: 'targets',
     minZone: 2,
@@ -102,14 +104,14 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
     targets: 1,
     onSuccess: { gpsSeconds: 6, toast: 'Inspector shooed. The violations remain unread.' },
     onFail: {
-      effect: { gpsMult: 0.5, durationSec: 30, label: 'Citation: GPS ×0.5', icon: '📋' },
+      effect: { gpsMult: 0.5, durationSec: 30, label: 'Citation: GPS ×0.5', icon: 'clipboard' },
       toast: 'CITED. Production halved while the paperwork clears.',
     },
   },
   {
     id: 'investor',
     name: 'The Investor',
-    icon: '💼',
+    icon: 'briefcase',
     flavor: 'A suited blob offers ×10 goop NOW for +25% melt (90s). He says "synergy."',
     kind: 'decision',
     minZone: 3,
@@ -117,29 +119,29 @@ export const CHAOS_EVENTS: readonly ChaosEventDef[] = [
     durationSec: 12,
     onAccept: {
       goopMult: 10,
-      effect: { meltMult: 1.25, durationSec: 90, label: 'Hostile melt +25%', icon: '💼' },
+      effect: { meltMult: 1.25, durationSec: 90, label: 'Hostile melt +25%', icon: 'briefcase' },
       toast: 'Deal closed. The goop is now a growth-stage startup.',
     },
   },
   {
     id: 'heatwave',
     name: 'Heat Wave',
-    icon: '🥵',
+    icon: 'heat',
     flavor: 'Melt ×3! Grow through it or sweat it out.',
     kind: 'aura',
     minZone: 4,
     weight: 2,
     durationSec: 15,
-    aura: { meltMult: 3, durationSec: 15, label: 'Melt ×3', icon: '🥵' },
+    aura: { meltMult: 3, durationSec: 15, label: 'Melt ×3', icon: 'heat' },
     namesByZone: [
-      { minZone: 13, name: 'Divine Side-Eye', icon: '👁️' },
-      { minZone: 9, name: 'Solar Flare', icon: '🌞' },
+      { minZone: 13, name: 'Divine Side-Eye', icon: 'eye' },
+      { minZone: 9, name: 'Solar Flare', icon: 'sun' },
     ],
   },
   {
     id: 'barber',
     name: 'The Barber',
-    icon: '💈',
+    icon: 'barber',
     flavor: 'He looks at the tower. This is not the hair game. He apologizes and leaves.',
     kind: 'bit',
     minZone: 3,

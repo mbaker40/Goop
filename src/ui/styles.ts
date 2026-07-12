@@ -1,5 +1,5 @@
 /**
- * styles.ts — M0 "playable ugly" DOM styling (PLAN §17 M0: ugly before goopy).
+ * styles.ts - M0 "playable ugly" DOM styling (PLAN §17 M0: ugly before goopy).
  * Deliberately minimal; the juicy 3D/skins come in later milestones.
  */
 
@@ -19,7 +19,7 @@ body { margin: 0; background: var(--bg); color: var(--ink);
   font: 11px/1.3 ui-monospace, Menlo, monospace; padding: 2px 8px; border-radius: 0 0 8px 8px;
   border: 1px solid var(--border); border-top: none; letter-spacing: .3px; white-space: nowrap; }
 /* iOS Safari auto-promotes a WebGL canvas to its OWN GPU compositing layer, which then paints
-   ABOVE any plain (non-composited) DOM regardless of z-index — that's what stranded the whole
+   ABOVE any plain (non-composited) DOM regardless of z-index - that's what stranded the whole
    overlay on a bare tower. The fix is NOT z-index games (a negative z-index actually HIDES the
    canvas on compliant browsers, behind the body background). Instead we force BOTH the canvas and
    every DOM overlay piece onto their own GPU layer (translateZ / will-change: transform); once both
@@ -31,24 +31,24 @@ body { margin: 0; background: var(--bg); color: var(--ink);
 #scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: none;
   z-index: 0; pointer-events: none; transform: translateZ(0); }
 body[data-screen="run"] #scene, body[data-screen="paused"] #scene { display: block; }
-/* menu/win/puddle: normal-flow container, page scrolls (canvas is hidden — no compositing needed). */
+/* menu/win/puddle: normal-flow container, page scrolls (canvas is hidden - no compositing needed). */
 #app { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 12px; }
 /* run/paused: #app becomes a FULL-VIEWPORT composited layer. This is the key to the iOS HUD: its
    position:fixed children (the HUD) composite ABOVE the WebGL canvas because their ancestor is a GPU
-   layer — AND because #app is inset:0 with padding:0, its containing block == the viewport, so the
+   layer - AND because #app is inset:0 with padding:0, its containing block == the viewport, so the
    fixed HUD keeps correct positioning (the earlier cramming happened only because #app was then a
    narrow max-width box). The badge proves a body-level fixed layer beats the canvas; this makes #app
    that layer for the whole HUD. */
 body[data-screen="run"] #app, body[data-screen="paused"] #app {
   position: fixed; inset: 0; max-width: none; margin: 0; padding: 0; transform: translateZ(0); }
 /* Extra safety: each fixed HUD piece is also its own composited layer. */
-#hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig, #ach-overlay,
+#hud-stats, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig, #ach-overlay,
 #event-banner, #event-chips, .event-tgt {
   will-change: transform; }
 /* Mobile input hygiene: kill the gray tap-highlight flash, double-tap zoom on buttons, and stray
    text selection / long-press callouts during rapid tapping. Buttons + the whole run HUD are
    game chrome, not documents. (Pinch-zoom stays available on page-flow screens.) */
-button, .shopitem, .hud-card, #stage, #hud-readout, #sr-banner {
+button, .shopitem, .hud-card, #stage, #hud-readout {
   -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
   user-select: none; -webkit-user-select: none; touch-action: manipulation; }
 h1 { font-size: 28px; letter-spacing: 2px; margin: 8px 0; }
@@ -57,7 +57,7 @@ button { font: inherit; cursor: pointer; background: var(--panel2); color: var(-
   border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
   transition: transform .06s ease, border-color .12s ease, filter .06s ease; }
 button:hover:not(:disabled) { border-color: var(--accent); }
-/* Mobile has no hover — a pressed button must LOOK pressed. */
+/* Mobile has no hover - a pressed button must LOOK pressed. */
 button:active:not(:disabled) { transform: scale(.94); filter: brightness(1.25); }
 button:disabled { opacity: .4; cursor: not-allowed; }
 .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
@@ -129,11 +129,13 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
 #event-banner button.deal { background: var(--accent); color: #0f2410; font-weight: bold; }
 .event-tgt { position: fixed; z-index: 4; width: 56px; height: 56px; border-radius: 50%;
   border: 2px solid #ffd96a; background: radial-gradient(circle at 35% 30%, #fff3c4, #f0b429 70%);
-  font-size: 26px; line-height: 1; box-shadow: 0 4px 18px rgba(255,200,60,.55);
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+  box-shadow: 0 4px 18px rgba(255,200,60,.55);
   transform: translate(-50%, -50%); animation: tgtbob 1.1s ease-in-out infinite; touch-action: manipulation; }
+.event-tgt svg { width: 30px; height: 30px; display: block; }
 @keyframes tgtbob { 0%,100% { margin-top: 0; } 50% { margin-top: -8px; } }
 /* Centered under the melt banner (the top corners belong to the stat cards). While an event
-   banner is up it covers this spot for its ~1s linger — acceptable, chips run for 20-90s. */
+   banner is up it covers this spot for its ~1s linger - acceptable, chips run for 20-90s. */
 #event-chips { position: fixed; z-index: 3; top: calc(64px + env(safe-area-inset-top)); left: 50%;
   transform: translateX(-50%); display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px;
   justify-content: center; max-width: 92vw; pointer-events: none; }
@@ -146,10 +148,15 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
 @keyframes eventtoast { 0% { opacity: 0; margin-bottom: -12px; } 10% { opacity: 1; margin-bottom: 0; }
   80% { opacity: 1; } 100% { opacity: 0; margin-bottom: 18px; } }
 
-#hud-stats { position: fixed; z-index: 3; top: calc(10px + env(safe-area-inset-top)); left: 10px; min-width: 178px; }
+#hud-stats { position: fixed; z-index: 3; top: calc(10px + env(safe-area-inset-top)); left: 10px; min-width: 178px;
+  transition: border-color .3s ease; }
 #hud-stats .title { color: var(--goop); font-weight: bold; letter-spacing: 1px; }
-#sr-banner { position: fixed; z-index: 3; top: calc(10px + env(safe-area-inset-top)); left: 50%;
-  transform: translateX(-50%); max-width: 70vw; margin: 0; pointer-events: none; }
+/* The stats card carries melt status directly (the old separate melt banner said the same thing). */
+#hud-stats[data-melt="safe"] #sr-buffer { color: var(--accent); }
+#hud-stats[data-melt="warm"] { border-color: var(--warn); }
+#hud-stats[data-melt="warm"] #sr-buffer { color: var(--warn); }
+#hud-stats[data-melt="hot"] { border-color: var(--danger); animation: pulse .7s infinite; }
+#hud-stats[data-melt="hot"] #sr-buffer { color: var(--danger); font-weight: bold; }
 #hud-readout { position: fixed; z-index: 2; bottom: calc(14px + env(safe-area-inset-bottom)); text-align: center; pointer-events: none; }
 #hud-readout .h { font-size: 32px; color: var(--goop); text-shadow: 0 2px 10px rgba(0,0,0,.85); }
 #hud-readout .z { font-size: 15px; color: #fff; text-shadow: 0 1px 8px #000; }
@@ -170,7 +177,7 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
 #pause-overlay .pause-card { width: min(360px, 90vw); text-align: center; }
 
 /* Mid-run achievements overlay: opened over the live run (does NOT pause the sim). Solid bg (no
-   backdrop-filter — see the iOS note at the top of this file), fixed direct child of #app, own GPU
+   backdrop-filter - see the iOS note at the top of this file), fixed direct child of #app, own GPU
    layer. z-index beats the shop drawer (4) and the pause overlay (6) so it's always reachable. */
 #ach-overlay { position: fixed; inset: 0; z-index: 8; background: var(--bg);
   padding: 14px; padding-top: calc(14px + env(safe-area-inset-top));
@@ -198,15 +205,14 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
   /* Slim stat bar: tighter type + gaps so Goop/GPS/Buffer fit one line at 390px. */
   #hud-stats .stat { display: inline-flex; gap: 5px; padding: 0; margin: 2px 10px 0 0; font-size: 13px; }
   #hud-stats .title { font-size: 14px; }
-  #sr-banner { top: calc(112px + env(safe-area-inset-top)); max-width: 92vw; }
   #stage { top: 0; left: 0; right: 0; bottom: 22vh; }
   #hud-readout { left: 0; right: 0; }
-  /* Drawer slide is driven by an inline transform in applyShopState() (JS) — see app.ts. */
+  /* Drawer slide is driven by an inline transform in applyShopState() (JS) - see app.ts. */
   #hud-shop { top: 0; right: 0; bottom: 0; width: min(86vw, 330px); height: 100dvh;
     border-radius: 16px 0 0 16px; padding: 12px;
     padding-bottom: calc(12px + env(safe-area-inset-bottom)); padding-right: calc(12px + env(safe-area-inset-right));
     transition: transform .25s ease; box-shadow: -14px 0 44px rgba(0,0,0,.55); }
-  /* Parked above the bottom hud-readout block (height/zone/combo/hint), not on top of it — the
+  /* Parked above the bottom hud-readout block (height/zone/combo/hint), not on top of it - the
      readout is full-width centered, so the FAB has to clear it vertically rather than horizontally. */
   #shop-fab { display: block; right: calc(14px + env(safe-area-inset-right));
     bottom: calc(22vh + 12px + env(safe-area-inset-bottom));
@@ -222,7 +228,8 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
   padding: 8px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--panel2); }
 .shopitem .info { min-width: 0; }
 .shopitem .name { font-weight: bold; }
-.shopitem .name .icon { display: inline-block; margin-right: 6px; font-size: 18px; }
+.shopitem .name .icon { display: inline-flex; vertical-align: -4px; margin-right: 6px; }
+.shopitem .name .icon svg { width: 18px; height: 18px; }
 .shopitem .flavor { color: var(--muted); font-size: 12px; }
 .shopitem .cost { white-space: nowrap; color: var(--goop); font-variant-numeric: tabular-nums; }
 .subtitle { margin: -2px 0 8px; }
@@ -264,6 +271,10 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
 .center { text-align: center; }
 .big { font-size: 42px; color: var(--goop); }
 .tag { font-size: 12px; color: var(--muted); }
+
+/* Inline SVG icons in text flow (buttons, stat labels, headers) - see ui/icons.ts ic(). */
+.ic { display: inline-flex; vertical-align: -0.12em; }
+.ic svg { width: 1em; height: 1em; }
 
 /* ---- Main menu: hero + folding sections (keep it calm) ---- */
 .menu-hero { text-align: center; max-width: 520px; margin: 4vh auto 18px; }

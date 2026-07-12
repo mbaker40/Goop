@@ -49,7 +49,7 @@ await page.evaluate(() => {
 await sleep(500);
 const tgts = page.locator('.event-tgt');
 console.log('targets on screen:', await tgts.count());
-// The targets bob forever, so Playwright's stability wait never settles — tap by coordinates.
+// The targets bob forever, so Playwright's stability wait never settles - tap by coordinates.
 for (let i = 0; i < 2; i++) {
   const box = await tgts.first().boundingBox();
   if (box) await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);

@@ -1,5 +1,5 @@
 /**
- * quality.ts — render quality tiers (PLAN §9.1 / §13). Auto-detected once at boot:
+ * quality.ts - render quality tiers (PLAN §9.1 / §13). Auto-detected once at boot:
  * coarse-pointer (touch) devices get a lower marching-cubes resolution and a tighter
  * devicePixelRatio clamp so mid-range phones hold 60 fps. Everything degrades gracefully.
  */

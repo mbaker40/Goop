@@ -1,5 +1,5 @@
 /**
- * acceptance.test.ts — the balance acceptance criteria from PLAN §14.
+ * acceptance.test.ts - the balance acceptance criteria from PLAN §14.
  * These enforce the game's feel as MATH. Run on every balance-affecting change.
  * If you retune balance.ts, update these windows AND docs/balance-notes.md.
  */
@@ -51,12 +51,12 @@ describe('PLAN §14 balance acceptance', () => {
     expect(r.ge).toBeGreaterThanOrEqual(cheapestMetaCost);
   });
 
-  // §14.5 Endless / 1e100 m cap is a Milestone 4 deliverable — endless scaling doesn't exist yet.
+  // §14.5 Endless / 1e100 m cap is a Milestone 4 deliverable - endless scaling doesn't exist yet.
   it.todo('§14.5 ClickerBot + maxed meta reaches 1e100 m in Endless (M4)');
 
   it('prestige path: a fresh account reaches its first WIN within 15 prestiges / ~6h cumulative', { timeout: 240_000 }, () => {
     // Validates the road from meta-zero to the win as an economy property (not just the
-    // hand-picked MEDIAN_META snapshot). Currently ~11 runs / ~4.2h — see docs/balance-notes.md.
+    // hand-picked MEDIAN_META snapshot). Currently ~11 runs / ~4.2h - see docs/balance-notes.md.
     const r = simulatePrestigePath(15);
     expect(r.runsToWin).toBeGreaterThan(2); // the win must not come absurdly early either
     expect(r.runsToWin).toBeLessThanOrEqual(15);

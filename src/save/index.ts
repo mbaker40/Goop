@@ -1,5 +1,5 @@
 /**
- * save/index.ts — versioned localStorage persistence (PLAN §12).
+ * save/index.ts - versioned localStorage persistence (PLAN §12).
  * The storage backend is isolated here so a later platform wrapper (Steam/iOS) can swap
  * it without touching the rest of the game. Decimals serialize as strings.
  */
@@ -46,7 +46,7 @@ export function deserializeRun(s: SerializedRun): RunState {
     lifetimeGoop: D(new Decimal(s.lifetimeGoop)),
     structuralGoop: D(new Decimal(s.structuralGoop)),
     emaIncome: D(new Decimal(s.emaIncome)),
-    // Chaos-event fields arrived mid-M3 — default them for older mid-run saves.
+    // Chaos-event fields arrived mid-M3 - default them for older mid-run saves.
     eventCooldown: s.eventCooldown ?? 120,
     activeEvent: s.activeEvent ?? null,
     eventEffects: s.eventEffects ?? [],
@@ -67,11 +67,11 @@ export function loadSave(): SaveData | null {
     const parsed = JSON.parse(raw) as SaveData;
     return migrate(parsed);
   } catch {
-    // Never destroy an unparseable save — stash it and start fresh (PLAN §12).
+    // Never destroy an unparseable save - stash it and start fresh (PLAN §12).
     try {
       localStorage.setItem(`goopTower.save.corrupt.${Date.now()}`, raw);
     } catch {
-      /* quota — nothing more we can do */
+      /* quota - nothing more we can do */
     }
     return null;
   }
@@ -81,7 +81,7 @@ export function writeSave(data: SaveData): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(data));
   } catch {
-    /* localStorage quota / private mode — fail silently for M0 */
+    /* localStorage quota / private mode - fail silently for M0 */
   }
 }
 
@@ -98,7 +98,7 @@ export function buildSave(meta: MetaState, run: RunState | null, settings: Setti
 /** Migration chain scaffold (PLAN §12). Currently a single version; extend as versions grow. */
 function migrate(data: SaveData): SaveData {
   let d = data;
-  // Fill any missing fields defensively — meta merges over defaults so fields added in updates
+  // Fill any missing fields defensively - meta merges over defaults so fields added in updates
   // (puddles, lifetimeGe, achievements, …) exist on older saves.
   d = { ...d, meta: { ...createMetaState(), ...(d.meta ?? {}) } };
   if (!d.settings) d = { ...d, settings: defaultSettings() };

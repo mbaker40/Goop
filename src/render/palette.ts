@@ -1,7 +1,7 @@
 /**
- * palette.ts — renderer-owned zone colour palettes.
+ * palette.ts - renderer-owned zone colour palettes.
  * PLAN §10 imagines palettes living in config/zones, but `ZoneDef` has none yet and adding them
- * is a sim/config change out of scope for this render slice — so the renderer owns its own map.
+ * is a sim/config change out of scope for this render slice - so the renderer owns its own map.
  * Indexed by zone.index (1-based); index 0 is the fallback.
  */
 
@@ -62,7 +62,7 @@ function lerpChannel(a: number, b: number, t: number): number {
   return (r << 16) | (g << 8) | bl;
 }
 
-/** The palette at a given raw height — a smooth blend between zone anchors. */
+/** The palette at a given raw height - a smooth blend between zone anchors. */
 export function paletteAt(rawHeight: number, out: ZonePalette = { skyTop: 0, skyBottom: 0, goop: 0, ground: 0, fog: 0 }): ZonePalette {
   const h = Math.max(0, rawHeight);
   let lo = ANCHORS[0]!;

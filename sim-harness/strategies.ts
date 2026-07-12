@@ -1,5 +1,5 @@
 /**
- * strategies.ts — bot players for the balance harness (PLAN §14).
+ * strategies.ts - bot players for the balance harness (PLAN §14).
  * GreedyBot (buys best GPS/cost, no clicking), IdleBot (buys rarely, never clicks),
  * ClickerBot (max active play), ChaoticBot (random purchases, misses events).
  */
@@ -23,7 +23,7 @@ export const MEDIAN_META: Record<string, number> = {
 };
 
 /** Optimizing player: clicks actively and buys the best GPS/cost purchase, but buys NO
- *  quality-of-life upgrades (slap/grease/coolant). The "solid run" — with no meta it hits a
+ *  quality-of-life upgrades (slap/grease/coolant). The "solid run" - with no meta it hits a
  *  growth wall and melts mid-zones; that's the intended first-run experience (PLAN §14.2). */
 export const GreedyBot: Bot = {
   name: 'GreedyBot',
@@ -48,7 +48,7 @@ export const ClickerBot: Bot = {
   },
 };
 
-/** Establishes a tower, then goes fully AFK — tests "stall => melt within ~5 min" (PLAN §14.3).
+/** Establishes a tower, then goes fully AFK - tests "stall => melt within ~5 min" (PLAN §14.3).
  *  (A never-touched game with zero income has nothing to melt; the meaningful test is a player
  *  who builds something and then stops paying attention.) */
 export const IDLE_WARMUP_SEC = 180;
