@@ -17,6 +17,7 @@ import {
 import { ZONES, WIN_HEIGHT, zoneForHeight, type ZoneDef } from '../config/zones';
 import { Decimal, D, ZERO } from './numbers';
 import { Rng } from './rng';
+import { checkAchievements } from './achievements';
 
 export type RunStatus = 'grace' | 'active' | 'won' | 'collapsing' | 'dead';
 
@@ -28,10 +29,26 @@ export interface MetaState {
   bestHeightRaw: number;
   totalClicks: number;
   wins: number;
+  /** Lost (melted) run count — several achievements celebrate failure (PLAN §7). */
+  puddles: number;
+  /** Total GE ever banked (spending doesn't reduce it). */
+  lifetimeGe: number;
+  /** Unlocked achievement ids, in unlock order (config/achievements.ts). */
+  achievements: string[];
 }
 
 export function createMetaState(): MetaState {
-  return { ge: 0, goobers: 0, metaLevels: {}, bestHeightRaw: 0, totalClicks: 0, wins: 0 };
+  return {
+    ge: 0,
+    goobers: 0,
+    metaLevels: {},
+    bestHeightRaw: 0,
+    totalClicks: 0,
+    wins: 0,
+    puddles: 0,
+    lifetimeGe: 0,
+    achievements: [],
+  };
 }
 
 /** Precomputed run-invariant bonuses from meta levels (they don't change mid-run). */
@@ -107,6 +124,8 @@ export class Game {
   private bonuses: MetaBonuses;
   run: RunState;
   readonly rng: Rng;
+  /** Seconds since the last achievements sweep (~1 Hz; see tick()). */
+  private achAcc = 0;
 
   constructor(meta: MetaState, seed = 1) {
     this.meta = meta;
@@ -170,6 +189,8 @@ export class Game {
       const u = RUN_UPGRADES.find((x) => x.id === id);
       if (u?.effect.kind === 'globalGps') m *= u.effect.mult;
     }
+    // Achievements: small permanent goop/sec bonus per unlock (PLAN §7).
+    m *= 1 + this.meta.achievements.length * balance.achievements.gpsPctEach;
     return m;
   }
 
@@ -330,6 +351,13 @@ export class Game {
       return;
     }
 
+    // Achievements sweep ~1/sec (cheap: 100 predicates over a snapshot).
+    this.achAcc += dt;
+    if (this.achAcc >= 1) {
+      this.achAcc = 0;
+      checkAchievements(this);
+    }
+
     r.runTime += dt;
     r.timeSinceClick += dt;
 
@@ -379,6 +407,7 @@ export class Game {
     // Win check (reach Zone 7's finish — the boss itself is M4).
     if (r.status === 'active' && r.endlessDepth === 0 && h >= WIN_HEIGHT) {
       r.status = 'won';
+      checkAchievements(this); // win-conditioned achievements fire on the transition
     }
   }
 
@@ -386,6 +415,7 @@ export class Game {
     if (this.run.status === 'collapsing' || this.run.status === 'dead') return;
     this.run.status = 'collapsing';
     this.run.collapseTimer = balance.melt.collapseSeconds;
+    checkAchievements(this); // death-conditioned achievements fire on the transition
   }
 
   isRunOver(): boolean {

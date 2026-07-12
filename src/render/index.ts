@@ -7,13 +7,13 @@
 
 import * as THREE from 'three';
 import { balance } from '../config/balance';
-import { paletteFor } from './palette';
 import { createScene, type SceneBundle } from './scene';
 import { TowerCamera } from './camera';
 import { GoopTower } from './tower';
 import { SplatSystem } from './splats';
 import { ProducerFx } from './producerFx';
 import { Environment } from './zone1';
+import { ScaleMarkers } from './markers';
 import { detectQuality } from './quality';
 import type { RenderSource } from './source';
 
@@ -42,6 +42,7 @@ export class GoopRenderer {
   private splats: SplatSystem;
   private producerFx = new ProducerFx();
   private env: Environment;
+  private markers: ScaleMarkers;
   private raf = 0;
   private last = 0;
   private frames = 0;
@@ -70,7 +71,9 @@ export class GoopRenderer {
     this.tower = new GoopTower(q.resolution, q.fieldHz);
     this.splats = new SplatSystem();
     this.env = new Environment();
+    this.markers = new ScaleMarkers();
     this.bundle.scene.add(this.env.group);
+    this.bundle.scene.add(this.markers.group);
     this.bundle.scene.add(this.tower.object);
     this.bundle.scene.add(this.splats.object);
   }
@@ -116,12 +119,13 @@ export class GoopRenderer {
 
     const game = this.source.game; // re-read every frame (swapped on startRun)
     const zone = game.currentZone();
-    const palette = paletteFor(zone.index);
-    // Crossfade env palettes; a zone CHANGE is the game's big dopamine beat — pull the camera back.
-    if (this.env.apply(this.bundle.scene, zone.index, palette, dt)) {
+    // Continuous ascent: the environment blends with altitude; a zone CHANGE is still the big
+    // dopamine beat (toast/sting fire in the UI) — pull the camera back for it.
+    if (this.env.apply(this.bundle.scene, game.heightRaw(), zone.index, dt)) {
       this.cam.pulse();
       this.tower.impact(undefined, undefined, 0.6); // celebratory jiggle
     }
+    const palette = this.env.live; // altitude-blended palette shared by goop + splats + light
 
     const buffer = game.bufferSeconds();
     const meltHot = Number.isFinite(buffer) && buffer <= balance.melt.warnRedSec;
@@ -129,9 +133,10 @@ export class GoopRenderer {
     const combo = game.run.combo;
     const comboHeat = (combo - 1) / Math.max(1, balance.click.comboMaxMult - 1); // 0..1
 
-    // Slaps: fire wobble kicks + splat bursts for each new click (capped per frame). Taps with a
-    // recorded screen position land exactly where the finger hit; the burst grows with combo and
-    // its colour heats from zone-goop toward white as momentum maxes out.
+    // Slaps: fire wobble kicks + incoming goop blobs for each new click (capped per frame). Taps
+    // with a recorded screen position land exactly where the finger hit. Blobs CONVERGE onto the
+    // tap point and are absorbed (adding goop, not chipping it off); a couple of small drips run
+    // down the surface as the fresh goop settles. Colour heats toward white as combo maxes.
     const clicks = game.run.clicks;
     const points = this.source.drainClickPoints();
     if (clicks > this.lastClicks) {
@@ -141,19 +146,19 @@ export class GoopRenderer {
         const p = points[points.length - 1 - i];
         if (p) {
           this.tapOrigin(p.x, p.y, this.lastTopY, this.splatOrigin);
-          // Kick the tower away from the slap direction (the ray's horizontal heading).
+          // Nudge the tower away from the slap direction (the ray's horizontal heading).
           const dir = this.raycaster.ray.direction;
           this.tower.impact(dir.x, dir.z, 0.9 + comboHeat * 0.5);
         } else {
           this.tower.topWorld(this.splatOrigin);
           this.tower.impact(undefined, undefined, 0.9 + comboHeat * 0.5);
         }
-        this.splats.burst(this.splatOrigin, heatColor, {
-          count: 5 + Math.round(comboHeat * 5),
-          size: 0.9 + comboHeat * 0.6,
-          out: 3 + comboHeat * 2.5,
-          up: 5 + comboHeat * 2,
+        this.splats.absorb(this.splatOrigin, heatColor, {
+          count: 4 + Math.round(comboHeat * 4),
+          size: 1 + comboHeat * 0.7,
         });
+        // Settling drips: small, downward, hugging the impact point.
+        this.splats.burst(this.splatOrigin, palette.goop, { count: 2, size: 0.45, out: 0.5, up: -0.6, gravity: 0.5, life: 0.9 });
       }
       this.lastClicks = clicks;
     } else if (clicks < this.lastClicks) {
@@ -162,6 +167,9 @@ export class GoopRenderer {
 
     const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, dt);
     this.lastTopY = topY;
+
+    // Fixed-altitude scale markers sweep past the climbing top (birds → blimp → jet → Moon …).
+    this.markers.update(this.tower.debugHeight, topY, this.t);
 
     // Ambient producer signatures — each "tool" you buy is visible working on the tower.
     if (status === 'active' || status === 'grace') {

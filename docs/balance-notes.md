@@ -101,3 +101,26 @@ Acceptance (all pass, `npm test`): §14.1 win **54:07** ✔ · §14.2 window wid
 Residual (roadmap): runs 2–9 of the prestige path land on the same Z4 wall — zone reach should creep
 per run (tune `zoneMeltMult` mid-zones or add a melt-resist early rung); win GE (~54 K) is still
 well above "hundreds" — revisit alongside Endless-mode GE scaling in M4.
+
+---
+
+## 2026-07-12 (later) — Achievements land (+0.5% goop/sec each)
+
+100 achievements (Steam per-app cap; `config/achievements.ts`), each granting
+`balance.achievements.gpsPctEach = 0.5%` goop/sec, evaluated ~1 Hz in `tick()` plus on win/collapse
+transitions. Bots naturally unlock click/producer/zone tiers mid-run, so everything got a mild
+tailwind — the median win moved **54:07 → 46:48** (still inside the 42–65 test window) and the
+first-run deaths shortened ~1 min:
+
+```
+Scenario                  Outcome     Zone  Height      Time   GE     log10 G  log10 GPS
+GreedyBot (no meta)       COLLAPSING  Z3    169 m       9:51   2      4.7      2.1
+IdleBot (no meta)         COLLAPSING  Z2    25 m        6:54   0      4.1      1.4
+ChaoticBot (no meta)      COLLAPSING  Z3    69 m        14:39  1      4.5      1.8
+ClickerBot (no meta)      COLLAPSING  Z4    743 m       13:28  5      5.1      2.4
+ClickerBot (median meta)  WIN 🏆      Z7    6.70e+1 AU  46:48  53761  11.1     8.4
+GreedyBot (median meta)   COLLAPSING  Z4    1.34 km     9:30   9      5.3      3.0
+```
+
+All 29 tests green (7 new achievement tests). If a future pass wants the win back near ~54 min,
+shave `gpsBoost` perLevel or the achievement bonus — but 46:48 sits comfortably in the target band.

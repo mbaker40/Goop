@@ -22,9 +22,13 @@ smoke via `node scripts/smoke.mjs`).
    This is the biggest missing moment-to-moment hook for an "active" incremental.
 2. **Zone 7 boss — "The Flick"** (PLAN §3): 120s Divine Disapproval meter, melt ×5, hand prop.
    Winning is currently a silent threshold crossing; the game's climax doesn't exist yet.
-3. **Zone set dressing** (PLAN §9.1 wants ≥3 gags/zone; even 1–2 primitive props each transforms
-   the sense of place): toaster (Z1), rafters/cat photos (Z2), rooftops + "WHY" blimp (Z3), clouds
-   + honking jet (Z4), satellites/astronaut (Z5), face-planets/goop whale (Z6), marble hand (Z7).
+3. ~~Zone set dressing~~ ✅ phase 1 shipped 2026-07-12 as the **continuous ascent** system (design
+   decision: smooth altitude gradient, no per-zone color cuts): `render/palette.ts paletteAt()`
+   blends sky/fog/ground/goop with altitude; `render/markers.ts` sweeps fixed-altitude scale
+   markers past the climbing top (judgmental toaster, birds, house, water tower, "WHY" blimp,
+   clouds, looping jet, satellite, thumbs-up astronaut, cratered Moon, face-planet) + a starfield
+   above raw 30. Phase 2: planet-ball ground recession (watch the counter shrink to a dot), goop
+   whale + marble hand props, keep-top camera framing for tall towers, denser per-band gags.
 4. **Real-device QA loop**: iOS Safari + Android Chrome on the Pages deploy — the iOS compositing
    invariants (styles.ts:21-46) and audio unlock can only truly be verified on-device.
 5. **Prestige-path smoothing**: runs 2–9 currently die on the same Z4 wall. Make zone reach creep
@@ -34,7 +38,8 @@ smoke via `node scripts/smoke.mjs`).
    export/import save UI on the menu (the functions exist in `src/save/`).
 
 ## Should-do (quality bar for store-front-style polish)
-7. Achievements + toasts (PLAN §7; ~20 at launch is enough) — wire "First Splat" end-to-end first.
+7. ~~Achievements + toasts~~ ✅ shipped 2026-07-12: 100 achievements (Steam cap), +0.5% goop/sec
+   each, menu board + unlock toasts. Remaining: Goobers payouts per achievement (M4, with shop).
 8. Onboarding coach-marks: first-run pointer at the shop FAB; melt explainer when grace ends.
 9. Audio pass 2: GPS ambience layers, melt-warning pulse, distinct per-producer purchase sounds.
 10. Service worker + offline PWA (the manifest/icons are already in); wake-lock during runs.

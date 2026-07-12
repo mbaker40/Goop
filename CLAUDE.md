@@ -96,6 +96,32 @@ the ground. Verified with a headless smoke at 1920×1080 and 390×844. **M1 (The
 - **Verification tooling:** `node scripts/smoke.mjs` (3-viewport Playwright smoke: screenshots,
   console errors, juice probes), `scripts/mockshots.mjs` (renderer timeline captures).
 
+**Done: M3 (slice 1) — Achievements + feel/clarity revision (2026-07-12).**
+- **100 achievements** (Steam per-app cap): data-driven `config/achievements.ts` (pure predicates
+  over an `AchievementCtx`), evaluated ~1 Hz in `Game.tick()` + on win/collapse/bank transitions
+  (`sim/achievements.ts`). Each grants +0.5% goop/sec (`balance.achievements`). MetaState gained
+  `puddles`/`lifetimeGe`/`achievements` (save-migrated via defaults merge). Menu shows a 100-tile
+  board (tap to inspect) + a mid-run 🏆 overlay; unlocks toast+blip on any screen (toast node
+  lives on `<body>`). Tiles use a **handmade inline-SVG icon set** (`src/ui/icons.ts`, ~38 motifs;
+  configs reference icon KEYS, one per family, with tier pips) — no emoji on the board.
+  Median win moved 54:07 → 46:48 (in window) — see balance-notes.
+- **Taps now ADD goop** visually: blobs converge on the tap point and are absorbed
+  (`splats.absorb()`), with settling drips — replacing the outward "damage ejecta" burst.
+- **Wet squelch audio**: smack transient + resonant-lowpass-dive noise + low blub wobble.
+- **Clarity pass**: emoji icons on every producer/upgrade/meta item (config `icon` fields);
+  HUD says "Goop/sec" and "Melt shield: Ns" (seconds only); combo is "Slap Combo"; shop panels
+  are "Goop Makers / ×2 Boosts / Upgrades" with plain-language subtitles + per-maker rate lines.
+
+**Done: M3 (slice 2) — Continuous ascent environment (2026-07-12).** Design decision: the sky is a
+smooth ALTITUDE gradient (`palette.ts paletteAt()` blending zone palettes by raw height — no
+per-zone color cuts; zone identity = toast/sting/props). `render/markers.ts` adds fixed-altitude
+scale markers that sweep past the climbing tower top (toaster → birds → house/water tower →
+"WHY" blimp → clouds/jet → satellite/astronaut → Moon → face-planet; K=0.55 world-units per raw,
+±9 raw visibility window; portrait frustum is the tight axis — keep |x| ≤ ~4.5 and push z back).
+Starfield fades in above raw 30; ground/shaker fade out ~raw 14-26. Env exposes `live` blended
+palette consumed by tower/splats/light.
+
 **Next (see `docs/release-roadmap.md` for the full ordered list):** chaos events (sim stub at
-`src/sim/events.ts`), Zone 7 boss "The Flick", per-zone set dressing, real-device iOS/Android QA,
-prestige-path Z4-wall smoothing, save/offline test coverage + export/import UI.
+`src/sim/events.ts`), Zone 7 boss "The Flick", ascent phase 2 (planet-ball recession, whale,
+marble hand, keep-top framing), real-device iOS/Android QA, prestige-path Z4-wall smoothing,
+save/offline test coverage + export/import UI.

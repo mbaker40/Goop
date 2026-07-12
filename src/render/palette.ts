@@ -27,3 +27,51 @@ const P: Record<number, ZonePalette> = {
 export function paletteFor(zoneIndex: number): ZonePalette {
   return P[zoneIndex] ?? P[0]!;
 }
+
+// ---- Continuous ascent gradient ----
+// The environment blends smoothly with ALTITUDE instead of hard-swapping per zone ("continuous
+// gradient, not stark room change"): each zone's palette is anchored at its minHeight and the
+// displayed palette is the piecewise-linear blend between anchors. Zone identity is announced by
+// the toast/sting/props, not by a color cut.
+
+import { ZONES, WIN_HEIGHT } from '../config/zones';
+
+interface Anchor {
+  raw: number;
+  p: ZonePalette;
+}
+const ANCHORS: Anchor[] = [
+  ...ZONES.map((z) => ({ raw: z.minHeight, p: P[z.index] ?? P[0]! })),
+  { raw: WIN_HEIGHT, p: P[7]! },
+];
+
+function lerpChannel(a: number, b: number, t: number): number {
+  const ar = a >> 16, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = b >> 16, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const bl = Math.round(ab + (bb - ab) * t);
+  return (r << 16) | (g << 8) | bl;
+}
+
+/** The palette at a given raw height — a smooth blend between zone anchors. */
+export function paletteAt(rawHeight: number, out: ZonePalette = { skyTop: 0, skyBottom: 0, goop: 0, ground: 0, fog: 0 }): ZonePalette {
+  const h = Math.max(0, rawHeight);
+  let lo = ANCHORS[0]!;
+  let hi = ANCHORS[ANCHORS.length - 1]!;
+  for (let i = 1; i < ANCHORS.length; i++) {
+    if (h <= ANCHORS[i]!.raw) {
+      lo = ANCHORS[i - 1]!;
+      hi = ANCHORS[i]!;
+      break;
+    }
+    if (i === ANCHORS.length - 1) lo = hi; // past the last anchor (Endless): hold
+  }
+  const t = lo === hi ? 0 : Math.min(1, (h - lo.raw) / Math.max(1e-6, hi.raw - lo.raw));
+  out.skyTop = lerpChannel(lo.p.skyTop, hi.p.skyTop, t);
+  out.skyBottom = lerpChannel(lo.p.skyBottom, hi.p.skyBottom, t);
+  out.goop = lerpChannel(lo.p.goop, hi.p.goop, t);
+  out.ground = lerpChannel(lo.p.ground, hi.p.ground, t);
+  out.fog = lerpChannel(lo.p.fog, hi.p.fog, t);
+  return out;
+}

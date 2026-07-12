@@ -81,6 +81,11 @@ export const balance = {
     softCapPower: 0.5,
   },
 
+  /** Achievements (PLAN §7): each unlock grants a small permanent goop/sec bonus. */
+  achievements: {
+    gpsPctEach: 0.005,
+  },
+
   /** Offline progress (PLAN §12): capped GPS credit, melt paused. */
   offline: {
     maxCreditSeconds: 600,

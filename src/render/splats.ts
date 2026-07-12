@@ -67,6 +67,33 @@ export class SplatSystem {
     this.object.instanceMatrix.needsUpdate = true;
   }
 
+  /** Blobs that CONVERGE on `target` and are absorbed there (PLAN §2.1 "a goop blob launches …
+   *  and SPLATS on"). They spawn on a loose ring around the target, fly straight in over their
+   *  short lifetime and shrink away exactly on arrival — reading as goop being ADDED to the
+   *  tower, not knocked off it. */
+  absorb(target: THREE.Vector3, color: number, opts: { count?: number; size?: number; radius?: number } = {}): void {
+    const count = opts.count ?? 5;
+    const sizeMul = opts.size ?? 1;
+    const radius = opts.radius ?? 2.4;
+    this.color.setHex(color);
+    for (let i = 0; i < count; i++) {
+      const d = this.drops[this.cursor]!;
+      const slot = this.cursor;
+      this.cursor = (this.cursor + 1) % POOL;
+      const a = Math.random() * Math.PI * 2;
+      const r = radius * (0.7 + Math.random() * 0.6);
+      d.pos.set(target.x + Math.cos(a) * r, target.y + (Math.random() - 0.2) * r * 0.9, target.z + Math.sin(a) * r);
+      const flight = 0.16 + Math.random() * 0.12;
+      d.vel.copy(target).sub(d.pos).divideScalar(flight);
+      d.max = flight;
+      d.life = flight;
+      d.size = (0.8 + Math.random() * 0.7) * sizeMul;
+      d.gravity = 0; // straight merge, no arc
+      this.object.setColorAt(slot, this.color);
+    }
+    if (this.object.instanceColor) this.object.instanceColor.needsUpdate = true;
+  }
+
   /** Fling a handful of droplets from `origin`, tinted `color`, shaped by `opts`. */
   burst(origin: THREE.Vector3, color: number, opts: BurstOptions = {}): void {
     const count = opts.count ?? 7;
