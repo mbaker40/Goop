@@ -6,6 +6,24 @@
  * §11: beyond 8 squelches/sec, clicks coalesce — every 4th spam-click plays one fatter
  * "mega-squelch" instead (rewards spam, saves ears). The AudioContext is created lazily on the
  * first un-muted user gesture (browser autoplay policy — CLAUDE.md footgun).
+ *
+ * iOS Safari lifecycle footguns (this file defends against all of them):
+ *  1. User-activation timing: iOS only counts `pointerup`/`touchend`/`click`/`keydown` as a
+ *     "real" user activation for creating/resuming an AudioContext — `pointerdown`/`touchstart`
+ *     (what ui/app.ts fires squelches from) are NOT reliable activations. A context created there
+ *     can be born (or stay) 'suspended' and never make sound. So this module also listens on
+ *     `window` (capture phase) for the activation-safe event types and opportunistically
+ *     creates/resumes the context from those, independent of any playback call.
+ *  2. Backgrounding: iOS suspends (or reports 'interrupted' on) the AudioContext when the tab is
+ *     backgrounded and does not reliably auto-resume it on return. A `visibilitychange` handler
+ *     retries `resume()` when the page becomes visible again.
+ *  3. Restored-run boot: a reload can land straight on the run screen (persisted save) with no
+ *     button press before the first tower tap. The window-level unlock listeners above cover this
+ *     the same as any other first gesture — they don't require a specific element/button.
+ *  4. Never wedge: none of the unlock listeners are "fire once and forget" — they're ordinary
+ *     listeners left attached for the life of the page, and every one is a no-op once the context
+ *     is already 'running'. So if a resume() attempt fails or its promise rejects, the very next
+ *     qualifying gesture (or the next visibilitychange) just tries again.
  */
 
 let ctx: AudioContext | null = null;
@@ -19,25 +37,73 @@ let coalesced = 0;
 
 export function setMuted(m: boolean): void {
   muted = m;
+  // If sound was just turned on inside a real user gesture (e.g. the settings toggle's click
+  // handler), try to unlock immediately rather than waiting for the *next* gesture.
+  if (!muted) tryUnlock();
+}
+
+function createContext(): AudioContext | null {
+  const AC: typeof AudioContext | undefined =
+    window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (!AC) return null;
+  const c = new AC();
+  master = c.createGain();
+  master.gain.value = 0.5;
+  master.connect(c.destination);
+  // 0.3s of white noise, reused by every squelch.
+  noiseBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.3), c.sampleRate);
+  const data = noiseBuf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  return c;
+}
+
+/** Create the context if needed and (re)try resuming it. Safe to call speculatively — it's a
+ * no-op once muted or once the context is already 'running'. Never throws: a rejected resume()
+ * just leaves the context suspended for the next attempt to retry. */
+function tryUnlock(): void {
+  if (muted) return;
+  if (!ctx) ctx = createContext();
+  if (ctx && ctx.state !== 'running') {
+    ctx.resume().catch(() => {
+      /* still stuck (e.g. no real activation yet) — listeners below stay armed to retry */
+    });
+  }
+}
+
+if (typeof window !== 'undefined') {
+  // Capture phase, on window, so this fires regardless of which element ends up handling the
+  // event (or if something downstream calls stopPropagation). These are the event types iOS
+  // Safari actually honors as user activations for WebAudio — NOT pointerdown/touchstart.
+  for (const type of ['pointerup', 'touchend', 'click', 'keydown'] as const) {
+    window.addEventListener(type, tryUnlock, { capture: true, passive: true });
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') tryUnlock();
+    });
+  }
 }
 
 function ensure(): AudioContext | null {
   if (muted) return null;
-  if (!ctx) {
-    const AC: typeof AudioContext | undefined =
-      window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AC) return null;
-    ctx = new AC();
-    master = ctx.createGain();
-    master.gain.value = 0.5;
-    master.connect(ctx.destination);
-    // 0.3s of white noise, reused by every squelch.
-    noiseBuf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * 0.3), ctx.sampleRate);
-    const data = noiseBuf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
-  }
-  if (ctx.state === 'suspended') void ctx.resume();
+  if (!ctx) ctx = createContext();
+  if (!ctx) return null;
+  if (ctx.state !== 'running') void ctx.resume();
   return ctx;
+}
+
+declare global {
+  interface Window {
+    __goopAudio?: { state: () => AudioContextState | 'none'; muted: () => boolean };
+  }
+}
+
+// Minimal debug hook for smoke tests, only under ?debug (mirrors window.__goopStore in main.ts).
+if (typeof window !== 'undefined' && typeof location !== 'undefined' && location.search.includes('debug')) {
+  window.__goopAudio = {
+    state: () => ctx?.state ?? 'none',
+    muted: () => muted,
+  };
 }
 
 /** One WET goop slap. Three layers make it read as goo, not a beep:

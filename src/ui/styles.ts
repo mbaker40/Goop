@@ -42,7 +42,7 @@ body[data-screen="run"] #scene, body[data-screen="paused"] #scene { display: blo
 body[data-screen="run"] #app, body[data-screen="paused"] #app {
   position: fixed; inset: 0; max-width: none; margin: 0; padding: 0; transform: translateZ(0); }
 /* Extra safety: each fixed HUD piece is also its own composited layer. */
-#hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig {
+#hud-stats, #sr-banner, #hud-readout, #hud-shop, #shop-fab, #pause-overlay, #meltvig, #ach-overlay {
   will-change: transform; }
 /* Mobile input hygiene: kill the gray tap-highlight flash, double-tap zoom on buttons, and stray
    text selection / long-press callouts during rapid tapping. Buttons + the whole run HUD are
@@ -138,6 +138,19 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
   background: rgba(8,6,14,.72); padding: 20px; }
 #pause-overlay .pause-card { width: min(360px, 90vw); text-align: center; }
 
+/* Mid-run achievements overlay: opened over the live run (does NOT pause the sim). Solid bg (no
+   backdrop-filter — see the iOS note at the top of this file), fixed direct child of #app, own GPU
+   layer. z-index beats the shop drawer (4) and the pause overlay (6) so it's always reachable. */
+#ach-overlay { position: fixed; inset: 0; z-index: 8; background: var(--bg);
+  padding: 14px; padding-top: calc(14px + env(safe-area-inset-top));
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
+  touch-action: manipulation; }
+#ach-overlay .ach-ov-head { position: sticky; top: 0; background: var(--bg); z-index: 1;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding-bottom: 8px; margin-bottom: 4px; }
+#ach-overlay .ach-ov-head h1 { font-size: 20px; letter-spacing: 1px; }
+
 /* Landscape: shop docked right; stage = the clear left area. */
 @media (orientation: landscape) {
   #stage { top: 0; left: 0; bottom: 0; right: 360px; }
@@ -162,7 +175,10 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
     border-radius: 16px 0 0 16px; padding: 12px;
     padding-bottom: calc(12px + env(safe-area-inset-bottom)); padding-right: calc(12px + env(safe-area-inset-right));
     transition: transform .25s ease; box-shadow: -14px 0 44px rgba(0,0,0,.55); }
-  #shop-fab { display: block; right: calc(14px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom));
+  /* Parked above the bottom hud-readout block (height/zone/combo/hint), not on top of it — the
+     readout is full-width centered, so the FAB has to clear it vertically rather than horizontally. */
+  #shop-fab { display: block; right: calc(14px + env(safe-area-inset-right));
+    bottom: calc(22vh + 12px + env(safe-area-inset-bottom));
     border-radius: 24px; padding: 10px 18px; font-weight: bold; }
 }
 .banner { padding: 10px 12px; border-radius: 10px; margin: 10px 0; text-align: center; font-weight: bold; }

@@ -7,6 +7,7 @@ import { GoopUI } from './ui/app';
 import { GoopRenderer } from './render';
 import { MockSource } from './render/mockState';
 import { Store, defaultSettings } from './store';
+import * as audio from './audio';
 import {
   loadSave,
   writeSave,
@@ -43,6 +44,11 @@ function boot(): void {
   // Merge over defaults so settings added in updates (e.g. haptics) exist on older saves.
   const settings = { ...defaultSettings(), ...(saved?.settings ?? {}) };
   const store = new Store(meta, settings);
+  // Apply the persisted mute setting to the audio module here (not in ui/app.ts) so it's set at
+  // boot regardless of UI construction order — covers the restored-run path where the run screen
+  // renders immediately with no prior settings-menu interaction. Idempotent; ui/app.ts's
+  // constructor also calls this on every settings change.
+  audio.setMuted(settings.muted);
 
   // Restore an in-progress run if the save had one (PLAN §12), crediting capped offline GPS.
   if (saved?.run) {

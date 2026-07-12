@@ -44,6 +44,8 @@ export class GoopUI {
   private lastAchCount = 0;
   private achQueue: string[] = [];
   private achShowing = false;
+  /** Full-screen achievements overlay (available mid-run; does not pause the sim). */
+  private achOverlayOpen = false;
 
   constructor(private store: Store, mount: HTMLElement) {
     this.root = mount;
@@ -169,6 +171,7 @@ export class GoopUI {
         break;
       case 'toggle-haptics': this.store.toggleHaptics(); break;
       case 'toggle-shop': this.toggleShop(); break;
+      case 'toggle-ach-overlay': this.toggleAchOverlay(); break;
     }
   }
 
@@ -223,6 +226,28 @@ export class GoopUI {
     if (fab) fab.style.display = this.shopOpen ? 'none' : '';
   }
 
+  /** Trophy button (hud-stats): opens/closes the mid-run achievements overlay. Does NOT pause the
+   * sim — it's a plain overlay, not a screen transition, so the run keeps ticking behind it. */
+  private toggleAchOverlay(): void {
+    this.achOverlayOpen = !this.achOverlayOpen;
+    const ov = this.el('ach-overlay');
+    if (ov) ov.style.display = this.achOverlayOpen ? 'block' : 'none';
+    if (this.achOverlayOpen) this.refreshAchOverlay();
+  }
+
+  /** Re-syncs tile unlocked-states + the header count. Called only when the overlay OPENS, not
+   * per tick — a cheap classList loop over 100 tiles is fine on open, not at 10 Hz. */
+  private refreshAchOverlay(): void {
+    const unlocked = new Set(this.store.meta.achievements);
+    this.setText('ach-overlay-count', `${this.store.meta.achievements.length}/${ACHIEVEMENTS.length}`);
+    const grid = this.el('ach-overlay-grid');
+    if (grid) {
+      grid.querySelectorAll<HTMLElement>('.ach').forEach((tile) => {
+        tile.classList.toggle('on', unlocked.has(tile.dataset.id ?? ''));
+      });
+    }
+  }
+
   // ---- Render dispatch ----
 
   private render(): void {
@@ -271,6 +296,7 @@ export class GoopUI {
   private buildRunSkeleton(): void {
     this.revealed.clear();
     this.shopSig = '';
+    this.achOverlayOpen = false;
     this.lastZoneIdx = this.store.game.currentZone().index;
     this.lastStatus = this.store.game.run.status;
     const producerRows = PRODUCERS.map(
@@ -287,6 +313,12 @@ export class GoopUI {
     // Default the shop open in landscape, closed (drawer/sheet away) in portrait.
     this.shopOpen = !window.matchMedia('(orientation: portrait)').matches;
 
+    const unlockedAtBuild = new Set(this.store.meta.achievements);
+    const achOverlayTiles = ACHIEVEMENTS.map(
+      (a) =>
+        `<span class="ach ${unlockedAtBuild.has(a.id) ? 'on' : ''}" data-action="ach-info" data-id="${a.id}" title="${a.name}">${a.icon}</span>`,
+    ).join('');
+
     // Flattened HUD (direct children of #app) — nested position:fixed + backdrop-filter cards
     // render blank on iOS Safari, which stranded the whole overlay. Solid cards, no nesting.
     this.root.innerHTML = `
@@ -298,6 +330,7 @@ export class GoopUI {
       <div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap">
         <span class="title">🟢 GOOP TOWER</span>
         <span class="row" style="gap:6px;flex-wrap:nowrap">
+          <button data-action="toggle-ach-overlay" class="mini" aria-label="Achievements">🏆</button>
           <button data-action="toggle-sound" class="mini" id="sound-btn-run" aria-label="Toggle sound">${this.store.settings.muted ? '🔇' : '🔊'}</button>
           <button data-action="pause" class="mini" aria-label="Pause">❚❚</button>
         </span>
@@ -352,6 +385,16 @@ export class GoopUI {
         <button data-action="to-menu" style="width:100%;margin-top:10px">Quit to Menu</button>
         <div class="tag" style="margin-top:10px">Quitting abandons this run (no Essence banked).</div>
       </div>
+    </div>
+
+    <div id="ach-overlay" style="display:none">
+      <div class="ach-ov-head">
+        <h1 style="margin:0">🏆 Achievements <span class="tag" id="ach-overlay-count">0/${ACHIEVEMENTS.length}</span></h1>
+        <button data-action="toggle-ach-overlay" class="mini" aria-label="Close achievements">✕</button>
+      </div>
+      <div class="tag subtitle">Each unlock permanently adds +0.5% goop/sec. Tap a tile to inspect.</div>
+      <div class="ach-grid" id="ach-overlay-grid">${achOverlayTiles}</div>
+      <div class="tag" id="ach-detail" style="margin-top:8px">Tap any tile…</div>
     </div>`;
 
     this.applyShopState();
