@@ -18,12 +18,16 @@ export const PRODUCERS: readonly ProducerDef[] = [
   { id: 'intern', name: 'Goop Intern', baseCost: 100, baseGps: 1, flavor: 'Unpaid. Sighs audibly.' },
   { id: 'cannon', name: 'Goop Cannon', baseCost: 1_100, baseGps: 8, flavor: 'Fires goop at the tower. Sometimes misses (visual only).' },
   { id: 'union', name: 'Unionized Goop Workers', baseCost: 12_000, baseGps: 47, flavor: 'Tiny goop guys climbing the tower. Demand breaks.' },
-  { id: 'goopcopter', name: 'Goopcopter', baseCost: 130_000, baseGps: 260, flavor: 'Helicopter made of goop. Physically upsetting.' },
-  { id: 'reactor', name: 'Goop Reactor', baseCost: 1.4e6, baseGps: 1_400, flavor: 'Do not ask what it fissions.' },
-  { id: 'singularity', name: 'Goop Singularity', baseCost: 2e7, baseGps: 7_800, flavor: 'A small black hole that emits goop, against all physics.' },
-  { id: 'mother', name: 'The Goop Mother', baseCost: 3.3e8, baseGps: 44_000, flavor: 'She loves you. She produces goop.' },
-  { id: 'pipeline', name: 'Interdimensional Goop Pipeline', baseCost: 5.1e9, baseGps: 260_000, flavor: 'Steals goop from timelines where you already won.' },
-  { id: 'bottle', name: "God's Own Squeeze Bottle", baseCost: 7.5e10, baseGps: 1.6e6, flavor: 'Foreshadows Zone 7.' },
+  { id: 'goopcopter', name: 'Goopcopter', baseCost: 130_000, baseGps: 380, flavor: 'Helicopter made of goop. Physically upsetting.' },
+  { id: 'reactor', name: 'Goop Reactor', baseCost: 1.4e6, baseGps: 2_600, flavor: 'Do not ask what it fissions.' },
+  // Late-ladder costs/outputs diverge from the PLAN §5.2 table on purpose: melt punishes flat
+  // GPS, so no rung may cost more than a few minutes of its era's income, and late GPS/cost must
+  // hold ~6e-4 or the last third of a run turns into a slog (measured via
+  // sim-harness/trajectory.ts; see docs/balance-notes.md).
+  { id: 'singularity', name: 'Goop Singularity', baseCost: 2e7, baseGps: 22_000, flavor: 'A small black hole that emits goop, against all physics.' },
+  { id: 'mother', name: 'The Goop Mother', baseCost: 1.5e8, baseGps: 90_000, flavor: 'She loves you. She produces goop.' },
+  { id: 'pipeline', name: 'Interdimensional Goop Pipeline', baseCost: 1.1e9, baseGps: 660_000, flavor: 'Steals goop from timelines where you already won.' },
+  { id: 'bottle', name: "God's Own Squeeze Bottle", baseCost: 8e9, baseGps: 5e6, flavor: 'Foreshadows Zone 7.' },
 ] as const;
 
 export const PRODUCER_BY_ID: Readonly<Record<string, ProducerDef>> = Object.fromEntries(
