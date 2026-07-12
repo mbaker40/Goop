@@ -22,8 +22,9 @@ const TOWER_WORLD_HEIGHT = 10;
 const RADIUS = 1.7;
 
 // Wobble spring constants.
-const STIFFNESS = 55;
-const DAMPING = 7.5;
+// Softer + underdamped on purpose: gelatin wobbles for a couple of beats before settling.
+const STIFFNESS = 42;
+const DAMPING = 5.2;
 
 // Height growth spring (under-damped so gains have visible follow-through).
 const H_STIFF = 16;
@@ -41,6 +42,19 @@ export class GoopTower {
   snap(heightRaw: number): void {
     this.renderedHeight = Math.max(0, heightRaw);
     this.heightVel = 0;
+  }
+
+  /** Fresh goop STACKED onto the surface by a slap: a transient metaball at the impact point
+   *  that lands, bulges, then oozes down and merges into the body ("building on top", not
+   *  absorbing into nothing). Field-space coords; capped pool. */
+  private blobs: { fx: number; fy: number; fz: number; r: number; age: number }[] = [];
+
+  addBlob(world: THREE.Vector3, power = 1): void {
+    const fx = clamp(0.5 + world.x / (2 * RADIUS), 0.22, 0.78);
+    const fz = clamp(0.5 + world.z / (2 * RADIUS), 0.22, 0.78);
+    const fy = clamp(world.y / TOWER_WORLD_HEIGHT, 0.09, 0.92);
+    this.blobs.push({ fx, fy, fz, r: 0.4 + 0.35 * power, age: 0 });
+    if (this.blobs.length > 14) this.blobs.shift();
   }
   private warn = 0;
   /** Swells the tower top right after fresh goop lands; decays fast. */
@@ -133,6 +147,18 @@ export class GoopTower {
     const baseFill = clamp(this.renderedHeight / WIN_HEIGHT, 0.03, 1);
     const fill = baseFill * (1 - cAmt * 0.92);
 
+    // Age + ooze the slap-stacked blobs (every frame; the field samples them at fieldHz).
+    for (let i = this.blobs.length - 1; i >= 0; i--) {
+      const b = this.blobs[i]!;
+      b.age += dt;
+      if (b.age > 0.8) {
+        b.fy = Math.max(0.09, b.fy - dt * 0.045); // gravity ooze down the flank
+        b.fx += (0.5 - b.fx) * dt * 0.35; // pulled into the body as it merges
+        b.fz += (0.5 - b.fz) * dt * 0.35;
+      }
+      if (b.age > 2.8) this.blobs.splice(i, 1);
+    }
+
     // Rebuild the metaball field at fieldHz (mobile: 30 Hz); transforms below still run every frame.
     this.fieldAcc += dt;
     if (this.fieldAcc >= this.fieldDt) {
@@ -158,7 +184,7 @@ export class GoopTower {
       // LUMPY by design - it's goop, not a bullet: each ball keeps a persistent pseudo-random
       // girth and lateral offset (hashed off its index, stable frame to frame), so the silhouette
       // reads as a stacked pile of blobs.
-      const boil = 0.05 + growth * 0.16;
+      const boil = 0.07 + growth * 0.2;
       for (let i = 0; i < count; i++) {
         const f = count === 1 ? 0 : i / (count - 1);
         const ny = bottom + f * (top - bottom);
@@ -184,6 +210,15 @@ export class GoopTower {
         const lr = 0.2 + 0.06 * Math.sin(j * 3.7);
         mc.addBall(0.5 + Math.cos(la) * lr, ly, 0.5 + Math.sin(la) * lr, 0.35 + 0.18 * Math.sin(j * 8.1), 10);
       }
+      // Slap-stacked goop: fresh blobs land where the finger hit, bulge, then ooze down the
+      // flank and melt into the body. THIS is "taps build the tower" made literal.
+      for (const b of this.blobs) {
+        const rIn = Math.min(1, b.age / 0.22); // lands fast
+        const rOut = clamp(1 - (b.age - 1.7) / 1.1, 0, 1); // melts in slowly
+        const wob = 1 + 0.12 * Math.sin(this.t * 7 + b.fx * 40); // jelly quiver while fresh
+        const r = b.r * rIn * rOut * wob;
+        if (r > 0.03) mc.addBall(b.fx, Math.max(bottom + 0.01, Math.min(b.fy, top + 0.06)), b.fz, r, 10);
+      }
       mc.update();
     }
 
@@ -204,10 +239,10 @@ export class GoopTower {
       this.squash += this.squashVel * dt;
     }
 
-    // Radial swell spring (slap feedback): quick puff out, settle back.
-    this.swellVel += (-120 * this.swell - 15 * this.swellVel) * dt;
+    // Radial swell spring (slap feedback): puff out, then a couple of jelly bounces back.
+    this.swellVel += (-85 * this.swell - 8.5 * this.swellVel) * dt;
     this.swell += this.swellVel * dt;
-    const sw = clamp(this.swell, -0.08, 0.3);
+    const sw = clamp(this.swell, -0.1, 0.32);
 
     // Idle organic sway grows with combo and with melt danger (worsens as it heats up).
     const swayAmp = 0.02 + 0.03 * ((combo - 1) / 2) + this.warn * 0.06;

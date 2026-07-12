@@ -60,8 +60,10 @@ export const balance = {
      *  meet the mechanic as a slope, not a wall (was: instant full melt = carpal-tunnel opener). */
     rampSeconds: 90,
     /** Per-zone melt escalation (index 0 unused; 15 zones). Early zones are gentle on purpose -
-     *  a first run should die in zones 4-6 around the 12-20 min mark, not sweat from minute two. */
-    zoneMeltMult: [0, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.08, 1.15, 1.22, 1.28, 1.34, 1.4, 1.46, 1.52, 1.58],
+     *  a first run should die in zones 4-6 around the 12-20 min mark, not sweat from minute two.
+     *  Zones 10-15 steepened 2026-07-12 after a first-run human win: attentive event play adds
+     *  ~+30% income the bots never measured, so the late wall must hold against it. */
+    zoneMeltMult: [0, 0.5, 0.6, 0.7, 0.8, 0.9, 1, 1.08, 1.15, 1.22, 1.3, 1.4, 1.52, 1.66, 1.82, 2.0],
     /** Endless depth melt escalation (PLAN §5.4): meltRate *= (1 + depth*perDepth). */
     endlessPerDepth: 0.5,
     /** Melt resistance from upgrades is capped so melt never becomes irrelevant. */

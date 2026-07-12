@@ -424,83 +424,130 @@ export const ART: Record<string, Draw> = {
     ell(c, 128, 128, 88, 88, 'rgba(0,0,0,0)');
   },
   facePlanet: (c) => {
-    ell(c, 128, 128, 78, 78, '#c060ff');
-    // Ring.
-    c.strokeStyle = '#b6e84a';
-    c.lineWidth = 10;
+    // A proper ringed planet that happens to be quietly smiling. Planet first, gag second.
+    const ring = (a0: number, a1: number, w: number, col: string): void => {
+      c.strokeStyle = col;
+      c.lineWidth = w;
+      c.beginPath();
+      c.ellipse(128, 130, 112, 30, -0.2, a0, a1);
+      c.stroke();
+    };
+    ring(Math.PI, TAU, 16, '#b6e84a'); // back half of the ring, behind the planet
+    ell(c, 128, 122, 74, 74, '#c060ff');
+    c.save();
     c.beginPath();
-    c.ellipse(128, 134, 116, 30, -0.28, 0, TAU);
-    c.stroke();
-    ell(c, 100, 108, 14, 16, '#ffffff');
-    ell(c, 156, 108, 14, 16, '#ffffff');
-    ell(c, 103, 112, 6, 8, '#14121a');
-    ell(c, 153, 112, 6, 8, '#14121a');
-    c.strokeStyle = '#14121a';
-    c.lineWidth = 7;
+    c.arc(128, 122, 74, 0, TAU);
+    c.clip();
+    // Two-tone surface bands + craters.
+    ell(c, 128, 76, 98, 22, '#a94ae0');
+    ell(c, 128, 168, 106, 26, '#a94ae0');
+    ell(c, 158, 92, 9, 8, '#8f3ac4');
+    ell(c, 92, 156, 7, 6, '#8f3ac4');
+    ell(c, 168, 150, 6, 5, '#8f3ac4');
+    c.restore();
+    // The face: tiny, low contrast, at peace.
+    c.strokeStyle = '#8a3cc4';
+    c.lineWidth = 4;
+    for (const x of [106, 150] as const) {
+      c.beginPath();
+      c.arc(x, 118, 8, 1.15 * Math.PI, 1.85 * Math.PI); // closed-happy eyes
+      c.stroke();
+    }
     c.beginPath();
-    c.arc(128, 148, 26, 0.15 * Math.PI, 0.85 * Math.PI);
+    c.arc(128, 132, 15, 0.2 * Math.PI, 0.8 * Math.PI); // subtle smile
     c.stroke();
+    ring(0, Math.PI, 16, '#b6e84a'); // front half of the ring, over the planet
+    ring(0, Math.PI, 5, '#dff59a'); // highlight stripe so the ring pops at distance
   },
   whale: (c) => {
-    // Cosmic goop whale.
-    c.fillStyle = '#7fe0c0';
-    c.beginPath();
-    c.moveTo(30, 130);
-    c.quadraticCurveTo(70, 66, 150, 76);
-    c.quadraticCurveTo(214, 84, 226, 122);
-    c.quadraticCurveTo(214, 158, 140, 162);
-    c.quadraticCurveTo(70, 166, 30, 130);
-    c.fill();
-    // Tail.
-    c.beginPath();
-    c.moveTo(216, 116);
-    c.quadraticCurveTo(250, 92, 246, 70);
-    c.lineTo(226, 96);
-    c.quadraticCurveTo(238, 120, 252, 140);
-    c.quadraticCurveTo(230, 140, 214, 128);
-    c.fill();
-    ell(c, 78, 112, 7, 10, '#14321f');
-    c.strokeStyle = '#14321f';
-    c.lineWidth = 5;
-    c.beginPath();
-    c.arc(70, 132, 16, 0.1 * Math.PI, 0.6 * Math.PI);
-    c.stroke();
-    // Goop drips.
-    for (const [x, y] of [[110, 168], [150, 170], [190, 158]] as const) {
-      c.fillStyle = '#b6e84a';
-      c.beginPath();
-      c.ellipse(x, y + 10, 7, 12, 0, 0, TAU);
-      c.fill();
+    // Cosmic goop whale: classic silhouette - big round head left, tapering to big V flukes.
+    const GOOP = '#79c96a';
+    // Tail flukes first (the whale-maker): two big lobes in a wide V off a narrow tail stock.
+    c.save();
+    c.translate(206, 122);
+    for (const a of [-1.05, 1.05] as const) {
+      c.save();
+      c.rotate(a);
+      ell(c, 28, 0, 33, 12, GOOP);
+      c.restore();
     }
-    // Spout: tiny goop fountain.
-    c.fillStyle = '#b6e84a';
-    ell(c, 96, 62, 6, 10, '#b6e84a');
-    ell(c, 84, 54, 4, 7, '#b6e84a');
-    ell(c, 108, 52, 4, 7, '#b6e84a');
+    c.restore();
+    // Body: rounded head/back sloping down to a narrow tail stock.
+    c.fillStyle = GOOP;
+    c.beginPath();
+    c.moveTo(28, 118);
+    c.quadraticCurveTo(36, 72, 100, 66);
+    c.quadraticCurveTo(156, 62, 186, 94);
+    c.quadraticCurveTo(200, 104, 206, 116);
+    c.lineTo(206, 128);
+    c.quadraticCurveTo(168, 146, 120, 152);
+    c.quadraticCurveTo(60, 156, 38, 142);
+    c.quadraticCurveTo(27, 132, 28, 118);
+    c.fill();
+    ell(c, 120, 84, 30, 11, '#8fd97a'); // wet sheen along the back
+    // Pectoral fin.
+    c.save();
+    c.translate(96, 140);
+    c.rotate(0.55);
+    ell(c, 0, 0, 26, 11, '#5da84f');
+    c.restore();
+    // Eye + small content smile.
+    ell(c, 60, 104, 6, 8, '#14321f');
+    c.strokeStyle = '#14321f';
+    c.lineWidth = 4;
+    c.beginPath();
+    c.arc(54, 118, 16, 0.15 * Math.PI, 0.55 * Math.PI);
+    c.stroke();
+    // Goop drips shedding off the belly (teardrop + trailing droplet).
+    for (const [x, y] of [[100, 158], [140, 162], [172, 148]] as const) {
+      ell(c, x, y + 10, 7, 13, '#b6e84a');
+      ell(c, x + 2, y + 34, 4, 6, '#b6e84a');
+    }
+    // Blowhole spout: a tiny fountain of goop droplets.
+    ell(c, 96, 48, 5, 8, '#b6e84a');
+    ell(c, 84, 36, 4, 6, '#b6e84a');
+    ell(c, 108, 34, 4, 6, '#b6e84a');
+    ell(c, 96, 22, 3, 5, '#b6e84a');
   },
   hand: (c) => {
-    // The marble hand, descending, mid-windup (foreshadows The Flick).
-    c.fillStyle = '#e8e4dc';
-    rr(c, 74, 10, 108, 96, 34, '#e8e4dc'); // palm (from below)
-    // Fingers pointing down.
-    rr(c, 70, 88, 26, 92, 13, '#e8e4dc');
-    rr(c, 100, 96, 26, 112, 13, '#e8e4dc');
-    rr(c, 130, 96, 26, 104, 13, '#e8e4dc');
-    rr(c, 160, 88, 26, 88, 13, '#e8e4dc');
-    // The flicking finger, cocked back against the thumb.
+    // The marble hand of God, descending, cocked for The Flick: thumb pins the bent index
+    // fingertip; the other three fingers hang about palm-length. Wrist exits the top edge.
+    const M = '#ece8e0';
+    // Index finger first (behind the thumb), bent back toward the thumb.
     c.save();
-    c.translate(52, 96);
-    c.rotate(0.5);
-    rr(c, -13, -10, 26, 96, 13, '#dcd6ca');
+    c.translate(102, 122);
+    c.rotate(0.98);
+    rr(c, -12, -10, 24, 72, 12, '#e2dcce');
     c.restore();
-    // Marble veining.
-    c.strokeStyle = '#c9c2b4';
-    c.lineWidth = 3;
+    // Middle / ring / pinky, straight down, staggered lengths.
+    rr(c, 110, 118, 25, 100, 12, M);
+    rr(c, 141, 118, 24, 90, 12, M);
+    rr(c, 168, 114, 21, 72, 10, M);
+    // Palm (roughly square) + wrist off the top of the canvas.
+    rr(c, 88, 28, 92, 96, 18, M);
+    rr(c, 106, -26, 64, 62, 18, M);
+    // Thumb: short and thick, from the palm's lower-left, pinning the index tip. Any second now.
+    c.save();
+    c.translate(80, 100);
+    c.rotate(0.45);
+    rr(c, -16, -8, 32, 86, 16, '#ded7c8');
+    c.restore();
+    // One soft shading pass along the underside (it is marble; marble has gravitas).
+    c.globalCompositeOperation = 'source-atop';
+    const g = c.createLinearGradient(200, 20, 50, 210);
+    g.addColorStop(0.6, 'rgba(90,84,70,0)');
+    g.addColorStop(1, 'rgba(90,84,70,0.15)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 256, 256);
+    c.globalCompositeOperation = 'source-over';
+    // Faint marble veins across the palm.
+    c.strokeStyle = '#cfc8ba';
+    c.lineWidth = 2.5;
     c.beginPath();
-    c.moveTo(92, 30);
-    c.quadraticCurveTo(120, 52, 108, 84);
-    c.moveTo(150, 24);
-    c.quadraticCurveTo(160, 48, 176, 60);
+    c.moveTo(112, 44);
+    c.bezierCurveTo(140, 62, 120, 92, 150, 110);
+    c.moveTo(150, 36);
+    c.bezierCurveTo(168, 56, 156, 82, 172, 102);
     c.stroke();
   },
   planetBall: (c) => {

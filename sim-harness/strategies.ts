@@ -63,6 +63,22 @@ export const IdleBot: Bot = {
   },
 };
 
+/** ClickerBot who also takes EVERY Investor deal - the event-exploiting power player. Exists
+ *  because a human beat zone 15 on their first run by hoarding the bank for deal windows before
+ *  the goopMult cap landed; this bot keeps that path measured. */
+export const DealerBot: Bot = {
+  name: 'DealerBot',
+  act(game, _dt, tick) {
+    game.click();
+    game.tapEventTarget();
+    game.answerEvent(true); // yes to every deal, every tick it exists
+    if (tick % Math.round(tickHz / 2) === 0) {
+      greedyBuy(game);
+      buyQoL(game);
+    }
+  },
+};
+
 /** Random purchases + random clicks; representative of a distracted player. */
 export function makeChaoticBot(seed = 999): Bot {
   const rng = new Rng(seed);

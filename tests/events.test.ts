@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { Game, createMetaState } from '../src/sim/game';
 import { balance } from '../src/config/balance';
 import { CHAOS_EVENTS, EVENT_BY_ID } from '../src/config/events';
-import { D } from '../src/sim/numbers';
+import { D, Decimal } from '../src/sim/numbers';
 
 const DT = 1 / balance.tickHz;
 
@@ -129,17 +129,30 @@ describe('chaos events (PLAN §8)', () => {
     expect(g.run.eventEffects.length).toBe(0);
   });
 
-  it('investor deal: accepting ×10s the goop bank and raises melt for 90s', () => {
+  it('investor deal: pays min(9x bank, capped seconds of GPS) and raises melt for 90s', () => {
     const g = warmGame(6);
     g.run.status = 'active';
     g.run.runTime = 400; // past ramp: full melt applies
     g.run.emaIncome = D(1000); // clicks don't feed the melt EMA; give it income to chew on
     g.run.activeEvent = { id: 'investor', remaining: 12, targetsLeft: 0, resolved: false };
     const before = g.run.goop;
+    const capSec = EVENT_BY_ID['investor']!.onAccept!.goopMultCapGpsSeconds!;
+    const expected = Decimal.min(before.mul(9), g.gps().mul(capSec));
     const meltBefore = g.meltRate();
     expect(g.answerEvent(true)).toBe(true);
-    expect(g.run.goop.div(before).toNumber()).toBeCloseTo(10, 1);
+    expect(g.run.goop.sub(before).div(expected).toNumber()).toBeCloseTo(1, 2);
     expect(g.meltRate() / Math.max(1e-9, meltBefore)).toBeCloseTo(1.25, 1);
+  });
+
+  it('investor cap blocks the hoard-the-bank compounding exploit', () => {
+    const g = warmGame(7);
+    g.run.status = 'active';
+    g.run.goop = D(1e9); // an absurdly hoarded bank
+    g.run.activeEvent = { id: 'investor', remaining: 12, targetsLeft: 0, resolved: false };
+    const before = g.run.goop;
+    expect(g.answerEvent(true)).toBe(true);
+    // Payout must be bounded by GPS seconds, nowhere near 9x the hoard.
+    expect(g.run.goop.sub(before).lt(before.mul(0.1))).toBe(true);
   });
 
   it('declining the investor does nothing', () => {

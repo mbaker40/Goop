@@ -14,6 +14,7 @@ import { SplatSystem } from './splats';
 import { ProducerFx } from './producerFx';
 import { Environment } from './zone1';
 import { ScaleMarkers, groundShrink } from './markers';
+import { Backdrop } from './backdrop';
 import { detectQuality } from './quality';
 import type { RenderSource } from './source';
 
@@ -43,6 +44,7 @@ export class GoopRenderer {
   private producerFx = new ProducerFx();
   private env: Environment;
   private markers: ScaleMarkers;
+  private backdrop: Backdrop;
   private raf = 0;
   private last = 0;
   private frames = 0;
@@ -78,7 +80,9 @@ export class GoopRenderer {
     this.splats = new SplatSystem();
     this.env = new Environment();
     this.markers = new ScaleMarkers();
+    this.backdrop = new Backdrop();
     this.bundle.scene.add(this.env.group);
+    this.bundle.scene.add(this.backdrop.group);
     this.bundle.scene.add(this.markers.group);
     this.bundle.scene.add(this.tower.object);
     this.bundle.scene.add(this.splats.object);
@@ -171,6 +175,8 @@ export class GoopRenderer {
           count: 4 + Math.round(comboHeat * 4),
           size: 1 + comboHeat * 0.7,
         });
+        // The payoff: a lasting lump STACKS onto the surface where the goop landed.
+        this.tower.addBlob(this.splatOrigin, 0.8 + comboHeat * 0.6);
         // Settling drips: small, downward, hugging the impact point.
         this.splats.burst(this.splatOrigin, palette.goop, { count: 2, size: 0.45, out: 0.5, up: -0.6, gravity: 0.5, life: 0.9 });
       }
@@ -195,6 +201,7 @@ export class GoopRenderer {
     // Scale markers + ground scenery track the smoothed reference.
     const zoom = this.source.viewZoom || 1;
     this.markers.update(this.worldRaw, this.worldTop, this.t, zoom);
+    this.backdrop.update(this.worldRaw, this.worldTop, dt, this.t);
     this.env.setTowerShadow(this.tower.groundFootprint);
     this.env.setGroundShrink(groundShrink(this.worldRaw, this.worldTop));
 
