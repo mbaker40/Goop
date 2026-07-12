@@ -27,8 +27,10 @@ smoke via `node scripts/smoke.mjs`).
    blends sky/fog/ground/goop with altitude; `render/markers.ts` sweeps fixed-altitude scale
    markers past the climbing top (judgmental toaster, birds, house, water tower, "WHY" blimp,
    clouds, looping jet, satellite, thumbs-up astronaut, cratered Moon, face-planet) + a starfield
-   above raw 30. Phase 2: planet-ball ground recession (watch the counter shrink to a dot), goop
-   whale + marble hand props, keep-top camera framing for tall towers, denser per-band gags.
+   above raw 30. ~~Phase 2~~ ✅ shipped 2026-07-12: all assets converted to 2D cardboard-cutout
+   sprites (`render/sprites.ts` sticker pipeline), planet-ball recession, goop whale + marble
+   hand, new gags (cat photo, kite, balloon, UFO), and a 🔭 view-zoom (1×/1.7×/2.6×) instead of
+   keep-top framing. Remaining ideas: parallax depth layers, zone-themed foreground vignettes.
 4. **Real-device QA loop**: iOS Safari + Android Chrome on the Pages deploy — the iOS compositing
    invariants (styles.ts:21-46) and audio unlock can only truly be verified on-device.
 5. **Prestige-path smoothing**: runs 2–9 currently die on the same Z4 wall. Make zone reach creep

@@ -32,6 +32,9 @@ export class Store {
   lastGe = 0;
   /** Screen positions of recent taps (presentation only; drained by the renderer each frame). */
   private clickPoints: { x: number; y: number }[] = [];
+  /** View zoom multiplier (presentation only): 1 = framed on the tower, higher = pulled back to
+   *  see the environment/scale markers. Cycled by the HUD 🔭 button. */
+  viewZoom = 1;
 
   private listeners = new Set<Listener>();
   private accumulator = 0;
@@ -199,6 +202,12 @@ export class Store {
 
   toggleHaptics(): void {
     this.settings.haptics = !this.settings.haptics;
+    this.emit();
+  }
+
+  /** Cycle the view zoom: framed → wide → panorama → back. */
+  cycleZoom(): void {
+    this.viewZoom = this.viewZoom >= 2.6 ? 1 : this.viewZoom >= 1.7 ? 2.6 : 1.7;
     this.emit();
   }
 }

@@ -12,6 +12,7 @@ const CYCLE_SEC = 44; // full scripted timeline length
 
 export class MockSource implements RenderSource {
   screen: Screen = 'run';
+  viewZoom = 1;
   private hv = 0;
   private elapsed = 0;
   private raf = 0;

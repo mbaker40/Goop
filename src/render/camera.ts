@@ -41,10 +41,10 @@ export class TowerCamera {
     this.pulseDist = Math.min(6, this.pulseDist + strength);
   }
 
-  update(towerTopY: number, orbiting: boolean, dt: number, anchor: Anchor = { x: 0, yBase: -0.45 }): void {
+  update(towerTopY: number, orbiting: boolean, dt: number, anchor: Anchor = { x: 0, yBase: -0.45 }, zoom = 1): void {
     this.pulseDist = Math.max(0, this.pulseDist - this.pulseDist * 1.6 * dt);
     const targetLookY = towerTopY * 0.5 + 0.5;
-    const targetDist = 6 + towerTopY * 1.15 + this.pulseDist;
+    const targetDist = (6 + towerTopY * 1.15) * zoom + this.pulseDist;
     const k = 1 - Math.pow(0.001, dt);
     this.lookY += (targetLookY - this.lookY) * k;
     this.dist += (targetDist - this.dist) * k;
