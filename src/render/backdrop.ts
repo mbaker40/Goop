@@ -16,10 +16,16 @@
 
 import * as THREE from 'three';
 
-const ERAS = 3;
-/** Raw-height anchors where each era is centered; crossfade half-width in raw units. */
-const ERA_MID = [5, 22, 44];
-const ERA_FADE = 7;
+const ERAS = 4;
+/** Raw-height visibility bands per era [fadeInStart, fadeInEnd, fadeOutStart, fadeOutEnd]:
+ *  kitchen wall -> outdoor hills+rooftops -> cloud banks -> space. The kitchen must be GONE by
+ *  "Through the Ceiling" (raw ~11-13); space holds forever into Endless. */
+const ERA_BANDS: [number, number, number, number][] = [
+  [-1, 0, 8, 12.5],
+  [8, 12.5, 18, 25],
+  [18, 25, 34, 44],
+  [34, 44, Infinity, Infinity],
+];
 
 interface Shell {
   group: THREE.Group;
@@ -85,16 +91,10 @@ export class Backdrop {
 }
 
 function eraWeight(raw: number, era: number): number {
-  // Triangular weights around each era midpoint; era 0 holds below, era 2 holds above forever.
-  const mid = ERA_MID[era]!;
-  if (era === 0 && raw <= mid) return 1;
-  if (era === ERAS - 1 && raw >= mid) return 0.9;
-  const d = Math.abs(raw - mid);
-  const halfSpan =
-    era === 0 || raw > mid
-      ? (ERA_MID[Math.min(ERAS - 1, era + 1)]! - mid) / 2 + ERA_FADE / 2
-      : (mid - ERA_MID[era - 1]!) / 2 + ERA_FADE / 2;
-  return clamp01(1 - Math.max(0, d - halfSpan * 0.4) / Math.max(1e-3, halfSpan));
+  const b = ERA_BANDS[era]!;
+  const rise = b[1] <= b[0] ? 1 : clamp01((raw - b[0]) / (b[1] - b[0]));
+  const fall = b[2] === Infinity ? 1 : 1 - clamp01((raw - b[2]) / Math.max(1e-6, b[3] - b[2]));
+  return rise * fall * (era === ERAS - 1 ? 0.9 : 1);
 }
 
 /** Seamless horizontal strip for one era. `far` shells get dimmer, simpler art. */
@@ -112,6 +112,104 @@ function eraTexture(era: number, far: boolean): THREE.CanvasTexture {
   const base = H * 0.55; // horizon line inside the strip
 
   if (era === 0) {
+    // Kitchen interior: warm wall + tiled backsplash + a window with curtains + the framed cat
+    // photo (relocated from a floating flyby to a wall where a cat photo makes sense).
+    c.fillStyle = far ? '#efdfc0' : '#f4e6c8';
+    c.fillRect(0, 40, W, H - 40);
+    // Wall top edge shadow line.
+    c.fillStyle = 'rgba(120,95,60,0.25)';
+    c.fillRect(0, 40, W, 5);
+    // Backsplash tiles on the lower half.
+    c.fillStyle = far ? '#e6d2a8' : '#ead6ac';
+    c.fillRect(0, base + 20, W, H - base - 20);
+    c.strokeStyle = 'rgba(140,110,70,0.35)';
+    c.lineWidth = 3;
+    for (let x = 0; x <= W; x += 64) {
+      c.beginPath();
+      c.moveTo(x, base + 20);
+      c.lineTo(x, H);
+      c.stroke();
+    }
+    for (let y = base + 20; y <= H; y += 32) {
+      c.beginPath();
+      c.moveTo(0, y);
+      c.lineTo(W, y);
+      c.stroke();
+    }
+    if (!far) {
+      // Window with morning sky + curtains.
+      const wx = 240;
+      c.fillStyle = '#8a6b3e';
+      c.fillRect(wx - 8, 52, 176, 124);
+      c.fillStyle = '#bfe0f6';
+      c.fillRect(wx, 60, 160, 108);
+      c.fillStyle = 'rgba(255,255,255,0.85)';
+      c.beginPath();
+      c.ellipse(wx + 40, 92, 26, 10, 0, 0, Math.PI * 2);
+      c.ellipse(wx + 110, 120, 30, 11, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#8a6b3e';
+      c.fillRect(wx + 76, 60, 8, 108); // mullion
+      c.fillRect(wx, 110, 160, 8);
+      // Curtains.
+      c.fillStyle = '#d96a4a';
+      c.beginPath();
+      c.moveTo(wx - 8, 52);
+      c.quadraticCurveTo(wx + 26, 110, wx - 2, 176);
+      c.lineTo(wx - 8, 176);
+      c.closePath();
+      c.fill();
+      c.beginPath();
+      c.moveTo(wx + 168, 52);
+      c.quadraticCurveTo(wx + 134, 110, wx + 162, 176);
+      c.lineTo(wx + 168, 176);
+      c.closePath();
+      c.fill();
+      // The framed cat photo, hung slightly crooked. He is confused here too.
+      c.save();
+      c.translate(700, 100);
+      c.rotate(-0.06);
+      c.fillStyle = '#8a6f4e';
+      c.fillRect(-40, -44, 80, 88);
+      c.fillStyle = '#e8dfc8';
+      c.fillRect(-30, -34, 60, 68);
+      c.fillStyle = '#b78b52';
+      c.beginPath();
+      c.ellipse(0, 8, 20, 17, 0, 0, Math.PI * 2);
+      c.fill();
+      c.beginPath();
+      c.moveTo(-15, -4);
+      c.lineTo(-11, -18);
+      c.lineTo(-3, -7);
+      c.closePath();
+      c.moveTo(15, -4);
+      c.lineTo(11, -18);
+      c.lineTo(3, -7);
+      c.closePath();
+      c.fill();
+      c.fillStyle = '#2a2436';
+      c.beginPath();
+      c.ellipse(-7, 6, 2.5, 3.5, 0, 0, Math.PI * 2);
+      c.ellipse(7, 6, 2.5, 3.5, 0, 0, Math.PI * 2);
+      c.fill();
+      c.strokeStyle = '#2a2436';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.arc(0, 16, 4, Math.PI * 1.15, Math.PI * 1.85); // small concerned mouth
+      c.stroke();
+      c.restore();
+      // A hanging wooden spoon + towel for lived-in warmth.
+      c.fillStyle = '#a5854f';
+      c.fillRect(524, 70, 8, 56);
+      c.beginPath();
+      c.ellipse(528, 138, 12, 18, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#7fb3d6';
+      c.fillRect(880, 66, 52, 74);
+      c.fillStyle = 'rgba(255,255,255,0.5)';
+      c.fillRect(880, 88, 52, 8);
+    }
+  } else if (era === 1) {
     // Rolling hills: two silhouette bands built from summed sines (period-exact = seamless).
     const bands = far ? [['#a9bd85', 0.5, 20]] : ([['#9db27a', 0.55, 26], ['#7a9460', 0.8, 34]] as const);
     for (const [color, yF, amp] of bands as unknown as [string, number, number][]) {
@@ -142,7 +240,7 @@ function eraTexture(era: number, far: boolean): THREE.CanvasTexture {
         c.fill();
       }
     }
-  } else if (era === 1) {
+  } else if (era === 2) {
     // Cloud banks: flat-bottomed puffs from periodic placement.
     const tones = far ? ['rgba(244,248,255,0.85)'] : ['rgba(238,244,252,0.9)', 'rgba(255,255,255,0.95)'];
     tones.forEach((tone, k) => {

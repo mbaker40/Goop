@@ -587,10 +587,12 @@ export const ART: Record<string, Draw> = {
 Object.assign(ART, {
   mug: ((c: CanvasRenderingContext2D) => {
     rr(c, 60, 70, 120, 130, 22, '#d96a4a');
+    // Handle must overlap the body generously - a thin tangent arc erodes into a detached
+    // floating "C" once the silhouette stamp runs (seen on-device).
     c.strokeStyle = '#b4523a';
-    c.lineWidth = 10;
+    c.lineWidth = 16;
     c.beginPath();
-    c.arc(196, 130, 38, -1.2, 1.2);
+    c.arc(172, 132, 40, -1.15, 1.15);
     c.stroke();
     ell(c, 120, 78, 58, 18, '#8a4a3a');
     ell(c, 120, 76, 48, 12, '#5a3028');
@@ -683,5 +685,19 @@ Object.assign(ART, {
     c.fill();
     // A sun.
     ell(c, 186, 70, 22, 22, '#ffb03a');
+  }) as Draw,
+  // A proud slice of toast (the Zone 2 gag payload).
+  toast: ((c: CanvasRenderingContext2D) => {
+    rr(c, 56, 60, 144, 150, 34, '#b4783c');
+    rr(c, 68, 74, 120, 124, 26, '#e8b464');
+    // Toasted speckles.
+    c.fillStyle = 'rgba(140,90,40,0.5)';
+    for (let i = 0; i < 7; i++) {
+      const x = 88 + ((i * 53) % 84);
+      const y = 100 + ((i * 37) % 72);
+      c.beginPath();
+      c.ellipse(x, y, 4, 3, 0, 0, Math.PI * 2);
+      c.fill();
+    }
   }) as Draw,
 });

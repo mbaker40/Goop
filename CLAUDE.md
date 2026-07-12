@@ -218,6 +218,18 @@ world followers (`tower.snap()`, `worldSnap` on game-instance change) - no repla
   frame in spurts, then the camera pulls back; lag bounded at 18% linear so the mock's
   30s-WIN ramp still frames), zoom button gets a 0.35s boost window.
 
+**Done: M3 (slice 8) - Judgmental Toaster tutorial (2026-07-12).** Data-driven onboarding:
+`config/tutorial.ts` (5 steps: slap 5x -> combo x2 -> buy dripper -> melt explainer -> sendoff;
+each = lines + toaster expression + PURE goal predicate + HUD ids to reveal + pointer target)
+rendered by `ui/tutorial.ts` (plain-canvas toaster portrait w/ 3 faces, typewriter bubble -
+tap to fast-forward/advance, pulsing pointer ring, HUD gating via visibility on
+TUTORIAL_MANAGED ids, always-visible skip). Fresh accounts BYPASS THE MENU (main.ts cold open
+straight into the kitchen). Progress = meta.tutorialStep (+ puddleTipShown for the one-time
+"Every puddle makes you stronger. I read that on a mug." retention beat on first collapse);
+legacy saves migrate straight to done (save/index.ts checks totalClicks/lifetimeGe). 48 tests
+(5 new: reachability by real play, predicate purity, migration). `scripts/_tutshot.mjs` walks
+the whole tutorial headless and screenshots each beat.
+
 **Next (see `docs/release-roadmap.md` for the full ordered list):** Zone 15 boss "The Flick"
 (the hand cutout already waits at raw 96), real-device iOS/Android QA, prestige-path
 mid-zone-wall smoothing, save/offline test coverage + export/import UI, Endless GE scaling

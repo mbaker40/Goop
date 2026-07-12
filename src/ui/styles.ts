@@ -148,6 +148,23 @@ button.on { border-color: var(--goop); color: var(--goop); font-weight: bold; }
 @keyframes eventtoast { 0% { opacity: 0; margin-bottom: -12px; } 10% { opacity: 1; margin-bottom: 0; }
   80% { opacity: 1; } 100% { opacity: 0; margin-bottom: 18px; } }
 
+/* ---- Tutorial: the Judgmental Toaster ---- */
+#tut-card { position: fixed; z-index: 6; left: 10px; bottom: calc(96px + env(safe-area-inset-bottom));
+  display: flex; align-items: flex-end; gap: 8px; max-width: min(430px, 94vw);
+  animation: tutin .4s ease-out; will-change: transform; }
+@keyframes tutin { 0% { opacity: 0; transform: translateY(24px); } 100% { opacity: 1; transform: none; } }
+.tut-portrait { width: 84px; height: 84px; background: #1d1a28; border: 2px solid #6a4fd0;
+  border-radius: 14px; flex: 0 0 auto; animation: tutbob 2.2s ease-in-out infinite; }
+@keyframes tutbob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.tut-bubble { background: #efe9dc; color: #23202e; border-radius: 14px 14px 14px 4px;
+  padding: 10px 14px; font-size: 14px; line-height: 1.45; min-width: 150px; min-height: 42px;
+  border: 2px solid #b8ac94; cursor: pointer; }
+.tut-skip { position: absolute; right: 0; top: -40px; opacity: .75; font-size: 12px; }
+#tut-pointer { position: fixed; z-index: 5; pointer-events: none; border: 3px solid var(--goop);
+  border-radius: 50%; animation: tutping 1.3s ease-out infinite; will-change: transform, opacity; }
+@keyframes tutping { 0% { transform: scale(.75); opacity: .95; } 80% { transform: scale(1.12); opacity: .15; }
+  100% { transform: scale(1.15); opacity: 0; } }
+
 #hud-stats { position: fixed; z-index: 3; top: calc(10px + env(safe-area-inset-top)); left: 10px; min-width: 178px;
   transition: border-color .3s ease; }
 #hud-stats .title { color: var(--goop); font-weight: bold; letter-spacing: 1px; }

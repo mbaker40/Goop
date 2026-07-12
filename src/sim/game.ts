@@ -46,6 +46,10 @@ export interface MetaState {
   lifetimeGe: number;
   /** Unlocked achievement ids, in unlock order (config/achievements.ts). */
   achievements: string[];
+  /** Tutorial progress (config/tutorial.ts step index; >= step count = done). UI-owned. */
+  tutorialStep: number;
+  /** The one-time "every puddle makes you stronger" coaching beat on the first collapse. */
+  puddleTipShown: boolean;
 }
 
 export function createMetaState(): MetaState {
@@ -59,6 +63,8 @@ export function createMetaState(): MetaState {
     puddles: 0,
     lifetimeGe: 0,
     achievements: [],
+    tutorialStep: 0,
+    puddleTipShown: false,
   };
 }
 

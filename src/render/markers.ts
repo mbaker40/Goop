@@ -27,7 +27,7 @@ const K = 0.55;
 /** The tower's approximate world-space top at a given raw height (mirrors tower.ts fill math:
  *  fillTop = 0.07 + clamp(raw/WIN)*0.8 over TOWER_WORLD_HEIGHT 10). */
 function topYFor(raw: number): number {
-  return 10 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.8);
+  return 10 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.76);
 }
 
 /** metersPerWorld at a given raw height (guarded like update()'s live computation). */
@@ -95,6 +95,10 @@ export class ScaleMarkers {
   private ground: GroundProp[] = [];
   private planet: THREE.Sprite;
   private shadowTex: THREE.CanvasTexture;
+  /** Toast-pop gag: the toaster fires two slices the moment you ding Zone 2. */
+  private toaster: GroundProp | null = null;
+  private toastBoards: Board[] = [];
+  private toastFiredAt = -1;
 
   constructor() {
     this.shadowTex = makeShadowTexture();
@@ -109,8 +113,10 @@ export class ScaleMarkers {
       cap = MAX_SIZE,
       yOff = 0.42,
       band: [number, number, number, number] = [0, 0, 6.5, 10],
+      rotZ = 0,
     ) => {
       const b = board(ART[art]!, 1, 1, tilt);
+      if (rotZ) b.group.rotation.z = rotZ;
       this.group.add(b.group);
       const shadow = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
@@ -136,11 +142,15 @@ export class ScaleMarkers {
     };
     // Each prop lives in the altitude ERA it belongs to (raw bands): counter clutter leaves as
     // you clear the fridge; the yard/neighborhood only exists once you burst through the roof.
-    // Counter clutter. The mug/spoon art has deep bottom padding - sit them lower.
-    g('mug', 0.14, 2.1, -4, 0.18, 3.2, 0.29);
-    g('spoon', 0.24, -1.9, -4.5, -0.15, 3.4, 0.34);
-    g('saltShaker', 0.32, 3.2, -5.5, 0.2, 4);
-    g('toaster', 0.34, -3.2, -6.5, -0.22, 4.5);
+    // KITCHEN STILL LIFE (zone-1 redesign): one deliberate baseline arc behind the goop, deep
+    // enough that nothing crops at portrait framing (fit rule: |x| + size/2 <= 0.215 * (7+|z|)).
+    // Toaster full-in-frame left, mascot salt shaker mid-right, steaming mug far right, and the
+    // spoon LYING FLAT up front (rotZ) like someone just stirred something.
+    g('toaster', 0.34, -1.8, -12, -0.1, 4.4, 0.42, [0, 0, 9, 12]); // outlives the rest: it has a toast to deliver at zone 2
+    g('saltShaker', 0.32, 1.7, -11, 0.12, 3.6, 0.42);
+    g('mug', 0.14, 2.7, -13.5, 0.16, 3.0, 0.29);
+    g('spoon', 0.24, -1.3, -9, -0.06, 2.4, 0.16, [0, 0, 6.5, 10], 1.35);
+    this.toaster = this.ground[0]!;
     // Yard (appears at the roofline).
     g('fence', 1.4, 2.6, -9, 0.12, 6, 0.42, [11, 13.5, 17, 22]);
     g('bush', 1.1, -2.8, -8.5, -0.1, 5, 0.42, [11, 13.5, 17, 22]);
@@ -179,8 +189,8 @@ export class ScaleMarkers {
       });
     };
 
-    // Low-altitude gags get tight windows so they only exist in their own era.
-    add('catPhoto', 10, 0.6, 2.1, 3, -8, 0.2, 2.5);
+    // Low-altitude gags get tight windows so they only exist in their own era. (The cat photo
+    // now hangs on the kitchen WALL - backdrop.ts era 0 - where a cat photo belongs.)
     add('bird', 25, 0.5, 1.7, -2.8, -5, -0.15, 3, (o, t) => (o.position.x += Math.sin(t * 0.7) * 0.8));
     add('bird', 60, 0.5, 1.3, 2.4, -6, 0.1, 3.5, (o, t) => (o.position.x += Math.cos(t * 0.55) * 0.7));
     add('kite', 120, 1.5, 2.3, 2.9, -8, 0.18, 4, (o, t) => {
@@ -212,6 +222,14 @@ export class ScaleMarkers {
     this.planet = cutout(ART['planetBall']!, 1, 1, 512);
     this.planet.visible = false;
     this.group.add(this.planet);
+
+    // Two toast slices, hidden until the Zone 2 ding (the gag lives in update()).
+    for (let i = 0; i < 2; i++) {
+      const tb = board(ART['toast']!, 1, 1, i === 0 ? 0.15 : -0.1);
+      tb.group.visible = false;
+      this.group.add(tb.group);
+      this.toastBoards.push(tb);
+    }
   }
 
   /** `topRaw`/`topY` should be the SMOOTHED reference (renderer's slow follower), not the live
@@ -263,6 +281,35 @@ export class ScaleMarkers {
       o.position.set(m.baseX, Math.max(0.4, topY + delta * K), m.baseZ);
       o.rotation.z = Math.sin(t * 0.9 + m.phase) * 0.05; // paper wobble
       m.animate?.(o, t);
+    }
+
+    // Toast-pop gag: crossing into Zone 2 (raw 8.5) while the toaster is still on screen fires
+    // two slices in a lazy arc. One-shot per run (rearms when a fresh run starts near 0).
+    if (topRaw < 2 && this.toastFiredAt >= 0) this.toastFiredAt = -1;
+    if (this.toastFiredAt < 0 && topRaw >= 8.5 && topRaw < 10.5 && this.toaster) {
+      this.toastFiredAt = t;
+    }
+    if (this.toastFiredAt >= 0 && this.toaster) {
+      const p = t - this.toastFiredAt; // seconds since pop
+      const tp = this.toaster;
+      const ts = Math.min(tp.cap, tp.meters / mPerW);
+      const s = Math.max(tp.minPosScale, Math.min(1, ts / tp.startSize));
+      for (let i = 0; i < 2; i++) {
+        const tb = this.toastBoards[i]!;
+        const alive = p >= 0 && p < 2.4 && tp.board.group.visible;
+        tb.group.visible = alive;
+        if (!alive) continue;
+        const dir = i === 0 ? -0.55 : 0.7;
+        const size = ts * 0.3;
+        tb.group.scale.setScalar(size);
+        tb.group.position.set(
+          tp.x * s + dir * p * ts * 0.35,
+          ts * tp.yOff + ts * 0.35 + 2.6 * ts * 0.35 * p - 1.6 * ts * 0.35 * p * p,
+          tp.z * s + 0.3,
+        );
+        tb.group.rotation.z = (i === 0 ? 1 : -1) * p * 2.2;
+        tb.setOpacity(p < 1.8 ? 1 : Math.max(0, 1 - (p - 1.8) / 0.6));
+      }
     }
 
     // Planet recession: from "the ground you left" to a dot far below (raw ~13 → ~72).

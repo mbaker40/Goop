@@ -14,6 +14,45 @@ import { paletteAt, type ZonePalette } from './palette';
 import { makeShadowTexture } from './markers';
 
 /** Kitchen-counter tile texture for the diorama base (grout lines, coffee stain, crumbs). */
+/** Wooden cutting board (top-down): rounded slab, grain, handle with a hole, juice groove. */
+function makeBoardTexture(): THREE.CanvasTexture {
+  const cv = document.createElement('canvas');
+  cv.width = 512;
+  cv.height = 344;
+  const c = cv.getContext('2d')!;
+  const rr = (x: number, y: number, w: number, h: number, r: number, fill: string) => {
+    c.fillStyle = fill;
+    c.beginPath();
+    c.roundRect(x, y, w, h, r);
+    c.fill();
+  };
+  rr(20, 40, 400, 264, 46, '#a5764a'); // slab
+  rr(34, 54, 372, 236, 36, '#b98a58');
+  // Handle sticking out right, with a hole.
+  rr(400, 132, 92, 80, 30, '#a5764a');
+  c.globalCompositeOperation = 'destination-out';
+  c.beginPath();
+  c.arc(460, 172, 16, 0, Math.PI * 2);
+  c.fill();
+  c.globalCompositeOperation = 'source-over';
+  // Juice groove + grain lines.
+  c.strokeStyle = 'rgba(90,55,25,0.35)';
+  c.lineWidth = 6;
+  c.beginPath();
+  c.roundRect(54, 74, 332, 196, 28);
+  c.stroke();
+  c.lineWidth = 3;
+  for (let i = 0; i < 6; i++) {
+    c.beginPath();
+    c.moveTo(60, 96 + i * 34);
+    c.bezierCurveTo(160, 90 + i * 34, 300, 104 + i * 34, 386, 96 + i * 34);
+    c.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
 function makeCounterTexture(): THREE.CanvasTexture {
   const cv = document.createElement('canvas');
   cv.width = cv.height = 512;
@@ -66,6 +105,8 @@ export class Environment {
   private edgeMat!: THREE.MeshStandardMaterial;
   private towerShadow!: THREE.Mesh;
   private towerShadowMat!: THREE.MeshBasicMaterial;
+  private board!: THREE.Mesh;
+  private boardMat!: THREE.MeshBasicMaterial;
   private skyTex: THREE.CanvasTexture;
   private skyCanvas: HTMLCanvasElement;
   private stars: THREE.Points;
@@ -114,6 +155,16 @@ export class Environment {
     this.edge.position.y = -0.82;
     this.edge.renderOrder = -3;
     this.group.add(this.edge);
+    // The goop stands on a CUTTING BOARD (zone-1 still life): instant grounding + scale, and
+    // you are ruining someone's prep station. Flat textured plane just above the counter.
+    this.boardMat = new THREE.MeshBasicMaterial({ map: makeBoardTexture(), transparent: true, depthWrite: false });
+    this.board = new THREE.Mesh(new THREE.PlaneGeometry(11, 7.4), this.boardMat);
+    this.board.rotation.x = -Math.PI / 2;
+    this.board.rotation.z = 0.22;
+    this.board.position.set(0.4, 0.012, -0.6);
+    this.board.renderOrder = -2.5;
+    this.group.add(this.board);
+
     // Soft contact shadow under the goop (scaled by the renderer via setTowerShadow).
     this.towerShadowMat = new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false, opacity: 0.4 });
     this.towerShadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.towerShadowMat);
@@ -191,9 +242,11 @@ export class Environment {
       this.groundMat.opacity = this.groundAlpha;
       this.edgeMat.opacity = this.groundAlpha;
       this.towerShadowMat.opacity = 0.4 * this.groundAlpha;
+      this.boardMat.opacity = this.groundAlpha;
       this.ground.visible = this.groundAlpha > 0.02;
       this.edge.visible = this.groundAlpha > 0.02;
       this.towerShadow.visible = this.groundAlpha > 0.02;
+      this.board.visible = this.groundAlpha > 0.02;
     }
     this.starMat.opacity = clamp01((heightRaw - 30) / 20) * 0.9;
     this.stars.visible = this.starMat.opacity > 0.02;
@@ -217,6 +270,10 @@ export class Environment {
     this.ground.scale.set(g, g, 1);
     this.edge.scale.set(g, g, g);
     this.edge.position.y = -0.82 * g;
+    // The cutting board shrinks with the TRUE factor (no floor needed - it may vanish under
+    // the goop; by then you have outgrown the prep station).
+    const bs = Math.max(0.1, s);
+    this.board.scale.set(bs, bs, 1);
     // Past the mesh floor, keep the TILES honest by tiling the texture more - otherwise the grid
     // freezes at a constant size and reads as growing along with the goop.
     const repeat = Math.min(8, g / Math.max(0.04, s));
