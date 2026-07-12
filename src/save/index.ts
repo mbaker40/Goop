@@ -101,6 +101,12 @@ function migrate(data: SaveData): SaveData {
   // Fill any missing fields defensively - meta merges over defaults so fields added in updates
   // (puddles, lifetimeGe, achievements, …) exist on older saves.
   d = { ...d, meta: { ...createMetaState(), ...(d.meta ?? {}) } };
+  // Tutorial arrived mid-M3: anyone with recorded play predates it and must NEVER see it.
+  const legacy = d.meta as { tutorialStep?: number };
+  if (!('tutorialStep' in (data.meta ?? {})) && (d.meta.totalClicks > 0 || d.meta.lifetimeGe > 0)) {
+    legacy.tutorialStep = 999;
+    d.meta.puddleTipShown = true;
+  }
   if (!d.settings) d = { ...d, settings: defaultSettings() };
   // Future: while (d.version < SAVE_VERSION) { ...bump... }
   d.version = SAVE_VERSION;

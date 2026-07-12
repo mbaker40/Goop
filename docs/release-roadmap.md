@@ -44,7 +44,10 @@ smoke via `node scripts/smoke.mjs`).
 ## Should-do (quality bar for store-front-style polish)
 7. ~~Achievements + toasts~~ ✅ shipped 2026-07-12: 100 achievements (Steam cap), +0.5% goop/sec
    each, menu board + unlock toasts. Remaining: Goobers payouts per achievement (M4, with shop).
-8. Onboarding coach-marks: first-run pointer at the shop FAB; melt explainer when grace ends.
+8. ~~Onboarding coach-marks~~ ✅ shipped 2026-07-12 as the Judgmental Toaster tutorial
+   (config/tutorial.ts + ui/tutorial.ts): menu-bypass cold open, 5 gated steps with HUD
+   reveal, skip button, first-collapse "every puddle" retention beat. Remaining ideas: toaster
+   reactions to chaos events, a win-screen cameo.
 9. Audio pass 2: GPS ambience layers, melt-warning pulse, distinct per-producer purchase sounds.
 10. Service worker + offline PWA (the manifest/icons are already in); wake-lock during runs.
 11. Perf: dynamic-import `src/render` so the DOM paints before three.js parses (largest remaining

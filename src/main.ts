@@ -4,6 +4,8 @@
 
 import { injectStyles } from './ui/styles';
 import { GoopUI } from './ui/app';
+import { TutorialUI } from './ui/tutorial';
+import { TUTORIAL_STEPS } from './config/tutorial';
 import { GoopRenderer } from './render';
 import { MockSource } from './render/mockState';
 import { Store, defaultSettings } from './store';
@@ -68,9 +70,17 @@ function boot(): void {
     }
   }
 
+  // Fresh accounts skip the menu entirely: the cold open drops you in the kitchen and the
+  // Judgmental Toaster takes it from there (config/tutorial.ts). Anyone with recorded play
+  // (or a restored run) never sees this.
+  if (store.screen === 'menu' && meta.totalClicks === 0 && meta.tutorialStep < TUTORIAL_STEPS.length) {
+    store.startRun();
+  }
+
   const mount = document.getElementById('app');
   if (!mount) throw new Error('#app mount missing');
   new GoopUI(store, mount);
+  new TutorialUI(store);
 
   // Dev-only handle for smoke tests (e.g. forcing a collapse); only under ?debug.
   if (location.search.includes('debug')) window.__goopStore = store;
