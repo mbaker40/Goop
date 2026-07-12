@@ -76,15 +76,26 @@ targets). The renderer measures the `#stage` DOM rect each frame and pans the ca
 `src/render/camera.ts`) so the 3D tower lines up inside it in both orientations; goop base now meets
 the ground. Verified with a headless smoke at 1920×1080 and 390×844. **M1 (The Tower) is complete.**
 
-**In progress: M2 — The Run (PLAN §17, §3).**
-- *Done (slice 1):* melt-warning **screen vignette** (`#meltvig`, ramps orange<30s / red<10s, drooped
-  edges) + the **collapse cinematic** — the tower slumps/spreads into a puddle driven by
-  `run.collapseTimer` with a red drip-storm (`src/render/tower.ts` collapse path + `index.ts`). A
-  `?debug` build exposes `window.__goopStore` for smoke tests.
-- *Next:* all 7 zone environments + zone-transition moments (camera pull-back, crossfade, sting);
-  fuller Zone 1 set-dressing (toaster + more gags). First audio pass (squelch pool, §11).
-- Prestige loop + GE meta-shop polish (already functional in the DOM).
-- Perf/bundle carry-over: dynamic-import `src/render` (paint DOM before 3D) and/or a `manualChunks`
-  split for three; a marching-cubes resolution tier for mobile (PLAN §13). Portrait slim stat-bar wraps
-  a little at 390px — tighten. Win-run GE payout likely needs a cap (see balance-notes). Chaos-events
-  scheduler is a stub (`src/sim/events.ts`) awaiting M3.
+**Done: M2 (slices 1-3) — The Run + mobile polish pass.**
+- Melt-warning **screen vignette** + **collapse cinematic** (slump/spread + red drip-storm).
+  `?debug` exposes `window.__goopStore`.
+- **Feel pass (2026-07):** continuous springy growth + surface boil (`render/tower.ts`),
+  tap-located combo-scaled splats w/ per-instance colors (`splats.ts`), per-producer ambient FX
+  (`producerFx.ts`), zone crossfade + camera pulse + DOM zone toast, quality tiers (`quality.ts`),
+  context-loss recovery. Mobile input hygiene (touch-action/tap-highlight/user-select, pressed
+  states, 44px, haptics, floaters, purchase flash, buy ×1/×10/MAX, safe-areas, orientation).
+  **First audio pass** (`src/audio/` — synthesized squelch pool per §11, purchase blips, zone
+  stings; muted default, toggles in menu/pause/HUD).
+- **Progression hardening (2026-07):** full producer ladder reachable in a winning run (late
+  ladder compressed/strengthened, tier rungs at 200/400, late run-upgrade shelf), zones/WIN
+  recalibrated to measured curves (WIN raw 100), GE soft cap (win ≈ 54K not 1.23M),
+  meta costGrowth 2.0 → **first win ≈ run #11 / ~4.2 h** (new prestige-path acceptance test).
+  Harness bots now SAVE (see `sim-harness/core.ts`); calibrate with `trajectory.ts`/`prestigePath.ts`.
+- **Release infra:** OG/PWA meta + manifest + generated icons (`scripts/icons.mjs`), three.js
+  `manualChunks` split (app 33KB gz), pagehide saves, settings forward-merge.
+- **Verification tooling:** `node scripts/smoke.mjs` (3-viewport Playwright smoke: screenshots,
+  console errors, juice probes), `scripts/mockshots.mjs` (renderer timeline captures).
+
+**Next (see `docs/release-roadmap.md` for the full ordered list):** chaos events (sim stub at
+`src/sim/events.ts`), Zone 7 boss "The Flick", per-zone set dressing, real-device iOS/Android QA,
+prestige-path Z4-wall smoothing, save/offline test coverage + export/import UI.

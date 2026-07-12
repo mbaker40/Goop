@@ -27,6 +27,13 @@ export default defineConfig({
     target: 'es2022',
     outDir: 'dist',
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // three.js is ~half the bundle and changes only on dependency bumps — its own chunk keeps
+        // it long-term-cacheable and shrinks the app chunk browsers must re-fetch per deploy.
+        manualChunks: { three: ['three'] },
+      },
+    },
   },
   server: {
     port: 5173,
