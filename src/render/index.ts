@@ -13,7 +13,8 @@ import { GoopTower } from './tower';
 import { SplatSystem } from './splats';
 import { ProducerFx } from './producerFx';
 import { Environment } from './zone1';
-import { ScaleMarkers, scrollOf } from './markers';
+import { ScaleMarkers } from './markers';
+import { scrollOf } from './stage';
 import { Backdrop } from './backdrop';
 import { detectQuality } from './quality';
 import type { RenderSource } from './source';
@@ -136,6 +137,7 @@ export class GoopRenderer {
     if (game !== this.lastGame) {
       this.lastGame = game;
       this.tower.snap(game.heightRaw());
+      this.worldRaw = game.heightRaw(); // S below is derived from this pre-update
       this.worldSnap = true;
     }
     const zone = game.currentZone();
@@ -187,9 +189,13 @@ export class GoopRenderer {
       this.lastClicks = clicks; // run restarted; resync
     }
 
-    // SIDE-VIEW STAGE: the tower stays rooted in a FIXED frame (it grows on screen); the
-    // WORLD alone scrolls down past it, carrying the altitude story.
-    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, dt);
+    // SIDE-VIEW STAGE: the frame never moves. The goop grows fully on screen early, then
+    // sinks with the SAME scroll as the world (foot glued to the departing counter) until
+    // only its top remains; from there the world alone scrolls, carrying the altitude story.
+    // S uses last frame's smoothed worldRaw - the same value the counter/markers get, so the
+    // goop's foot and the world move in exact lockstep during the ride-out.
+    const S = scrollOf(this.worldRaw);
+    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, S, dt);
     if (this.worldSnap) {
       this.worldSnap = false;
       this.worldRaw = this.tower.debugHeight;
@@ -199,7 +205,6 @@ export class GoopRenderer {
     this.worldRaw += (this.tower.debugHeight - this.worldRaw) * wkPre;
     this.worldTop += (topY - this.worldTop) * wkPre;
     this.lastTopY = topY;
-    const S = scrollOf(this.worldRaw);
     this.markers.group.position.y = -S;
 
     const zoom = this.source.viewZoom || 1;

@@ -247,33 +247,44 @@ the whole tutorial headless and screenshots each beat.
   ~47K). 50 tests green (boss gate, flick knockback, endless depth). `scripts/_bossprobe.mjs`
   forces each phase via ?debug for screenshots.
 
-**Done: M3 (slice 10) - FLAT SIDE-VIEW STAGE, rooted model (2026-07-13, the view rework).**
+**Done: M3 (slice 10) - FLAT SIDE-VIEW STAGE, crop model (2026-07-13, the view rework).**
 Perspective 3D confounded growth signals (dolly vs rescale vs growth); the game is now an
-ORTHO side-view paper diorama. First attempt (camera-scroll + tower "riding mode" with a
-shaft cylinder below frame) shipped and was REJECTED on device (skinny worm on a fat pipe);
-the shipped model is ROOTED: the goop NEVER leaves the frame, the WORLD scrolls down past it.
-- `camera.ts`: OrthographicCamera, locked front-on, and it NEVER rises. Frame is width-driven
-  in portrait (max(VIEW_H 12, VIEW_W 9.4 / aspect) * zoom); the goop base (world y=0) sits on
-  the constant BASE_NDC -0.92 line for the whole game. One frame, no phases.
-- `tower.ts`: always the classic grounded foot blob - riding mode/shaft are GONE. The whole
-  object is magnified by STAGE_SCALE 1.3, so max crown ~10.8 world (fillTop 0.07..0.83; the
-  0.76 span keeps the mc crown off the lattice ceiling). update() returns the crown in world
-  y; addBlob divides by TOWER_WORLD_HEIGHT * STAGE_SCALE. Keep crownLocal in markers.ts in
-  LOCKSTEP: crownLocal(raw) = 13 * (0.07 + min(1, raw/WIN) * 0.76), where 13 = 10 * 1.3.
-- `markers.ts`: `markers.group.position.y = -scrollOf(worldRaw)` (set each frame in index.ts;
-  scrollOf = 3*max(0, raw-6)) is the ONLY altitude motion. Props park at altitudeY(raw) =
-  crownLocal(raw) + scrollOf(raw) with FIXED sizes and sweep DOWN past the growing goop.
-  Kitchen still life on the y=0 counter (toast-pop gag at raw 6.3-8.5); yard/houses raw
-  11-15.5; hero flybys at real-meter altitudes; a 22-item procedural filler ladder (clouds/
-  birds/kites/balloons, satellites late) every ~4.2 raw so no sky stretch is empty. Cull:
-  |propY - scroll - crownY| < 9*zoom+9. Boss hand compensates the group offset via
-  yAt(worldY) = worldY + scroll so it acts in on-screen stage space.
+ORTHO side-view paper diorama. Two earlier models were rejected on device: "riding mode"
+(mc window + shaft cylinder = skinny worm on a fat pipe) and "rooted" (whole goop always in
+frame = a small blob levitating mid-sky once the counter scrolled away). The shipped CROP
+model: the goop body maxes out EARLY, then sinks out the frame bottom glued to the departing
+world; from there only its TOP is ever on screen and all growth is told by the world scroll.
+- `stage.ts`: the shared pure math - tower.ts, markers.ts and index.ts import it, nothing
+  drifts out of lockstep. GROW_RAW 8 (mesh at full size, ~10.8 world = 10 * STAGE_SCALE 1.3,
+  by raw 8), scrollOf = K2 3 * max(0, raw - R0 6), towerSink(scroll) = min(SINK_MAX 6,
+  scroll), crownDisplay(raw) = meshCrown - sink (peaks ~8.3 world at raw 6, parks at ~4.8,
+  mid-screen, from raw 8 on). The foot leaves the frame riding the SAME scroll as the
+  counter, so there is never a hovering foot; the crown never clips (camera CROWN_FIT 8.8).
+- `camera.ts`: OrthographicCamera, locked front-on, NEVER rises. Frame width-driven in
+  portrait (max(VIEW_H 12, VIEW_W 9.4/aspect, crown-fit) * zoom); the goop base (world y=0)
+  sits ON THE STAGE-DERIVED anchor.yBase line (index.ts measures #stage; portrait ~-0.51,
+  landscape -0.56) - NOT a canvas constant: the portrait stage ends at bottom 22vh, and a
+  lower base line puts the early goop outside the tappable click-catcher.
+- `tower.ts`: one continuous mc mesh, always the classic foot blob; update() takes `scroll`,
+  sets object.position.y = -0.7 - towerSink(scroll) (so addBlob/topWorld world<->local
+  conversions pick the sink up for free) and returns the DISPLAYED crown. fillTop 0.07..0.83
+  (the 0.76 span keeps the crown off the mc lattice ceiling).
+- `markers.ts`: `markers.group.position.y = -scrollOf(worldRaw)` (set each frame in index.ts)
+  is the only world motion. Props park at altitudeY(raw) = crownDisplay(raw) + scrollOf(raw)
+  with FIXED sizes and sweep DOWN past the goop. Kitchen still life on the y=0 counter
+  (toast-pop gag at raw 6.3-8.5); yard/houses raw 11-15.5; hero flybys at real-meter
+  altitudes; a 22-item procedural filler ladder (clouds/birds/kites/balloons, satellites
+  late) every ~4.2 raw so no sky stretch is empty. Cull: |propY - scroll - crownY| <
+  9*zoom+9. Boss hand compensates the group offset via yAt(worldY) = worldY + scroll.
 - `index.ts`: worldRaw/worldTop are slow followers (tau 0.9s) of the sprung tower, so tap
-  jiggle never bounces the background; `env.setScroll(S)` sinks the zone1 counter/board and
-  contact shadows with the world; resume snaps followers (worldSnap) - no replayed grow-in.
-- Fog 66..130 for the ortho camera at z=60. `backdrop.ts` has 4 eras (kitchen wall ->
-  hills+rooftops -> clouds -> space, ERA_BANDS) on two parallax shells that follow topY.
-  Verify with mockshots (grounded at 2s, yard sweeping at 6s, eras, boss via _bossprobe).
+  jiggle never bounces the background; S = scrollOf(worldRaw) is computed BEFORE
+  tower.update and fed to both the tower sink and env.setScroll (exact foot/counter
+  lockstep); resume snaps followers (worldSnap) - no replayed grow-in.
+- `zone1.ts`: counter edge is 8 deep (cabinet front - several world units below the counter
+  top are on screen). Fog 66..130 for the ortho camera at z=60. `backdrop.ts` has 4 eras
+  (kitchen wall -> hills+rooftops -> clouds -> space, ERA_BANDS) on two parallax shells.
+  Verify with mockshots (kitchen pillar at 6s, cropped column top at 17s+, boss via
+  _bossprobe).
 
 **Next (see `docs/release-roadmap.md` for the full ordered list):** Phase 2 release hardening
 (real-device iOS/Android QA, save export/import UI + offline tests, service worker/wake-lock,

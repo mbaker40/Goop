@@ -8,31 +8,19 @@
  * past the goop. Rising past the water tower needs no math to read.
  *
  * altitudeY(raw) maps a raw height to a world y such that a prop parked there meets the goop's
- * crown exactly when the run's raw height equals the prop's: crownLocal(raw) + scrollOf(raw).
+ * crown exactly when the run's raw height equals the prop's: crownDisplay(raw) + scrollOf(raw).
  * Nothing here ever rescales. Nothing sits in front of the goop (all z <= -4).
  */
 
 import * as THREE from 'three';
 import { board, ART, type Board } from './sprites';
-import { rawForMeters, WIN_HEIGHT } from '../config/zones';
+import { rawForMeters } from '../config/zones';
+import { crownDisplay, scrollOf } from './stage';
 
-/** The goop crown's LOCAL height (tower rooted at y=0) - mirrors tower.ts fill math. */
-export function crownLocal(raw: number): number {
-  // 13 = TOWER_WORLD_HEIGHT * STAGE_SCALE (tower.ts) - keep in lockstep.
-  return 13 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.76);
-}
-
-/** World-units of scroll per raw unit once the ride starts (R0 = leaving the counter). */
-const K2 = 3;
-const R0 = 6;
-
-export function scrollOf(raw: number): number {
-  return K2 * Math.max(0, raw - R0);
-}
-
-/** Absolute stage altitude for a prop keyed to a raw height (see header). */
+/** Absolute stage altitude for a prop keyed to a raw height: it meets the goop's DISPLAYED
+ *  crown exactly when the run's raw height equals the prop's (see stage.ts for the curves). */
 export function altitudeY(raw: number): number {
-  return crownLocal(raw) + scrollOf(raw);
+  return crownDisplay(raw) + scrollOf(raw);
 }
 
 interface Flyby {
