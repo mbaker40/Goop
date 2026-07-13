@@ -247,25 +247,33 @@ the whole tutorial headless and screenshots each beat.
   ~47K). 50 tests green (boss gate, flick knockback, endless depth). `scripts/_bossprobe.mjs`
   forces each phase via ?debug for screenshots.
 
-**Done: M3 (slice 10) - FLAT SIDE-VIEW STAGE (2026-07-13, the view rework).** Perspective 3D
-confounded growth signals (dolly vs rescale vs growth); the game is now an ORTHO side-view
-paper-diorama elevator ride. Key mental model:
-- `camera.ts`: OrthographicCamera, locked front-on. Frame WIDTH-driven in portrait (VIEW_W
-  10.5) / height-driven landscape (VIEW_H 11); zoom scales the frame. Two phases: GROW-IN
-  (base y=0 pinned to BASE_NDC -0.52, goop visibly grows in a fixed frame) then SCROLL (camera
-  rises to keep the crown at HEADROOM 0.66, tau 1.5s ease + never-lose-the-crown clamp).
-- `markers.ts`: props parked at ABSOLUTE altitudes with FIXED sizes - altitudeY(raw) =
-  crownLocal(raw) + scrollOf(raw), scrollOf = 3*(raw-6) world units. NOTHING rescales; things
-  sweep past. Kitchen still life on the y=0 counter; yard/houses parked at raw 11-15.5;
-  flybys at rawForMeters altitudes; boss hand positions in absolute stage space.
-- `tower.ts`: while riding (scroll>2) the mc lattice is a sliding WINDOW on the column top
-  (body fills lattice 0.02..0.79, full-width planar floor cut, no foot; position = crown -
-  7.9); a same-material cylinder `shaft` (top-pivoted so lean can't split the seam, radius
-  matched 1.14+0.42*fill) continues the column below frame. Grounded (scroll<=2) it's the
-  classic foot blob. update() takes `scroll` and returns the ABSOLUTE crown.
-- Fog retuned (66..130) for the ortho camera at z=60. Backdrop shells ride just below the
-  camera with per-shell sink = parallax. Old world-shrink/true-proportion/groundShrink/orbit
-  code is GONE. Verify with mockshots (grow-in ~2s, ride 6s+, eras, boss via _bossprobe).
+**Done: M3 (slice 10) - FLAT SIDE-VIEW STAGE, rooted model (2026-07-13, the view rework).**
+Perspective 3D confounded growth signals (dolly vs rescale vs growth); the game is now an
+ORTHO side-view paper diorama. First attempt (camera-scroll + tower "riding mode" with a
+shaft cylinder below frame) shipped and was REJECTED on device (skinny worm on a fat pipe);
+the shipped model is ROOTED: the goop NEVER leaves the frame, the WORLD scrolls down past it.
+- `camera.ts`: OrthographicCamera, locked front-on, and it NEVER rises. Frame is width-driven
+  in portrait (max(VIEW_H 12, VIEW_W 9.4 / aspect) * zoom); the goop base (world y=0) sits on
+  the constant BASE_NDC -0.92 line for the whole game. One frame, no phases.
+- `tower.ts`: always the classic grounded foot blob - riding mode/shaft are GONE. The whole
+  object is magnified by STAGE_SCALE 1.3, so max crown ~10.8 world (fillTop 0.07..0.83; the
+  0.76 span keeps the mc crown off the lattice ceiling). update() returns the crown in world
+  y; addBlob divides by TOWER_WORLD_HEIGHT * STAGE_SCALE. Keep crownLocal in markers.ts in
+  LOCKSTEP: crownLocal(raw) = 13 * (0.07 + min(1, raw/WIN) * 0.76), where 13 = 10 * 1.3.
+- `markers.ts`: `markers.group.position.y = -scrollOf(worldRaw)` (set each frame in index.ts;
+  scrollOf = 3*max(0, raw-6)) is the ONLY altitude motion. Props park at altitudeY(raw) =
+  crownLocal(raw) + scrollOf(raw) with FIXED sizes and sweep DOWN past the growing goop.
+  Kitchen still life on the y=0 counter (toast-pop gag at raw 6.3-8.5); yard/houses raw
+  11-15.5; hero flybys at real-meter altitudes; a 22-item procedural filler ladder (clouds/
+  birds/kites/balloons, satellites late) every ~4.2 raw so no sky stretch is empty. Cull:
+  |propY - scroll - crownY| < 9*zoom+9. Boss hand compensates the group offset via
+  yAt(worldY) = worldY + scroll so it acts in on-screen stage space.
+- `index.ts`: worldRaw/worldTop are slow followers (tau 0.9s) of the sprung tower, so tap
+  jiggle never bounces the background; `env.setScroll(S)` sinks the zone1 counter/board and
+  contact shadows with the world; resume snaps followers (worldSnap) - no replayed grow-in.
+- Fog 66..130 for the ortho camera at z=60. `backdrop.ts` has 4 eras (kitchen wall ->
+  hills+rooftops -> clouds -> space, ERA_BANDS) on two parallax shells that follow topY.
+  Verify with mockshots (grounded at 2s, yard sweeping at 6s, eras, boss via _bossprobe).
 
 **Next (see `docs/release-roadmap.md` for the full ordered list):** Phase 2 release hardening
 (real-device iOS/Android QA, save export/import UI + offline tests, service worker/wake-lock,

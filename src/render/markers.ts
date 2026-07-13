@@ -18,7 +18,8 @@ import { rawForMeters, WIN_HEIGHT } from '../config/zones';
 
 /** The goop crown's LOCAL height (tower rooted at y=0) - mirrors tower.ts fill math. */
 export function crownLocal(raw: number): number {
-  return 10 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.76);
+  // 13 = TOWER_WORLD_HEIGHT * STAGE_SCALE (tower.ts) - keep in lockstep.
+  return 13 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.76);
 }
 
 /** World-units of scroll per raw unit once the ride starts (R0 = leaving the counter). */
@@ -149,6 +150,24 @@ export class ScaleMarkers {
       o.position.x = -3.5 + Math.sin(t * 0.2) * 1.5;
       o.position.y = o.userData.y0 + Math.sin(t * 0.35) * 0.4;
     });
+    // Filler set-dressing so NO stretch of sky is ever empty: a deterministic ladder of
+    // clouds/birds/etc every ~4 raw from the yard to the Goopiverse door. The hero flybys
+    // above carry the identity; these carry continuity.
+    const parkRaw = (art: keyof typeof ART, raw: number, size: number, x: number, z: number, tilt: number) => {
+      const b = board(ART[art]!, 1, 1, tilt);
+      b.group.scale.setScalar(size);
+      b.group.visible = false;
+      this.group.add(b.group);
+      this.flybys.push({ board: b, baseX: x, baseY: altitudeY(raw), baseZ: z, phase: this.flybys.length * 1.7 });
+    };
+    const FILLER: (keyof typeof ART)[] = ['cloud', 'bird', 'cloud', 'kite', 'cloud', 'balloon', 'cloud', 'bird'];
+    for (let i = 0; i < 22; i++) {
+      const raw = 8 + i * 4.2;
+      const art = i > 12 && i % 3 === 0 ? 'satellite' : FILLER[i % FILLER.length]!;
+      const side = i % 2 === 0 ? 1 : -1;
+      const sz = art === 'bird' ? 1.4 : art === 'kite' ? 2.2 : art === 'satellite' ? 3.4 : 3.6 + (i % 3) * 0.7;
+      parkRaw(art, raw, sz, side * (2.6 + (i % 3) * 0.7), -8 - (i % 4) * 2, side * 0.1);
+    }
     for (const f of this.flybys) f.board.group.userData.y0 = f.baseY;
 
     // ---- The Flick: boss hand actor (three pose boards, crossfaded by phase) ----
@@ -175,11 +194,11 @@ export class ScaleMarkers {
     this.updateBoss(crownY, t, bossPhase, bossMeter);
 
     // Flybys: visible while on the stage (cheap screen-band cull); idle wobble.
-    const band = 8 * zoom + 6;
+    const band = 9 * zoom + 9;
     for (const m of this.flybys) {
       const o = m.board.group;
       const screenY = m.baseY - this.scroll;
-      const visible = Math.abs(screenY - crownY * 0.6) < band;
+      const visible = Math.abs(screenY - crownY) < band;
       o.visible = visible;
       if (!visible) continue;
       o.rotation.z = Math.sin(t * 0.9 + m.phase) * 0.05 + (o.rotation.z - Math.sin(t * 0.9 + m.phase) * 0.05) * 0;
@@ -188,7 +207,8 @@ export class ScaleMarkers {
 
     // Toast-pop gag: crossing into Zone 2 (raw 8.5) fires two slices in a lazy arc.
     if (topRaw < 2 && this.toastFiredAt >= 0) this.toastFiredAt = -1;
-    if (this.toastFiredAt < 0 && topRaw >= 8.5 && topRaw < 10.5 && this.toaster) this.toastFiredAt = t;
+    // Fires as the kitchen begins scrolling out (the toaster's farewell salute).
+    if (this.toastFiredAt < 0 && topRaw >= 6.3 && topRaw < 8.5 && this.toaster) this.toastFiredAt = t;
     if (this.toastFiredAt >= 0 && this.toaster) {
       const p = t - this.toastFiredAt;
       const tp = this.toaster;
