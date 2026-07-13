@@ -14,7 +14,7 @@
 import * as THREE from 'three';
 import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
 import { balance } from '../config/balance';
-import { TOWER_WORLD_HEIGHT, STAGE_SCALE, GROW_RAW, towerSink } from './stage';
+import { TOWER_WORLD_HEIGHT, STAGE_SCALE, GROW_RAW, FILL_BOTTOM, FILL_SPAN, towerSink } from './stage';
 import type { ZonePalette } from './palette';
 import type { RunStatus } from './source';
 
@@ -51,7 +51,7 @@ export class GoopTower {
   addBlob(world: THREE.Vector3, power = 1): void {
     const fx = clamp(0.5 + world.x / (2 * RADIUS), 0.22, 0.78);
     const fz = clamp(0.5 + world.z / (2 * RADIUS), 0.22, 0.78);
-    const fy = clamp((world.y - this.object.position.y) / (TOWER_WORLD_HEIGHT * STAGE_SCALE), 0.09, 0.82);
+    const fy = clamp((world.y - this.object.position.y) / (TOWER_WORLD_HEIGHT * STAGE_SCALE), 0.09, FILL_BOTTOM + FILL_SPAN);
     this.blobs.push({ fx, fy, fz, r: 0.4 + 0.35 * power, age: 0 });
     if (this.blobs.length > 14) this.blobs.shift();
   }
@@ -177,11 +177,11 @@ export class GoopTower {
     this.fieldAcc += dt;
     if (this.fieldAcc >= this.fieldDt) {
       this.fieldAcc %= this.fieldDt;
-      const bottom = 0.07;
-      // 0.76 (not 0.8): ball centers + iso-surface extent must stay inside the marching-cubes
-      // unit lattice, or a maxed tower's crown gets planar-clipped at the grid ceiling (the
-      // "top of the goop cuts off" bug at Zone 15 heights).
-      const top = bottom + fill * 0.76;
+      const bottom = FILL_BOTTOM;
+      // FILL_SPAN (stage.ts): ball centers + the iso-surface dome must stay inside the
+      // marching-cubes unit lattice, or the crown gets planar-clipped at the grid ceiling -
+      // and the crop model sits at FULL fill from raw 8 on, so a clip is a permanent flat top.
+      const top = bottom + fill * FILL_SPAN;
       const count = Math.max(3, Math.round(fill * 22));
       const mc = this.mc;
       mc.reset();
@@ -292,7 +292,7 @@ export class GoopTower {
     // Framing height: the DISPLAYED crown (mesh crown minus sink). IGNORE tap deformation
     // (swell) so the view never bobs per slap; the collapse slump lowers it (crown melts down
     // and out of the frame - the drip storm and puddle screen carry the beat from there).
-    const fillTop = 0.07 + fill * 0.76;
+    const fillTop = FILL_BOTTOM + fill * FILL_SPAN;
     const camScaleY = collapsing || dead ? this.object.scale.y : 1;
     const crownFull = TOWER_WORLD_HEIGHT * STAGE_SCALE * fillTop * (collapsing || dead ? 1 - (1 - camScaleY / STAGE_SCALE) : 1);
     this.lastCrownFull = crownFull;

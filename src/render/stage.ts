@@ -15,12 +15,20 @@
 export const TOWER_WORLD_HEIGHT = 10;
 /** Uniform stage magnification (the goop should command the frame). */
 export const STAGE_SCALE = 1.3;
-/** Raw height at which the goop mesh reaches full size. Must be <= R0 + SINK_MAX / K2 (raw 8)
+/** Ball-center span inside the mc lattice (fractions of lattice height). The iso-surface DOME
+ *  extends ~0.17-0.20 lattice above the top ball center (strength/(iso+subtract) math), so the
+ *  top center must stay near 0.71 or the crown gets planar-clipped at the lattice ceiling -
+ *  and with the crop model the mesh sits at FULL fill from raw GROW_RAW on, so any ceiling
+ *  contact is a permanent flat top, not a rare Zone-15 artifact. */
+export const FILL_BOTTOM = 0.07;
+export const FILL_SPAN = 0.64;
+/** Raw height at which the goop mesh reaches full size. Must be <= R0 + SINK_MAX / K2
  *  or the crown dips while the foot is still riding the scroll down. */
 export const GROW_RAW = 8;
-/** How far the goop sinks below its rooted position before the crown locks. Chosen so the
- *  foot is safely under the frame bottom in both orientations at zoom 1. */
-export const SINK_MAX = 6;
+/** How far the goop sinks below its rooted position before the crown locks. Big enough to put
+ *  the foot safely under the frame bottom in both orientations at zoom 1 (needs >= ~4.8),
+ *  small enough that the parked crown stays a comfortable mid-screen tap target. */
+export const SINK_MAX = 5.2;
 /** World-units of scroll per raw unit once the ride starts (R0 = leaving the counter). */
 export const K2 = 3;
 export const R0 = 6;
@@ -34,14 +42,15 @@ export function towerSink(scroll: number): number {
   return Math.min(SINK_MAX, scroll);
 }
 
-/** The goop crown in tower-LOCAL y (rooted at y=0) - mirrors tower.ts fill math. */
+/** The goop crown in tower-LOCAL y (rooted at y=0) - mirrors tower.ts fill math. This is the
+ *  TOP BALL CENTER; the visible dome rounds off ~2 world above it. */
 export function meshCrown(raw: number): number {
   const fill = Math.min(1, Math.max(0.03, raw / GROW_RAW));
-  return TOWER_WORLD_HEIGHT * STAGE_SCALE * (0.07 + fill * 0.76);
+  return TOWER_WORLD_HEIGHT * STAGE_SCALE * (FILL_BOTTOM + fill * FILL_SPAN);
 }
 
-/** The goop crown as DISPLAYED (after the sink). Rises to ~8.3 world by raw 6, then settles
- *  to ~4.8 by raw 8 and holds there for the rest of the game. */
+/** The goop crown as DISPLAYED (after the sink). Rises to ~7.2 world by raw 6, then settles
+ *  to ~4.0 by raw 8 and holds there for the rest of the game (dome top ~2 higher). */
 export function crownDisplay(raw: number): number {
   return meshCrown(raw) - towerSink(scrollOf(raw));
 }

@@ -255,11 +255,15 @@ frame = a small blob levitating mid-sky once the counter scrolled away). The shi
 model: the goop body maxes out EARLY, then sinks out the frame bottom glued to the departing
 world; from there only its TOP is ever on screen and all growth is told by the world scroll.
 - `stage.ts`: the shared pure math - tower.ts, markers.ts and index.ts import it, nothing
-  drifts out of lockstep. GROW_RAW 8 (mesh at full size, ~10.8 world = 10 * STAGE_SCALE 1.3,
-  by raw 8), scrollOf = K2 3 * max(0, raw - R0 6), towerSink(scroll) = min(SINK_MAX 6,
-  scroll), crownDisplay(raw) = meshCrown - sink (peaks ~8.3 world at raw 6, parks at ~4.8,
-  mid-screen, from raw 8 on). The foot leaves the frame riding the SAME scroll as the
-  counter, so there is never a hovering foot; the crown never clips (camera CROWN_FIT 8.8).
+  drifts out of lockstep. GROW_RAW 8 (mesh at full size by raw 8), FILL_BOTTOM 0.07 /
+  FILL_SPAN 0.64 (ball-center span in the mc lattice; the iso-surface DOME rounds off ~0.2
+  lattice = ~2 world ABOVE the top center, so a bigger span planar-clips the crown at the
+  lattice ceiling - permanently, since the crop model sits at full fill from raw 8 on),
+  scrollOf = K2 3 * max(0, raw - R0 6), towerSink(scroll) = min(SINK_MAX 5.2, scroll),
+  crownDisplay(raw) = meshCrown - sink (center peaks ~7.2 world at raw 6, parks ~4.0 from
+  raw 8 on; visible dome ~2 higher). The foot leaves the frame riding the SAME scroll as
+  the counter, so there is never a hovering foot (camera CROWN_FIT 9.6 keeps the dome on
+  screen in landscape).
 - `camera.ts`: OrthographicCamera, locked front-on, NEVER rises. Frame width-driven in
   portrait (max(VIEW_H 12, VIEW_W 9.4/aspect, crown-fit) * zoom); the goop base (world y=0)
   sits ON THE STAGE-DERIVED anchor.yBase line (index.ts measures #stage; portrait ~-0.51,
@@ -267,8 +271,8 @@ world; from there only its TOP is ever on screen and all growth is told by the w
   lower base line puts the early goop outside the tappable click-catcher.
 - `tower.ts`: one continuous mc mesh, always the classic foot blob; update() takes `scroll`,
   sets object.position.y = -0.7 - towerSink(scroll) (so addBlob/topWorld world<->local
-  conversions pick the sink up for free) and returns the DISPLAYED crown. fillTop 0.07..0.83
-  (the 0.76 span keeps the crown off the mc lattice ceiling).
+  conversions pick the sink up for free) and returns the DISPLAYED crown (top ball center;
+  fillTop = FILL_BOTTOM + fill * FILL_SPAN).
 - `markers.ts`: `markers.group.position.y = -scrollOf(worldRaw)` (set each frame in index.ts)
   is the only world motion. Props park at altitudeY(raw) = crownDisplay(raw) + scrollOf(raw)
   with FIXED sizes and sweep DOWN past the goop. Kitchen still life on the y=0 counter
