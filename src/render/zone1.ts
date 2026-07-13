@@ -149,10 +149,12 @@ export class Environment {
     // "fence sunk into the counter" bug). Force ground → shadows → cutouts.
     this.ground.renderOrder = -3;
     this.group.add(this.ground);
-    // The counter's edge (diorama table side).
+    // The counter's edge, deep enough to read as the CABINET FRONT: the stage base line sits
+    // well above the screen bottom (the tappable #stage region), so several world units below
+    // the counter top are on screen - a shallow lip would leave the counter floating.
     this.edgeMat = new THREE.MeshStandardMaterial({ color: 0xa5854f, roughness: 0.85, metalness: 0, transparent: true });
-    this.edge = new THREE.Mesh(new THREE.CylinderGeometry(26, 26, 1.6, 48, 1, true), this.edgeMat);
-    this.edge.position.y = -0.82;
+    this.edge = new THREE.Mesh(new THREE.CylinderGeometry(26, 26, 8, 48, 1, true), this.edgeMat);
+    this.edge.position.y = -4.02;
     this.edge.renderOrder = -3;
     this.group.add(this.edge);
     // The goop stands on a CUTTING BOARD (zone-1 still life): instant grounding + scale, and
@@ -262,7 +264,7 @@ export class Environment {
   /** The counter set (disc, rim, cutting board, tower shadow) rides the world scroll. */
   setScroll(s: number): void {
     this.ground.position.y = -0.02 - s;
-    this.edge.position.y = -0.82 - s;
+    this.edge.position.y = -4.02 - s;
     this.board.position.y = 0.012 - s;
     this.towerShadow.position.y = 0.015 - s;
   }
