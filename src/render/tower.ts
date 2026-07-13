@@ -13,17 +13,12 @@
 
 import * as THREE from 'three';
 import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js';
-import { WIN_HEIGHT } from '../config/zones';
 import { balance } from '../config/balance';
+import { TOWER_WORLD_HEIGHT, STAGE_SCALE, GROW_RAW, towerSink } from './stage';
 import type { ZonePalette } from './palette';
 import type { RunStatus } from './source';
 
-const TOWER_WORLD_HEIGHT = 10;
 const RADIUS = 1.7;
-/** Uniform stage magnification: the goop should command the frame (its on-screen growth is
- *  the primary signal), so the whole body renders 1.3x. Everything derived (crown height,
- *  blob mapping) uses it too. */
-const STAGE_SCALE = 1.3;
 
 // Wobble spring constants.
 // Softer + underdamped on purpose: gelatin wobbles for a couple of beats before settling.
@@ -61,6 +56,10 @@ export class GoopTower {
     if (this.blobs.length > 14) this.blobs.shift();
   }
   private warn = 0;
+  /** Current sink (world units the object is lowered by; see stage.ts towerSink). */
+  private sink = 0;
+  /** Mesh crown BEFORE the sink, cached for topWorld(). */
+  private lastCrownFull = 1;
   /** Swells the tower top right after fresh goop lands; decays fast. */
   private growPulse = 0;
   /** Seconds until the next metaball-field rebuild (throttled for mobile; see quality.ts). */
@@ -121,7 +120,9 @@ export class GoopTower {
     this.growPulse = Math.min(1.6, this.growPulse + 0.45 * power);
   }
 
-  /** @returns world-space Y of the tower top (for camera framing), accounting for squash. */
+  /** @returns world-space Y of the DISPLAYED tower top (after the sink), for framing/taps.
+   *  `scroll` is the world scroll (index.ts) - the goop rides it until it has sunk SINK_MAX,
+   *  so its foot leaves the frame glued to the departing counter and only the crown stays. */
   update(
     heightRaw: number,
     palette: ZonePalette,
@@ -129,6 +130,7 @@ export class GoopTower {
     meltHot: boolean,
     combo: number,
     collapseTimer: number,
+    scroll: number,
     dt: number,
   ): number {
     this.t += dt;
@@ -148,8 +150,16 @@ export class GoopTower {
     const cProg = dead ? 0 : collapsing ? clamp(collapseTimer / balance.melt.collapseSeconds, 0, 1) : 1;
     const cAmt = 1 - cProg; // 0 = standing, 1 = fully melted
 
-    const baseFill = clamp(this.renderedHeight / WIN_HEIGHT, 0.03, 1);
+    // Full mesh size by GROW_RAW (the on-screen "getting bigger" show is the early game);
+    // afterwards growth is told by the world scroll, not the body.
+    const baseFill = clamp(this.renderedHeight / GROW_RAW, 0.03, 1);
     const fill = baseFill * (1 - cAmt * 0.92);
+
+    // Sink: the goop rides the world scroll (foot glued to the departing counter) until only
+    // its top remains in frame, then holds. Applied to the object so every world<->local
+    // conversion (addBlob, topWorld) picks it up automatically.
+    this.sink = towerSink(scroll);
+    this.object.position.y = -0.7 - this.sink;
 
     // Age + ooze the slap-stacked blobs (every frame; the field samples them at fieldHz).
     for (let i = this.blobs.length - 1; i >= 0; i--) {
@@ -279,16 +289,19 @@ export class GoopTower {
     const glow = this.warn * 0.4 + growth * 0.08 * (0.5 + 0.5 * Math.sin(this.t * 3.2));
     this.material.emissive.copy(this.warn > 0.02 ? this.warnColor : this.baseColor).multiplyScalar(glow);
 
-    // Camera framing height: IGNORE tap deformation (swell) so the view never bobs per slap;
-    // only the collapse slump moves the framing (the camera should follow the tower down).
+    // Framing height: the DISPLAYED crown (mesh crown minus sink). IGNORE tap deformation
+    // (swell) so the view never bobs per slap; the collapse slump lowers it (crown melts down
+    // and out of the frame - the drip storm and puddle screen carry the beat from there).
     const fillTop = 0.07 + fill * 0.76;
     const camScaleY = collapsing || dead ? this.object.scale.y : 1;
-    return TOWER_WORLD_HEIGHT * STAGE_SCALE * fillTop * (collapsing || dead ? 1 - (1 - camScaleY / STAGE_SCALE) : 1);
+    const crownFull = TOWER_WORLD_HEIGHT * STAGE_SCALE * fillTop * (collapsing || dead ? 1 - (1 - camScaleY / STAGE_SCALE) : 1);
+    this.lastCrownFull = crownFull;
+    return Math.max(0.2, crownFull - this.sink);
   }
 
-  /** World position near the tower top (for spawning splats at the impact point). */
+  /** World position near the DISPLAYED tower top (for spawning splats at the impact point). */
   topWorld(out: THREE.Vector3): THREE.Vector3 {
-    out.set(0, TOWER_WORLD_HEIGHT * 0.55 * this.object.scale.y, 0).applyEuler(this.object.rotation);
+    out.set(0, this.lastCrownFull * 0.94, 0).applyEuler(this.object.rotation);
     out.y += this.object.position.y;
     return out;
   }
@@ -300,7 +313,7 @@ export class GoopTower {
 
   /** Approximate ground footprint diameter (world units) - drives the contact shadow. */
   get groundFootprint(): number {
-    const fill = Math.min(1, Math.max(0.03, this.renderedHeight / WIN_HEIGHT));
+    const fill = Math.min(1, Math.max(0.03, this.renderedHeight / GROW_RAW));
     return (2.6 + fill * 2.4) * (1 + Math.max(0, this.swell) * 0.5);
   }
 }

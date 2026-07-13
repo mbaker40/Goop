@@ -27,11 +27,11 @@ export interface Anchor {
  *  HEIGHT-driven in landscape. */
 const VIEW_H = 12;
 const VIEW_W = 9.4;
-/** The tower's max crown (~10.8 world at WIN, tower.ts STAGE_SCALE) plus margin: the frame
- *  must always hold this much world between the base line and HEADROOM_NDC, or the crown
- *  clips off the top of the screen late game (bites in landscape, where the stage-anchored
- *  base line sits well above the screen bottom). */
-const CROWN_FIT = 11.4;
+/** The tower's max DISPLAYED crown (~8.3 world at raw 6, before the sink catches up - see
+ *  stage.ts crownDisplay) plus margin: the frame must always hold this much world between
+ *  the base line and HEADROOM_NDC, or the crown clips off the top of the screen (bites in
+ *  landscape, where the stage-anchored base line sits well above the screen bottom). */
+const CROWN_FIT = 8.8;
 const HEADROOM_NDC = 0.95;
 
 export class TowerCamera {
