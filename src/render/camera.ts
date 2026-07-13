@@ -27,11 +27,12 @@ export interface Anchor {
  *  HEIGHT-driven in landscape. */
 const VIEW_H = 12;
 const VIEW_W = 9.4;
-/** The tower's max DISPLAYED crown (~8.3 world at raw 6, before the sink catches up - see
- *  stage.ts crownDisplay) plus margin: the frame must always hold this much world between
- *  the base line and HEADROOM_NDC, or the crown clips off the top of the screen (bites in
- *  landscape, where the stage-anchored base line sits well above the screen bottom). */
-const CROWN_FIT = 8.8;
+/** The tower's max DISPLAYED dome top (~7.2 world ball-center at raw 6 plus the ~2-world
+ *  iso-surface dome - see stage.ts crownDisplay) plus margin: the frame must always hold
+ *  this much world between the base line and HEADROOM_NDC, or the crown clips off the top
+ *  of the screen (bites in landscape, where the stage-anchored base line sits well above
+ *  the screen bottom). */
+const CROWN_FIT = 9.6;
 const HEADROOM_NDC = 0.95;
 
 export class TowerCamera {
