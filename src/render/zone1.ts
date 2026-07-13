@@ -236,7 +236,7 @@ export class Environment {
 
     // Ground fades with ALTITUDE - the counter is left behind around "Through the Ceiling"
     // (scenery has its own per-prop bands in markers.ts; the planet recession takes over at 13).
-    const targetAlpha = clamp01(1 - (heightRaw - 10) / 8);
+    const targetAlpha = clamp01(1 - (heightRaw - 5) / 5);
     if (Math.abs(this.groundAlpha - targetAlpha) > 0.004) {
       this.groundAlpha += (targetAlpha - this.groundAlpha) * Math.min(1, 2.2 * dt);
       this.groundMat.opacity = this.groundAlpha;
@@ -259,9 +259,12 @@ export class Environment {
     this.towerShadow.scale.setScalar(Math.max(0.1, scale));
   }
 
-  /** Keep the far-shell dressing (starfield) centred on the camera as it rides the scroll. */
-  setViewCenter(y: number): void {
-    this.stars.position.y = y * 0.92;
+  /** The counter set (disc, rim, cutting board, tower shadow) rides the world scroll. */
+  setScroll(s: number): void {
+    this.ground.position.y = -0.02 - s;
+    this.edge.position.y = -0.82 - s;
+    this.board.position.y = 0.012 - s;
+    this.towerShadow.position.y = 0.015 - s;
   }
 }
 

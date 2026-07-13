@@ -86,7 +86,6 @@ export class GoopRenderer {
     this.bundle.scene.add(this.backdrop.group);
     this.bundle.scene.add(this.markers.group);
     this.bundle.scene.add(this.tower.object);
-    this.bundle.scene.add(this.tower.shaft);
     this.bundle.scene.add(this.splats.object);
   }
 
@@ -188,24 +187,20 @@ export class GoopRenderer {
       this.lastClicks = clicks; // run restarted; resync
     }
 
-    // SIDE-VIEW SCROLL STAGE: the tower rides the altitude scroll (its true base leaves the
-    // frame); everything else is parked at absolute altitudes and the camera sweeps past.
-    // The smoothed raw drives the scroll BEFORE the tower update (it owns its position now).
-    const wkPre = 1 - Math.exp(-dt / 0.9);
-    if (!this.worldSnap) this.worldRaw += (this.tower.debugHeight - this.worldRaw) * wkPre;
-    const S = scrollOf(this.worldRaw);
-    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, dt, S);
+    // SIDE-VIEW STAGE: the tower stays rooted in a FIXED frame (it grows on screen); the
+    // WORLD alone scrolls down past it, carrying the altitude story.
+    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, dt);
     if (this.worldSnap) {
       this.worldSnap = false;
       this.worldRaw = this.tower.debugHeight;
       this.worldTop = topY;
     }
+    const wkPre = 1 - Math.exp(-dt / 0.9);
+    this.worldRaw += (this.tower.debugHeight - this.worldRaw) * wkPre;
     this.worldTop += (topY - this.worldTop) * wkPre;
     this.lastTopY = topY;
-    // The shaft continues the column from the lattice's floor cut down past the frame bottom.
-    const fillNow = Math.min(1, Math.max(0.03, this.worldRaw / 100));
-    if (S > 2) this.tower.setShaft(topY - 34, topY - 10 * 0.79 + 0.35, fillNow);
-    else this.tower.setShaft(0, 0, fillNow);
+    const S = scrollOf(this.worldRaw);
+    this.markers.group.position.y = -S;
 
     const zoom = this.source.viewZoom || 1;
     this.markers.update(this.worldRaw, this.worldTop, this.t, zoom, game.run.bossPhase, game.run.bossMeter);
@@ -220,7 +215,7 @@ export class GoopRenderer {
     }
     this.backdrop.update(this.worldRaw, this.worldTop, dt, this.t);
     this.env.setTowerShadow(this.tower.groundFootprint);
-    this.env.setViewCenter(this.worldTop - 2);
+    this.env.setScroll(S);
 
     // Ambient producer signatures - each "tool" you buy is visible working on the tower.
     if (status === 'active' || status === 'grace') {
@@ -254,7 +249,6 @@ export class GoopRenderer {
       };
     }
     const idle = this.source.screen !== 'run' && this.source.screen !== 'paused';
-    // The camera gets the TRUE crown (its own easing smooths; the clamp must see reality).
     this.cam.update(this.lastTopY, idle, dt, anchor, zoom);
 
     // Tint the key light slightly toward the sky for cohesion.
