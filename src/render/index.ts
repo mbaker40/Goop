@@ -13,7 +13,7 @@ import { GoopTower } from './tower';
 import { SplatSystem } from './splats';
 import { ProducerFx } from './producerFx';
 import { Environment } from './zone1';
-import { ScaleMarkers, groundShrink } from './markers';
+import { ScaleMarkers, scrollOf } from './markers';
 import { Backdrop } from './backdrop';
 import { detectQuality } from './quality';
 import type { RenderSource } from './source';
@@ -86,6 +86,7 @@ export class GoopRenderer {
     this.bundle.scene.add(this.backdrop.group);
     this.bundle.scene.add(this.markers.group);
     this.bundle.scene.add(this.tower.object);
+    this.bundle.scene.add(this.tower.shaft);
     this.bundle.scene.add(this.splats.object);
   }
 
@@ -119,7 +120,8 @@ export class GoopRenderer {
   private tapOrigin(x: number, y: number, topY: number, out: THREE.Vector3): void {
     this.ndc.set((x / Math.max(1, this.w)) * 2 - 1, -((y / Math.max(1, this.h)) * 2 - 1));
     this.raycaster.setFromCamera(this.ndc, this.cam.camera);
-    this.axisA.set(0, 0.2, 0);
+    // The visible column spans roughly a frame below the crown (absolute stage coords).
+    this.axisA.set(0, Math.max(0.2, topY - 13), 0);
     this.axisB.set(0, Math.max(0.6, topY), 0);
     this.raycaster.ray.distanceSqToSegment(this.axisA, this.axisB, undefined, out);
   }
@@ -186,20 +188,25 @@ export class GoopRenderer {
       this.lastClicks = clicks; // run restarted; resync
     }
 
-    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, dt);
-    this.lastTopY = topY;
-
-    // Smooth world reference (~0.9s time constant): the goop jiggles, the world doesn't.
+    // SIDE-VIEW SCROLL STAGE: the tower rides the altitude scroll (its true base leaves the
+    // frame); everything else is parked at absolute altitudes and the camera sweeps past.
+    // The smoothed raw drives the scroll BEFORE the tower update (it owns its position now).
+    const wkPre = 1 - Math.exp(-dt / 0.9);
+    if (!this.worldSnap) this.worldRaw += (this.tower.debugHeight - this.worldRaw) * wkPre;
+    const S = scrollOf(this.worldRaw);
+    const topY = this.tower.update(game.heightRaw(), palette, status, meltHot, combo, game.run.collapseTimer, dt, S);
     if (this.worldSnap) {
       this.worldSnap = false;
-      this.worldTop = topY;
       this.worldRaw = this.tower.debugHeight;
+      this.worldTop = topY;
     }
-    const wk = 1 - Math.exp(-dt / 0.9);
-    this.worldTop += (topY - this.worldTop) * wk;
-    this.worldRaw += (this.tower.debugHeight - this.worldRaw) * wk;
+    this.worldTop += (topY - this.worldTop) * wkPre;
+    this.lastTopY = topY;
+    // The shaft continues the column from the lattice's floor cut down past the frame bottom.
+    const fillNow = Math.min(1, Math.max(0.03, this.worldRaw / 100));
+    if (S > 2) this.tower.setShaft(topY - 34, topY - 10 * 0.79 + 0.35, fillNow);
+    else this.tower.setShaft(0, 0, fillNow);
 
-    // Scale markers + ground scenery track the smoothed reference.
     const zoom = this.source.viewZoom || 1;
     this.markers.update(this.worldRaw, this.worldTop, this.t, zoom, game.run.bossPhase, game.run.bossMeter);
     // The flick lands PHYSICALLY: camera pulse + a hard lateral impact on the transition.
@@ -213,7 +220,7 @@ export class GoopRenderer {
     }
     this.backdrop.update(this.worldRaw, this.worldTop, dt, this.t);
     this.env.setTowerShadow(this.tower.groundFootprint);
-    this.env.setGroundShrink(groundShrink(this.worldRaw, this.worldTop));
+    this.env.setViewCenter(this.worldTop - 2);
 
     // Ambient producer signatures - each "tool" you buy is visible working on the tower.
     if (status === 'active' || status === 'grace') {
@@ -247,7 +254,8 @@ export class GoopRenderer {
       };
     }
     const idle = this.source.screen !== 'run' && this.source.screen !== 'paused';
-    this.cam.update(this.worldTop, idle, dt, anchor, zoom);
+    // The camera gets the TRUE crown (its own easing smooths; the clamp must see reality).
+    this.cam.update(this.lastTopY, idle, dt, anchor, zoom);
 
     // Tint the key light slightly toward the sky for cohesion.
     this.bundle.keyLight.color.setHex(0xffffff).lerp(this.lightTint.setHex(palette.skyTop), 0.2);

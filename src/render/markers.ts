@@ -1,226 +1,155 @@
 /**
- * markers.ts - the cardboard-cutout world, with an honest SCALE MODEL (design direction:
- * "as the goop gets larger, items should proportionately scale").
+ * markers.ts - the cardboard-cutout world on the SIDE-VIEW SCROLL STAGE (2026-07 view rework).
  *
- * Every prop has a real-world size in METERS. Each frame we know how many meters one world unit
- * represents (metersPerWorld = displayMeters(towerHeight) / towerWorldHeight), so:
+ * The old model rescaled props ("true proportion" / world shrink) and never stopped reading as
+ * "the items are shrinking". The new model is a paper diorama elevator ride: every prop is
+ * parked at its ABSOLUTE altitude with a FIXED size, this whole group translates downward as
+ * the run climbs (index.ts sets group.position.y = -scrollOf(raw)), and things simply sweep
+ * past the goop. Rising past the water tower needs no math to read.
  *
- *  - GROUND SCENERY (mug, spoon, salt shaker, toaster, fence, bush, houses, water tower, hills,
- *    the kitchen window): rendered at true proportion. At the start you are a 5 cm smear and the
- *    mug towers over you; minutes later you dwarf the house. They fade out with the ground.
- *  - ALTITUDE FLYBYS: placed at their real altitude (rawForMeters) and rendered at
- *    max(true proportion, readable floor) while approaching - so you can SEE the jet coming -
- *    then the floor decays exponentially once passed, so birds dwindle to specks behind you.
- *    Colossal objects (Moon, planet, whale, the hand) are genuinely huge and get capped.
- *
- * All boards are built at unit size and scaled per frame. Nothing ever sits in front of the goop
- * (all z ≤ -4; the opaque tower occludes). Positions track a SMOOTHED reference height provided
- * by the renderer, so tap-jiggle never bounces the world.
+ * altitudeY(raw) maps a raw height to a world y such that a prop parked there meets the goop's
+ * crown exactly when the run's raw height equals the prop's: crownLocal(raw) + scrollOf(raw).
+ * Nothing here ever rescales. Nothing sits in front of the goop (all z <= -4).
  */
 
 import * as THREE from 'three';
-import { cutout, board, ART, type Board } from './sprites';
-import { displayMeters, rawForMeters, WIN_HEIGHT } from '../config/zones';
+import { board, ART, type Board } from './sprites';
+import { rawForMeters, WIN_HEIGHT } from '../config/zones';
 
-/** World-units of vertical travel per raw-height unit of climbing. */
-const K = 0.55;
-/** The tower's approximate world-space top at a given raw height (mirrors tower.ts fill math:
- *  fillTop = 0.07 + clamp(raw/WIN)*0.8 over TOWER_WORLD_HEIGHT 10). */
-function topYFor(raw: number): number {
+/** The goop crown's LOCAL height (tower rooted at y=0) - mirrors tower.ts fill math. */
+export function crownLocal(raw: number): number {
   return 10 * (0.07 + Math.min(1, Math.max(0.03, raw / WIN_HEIGHT)) * 0.76);
 }
 
-/** metersPerWorld at a given raw height (guarded like update()'s live computation). */
-function mPerWAt(raw: number): number {
-  return Math.max(0.02, displayMeters(Math.max(0.35, raw))) / Math.max(0.5, topYFor(raw));
+/** World-units of scroll per raw unit once the ride starts (R0 = leaving the counter). */
+const K2 = 3;
+const R0 = 6;
+
+export function scrollOf(raw: number): number {
+  return K2 * Math.max(0, raw - R0);
 }
 
-/** metersPerWorld at the run-start guard floor - the reference the world shrinks FROM. */
-const START_M_PER_W = mPerWAt(0);
-
-/** Global ground-frame shrink factor (1 at run start → 0 as the goop dwarfs the world).
- *  Shared by prop POSITIONS here and the counter disc in zone1.ts so sizes, gaps, and the tile
- *  grid all shrink together - that coherence is what reads as "the goop is growing" instead of
- *  "the items are shrinking and drifting apart". */
-export function groundShrink(topRaw: number, topY: number): number {
-  const mPerW = Math.max(0.02, displayMeters(Math.max(0.35, topRaw))) / Math.max(0.5, topY);
-  return Math.min(1, Math.max(0.04, START_M_PER_W / mPerW));
-}
-/** Flybys further than this (in raw units) from the tower top are hidden. */
-const WINDOW = 9;
-/** Hard cap on any prop's rendered size (world units). */
-const MAX_SIZE = 14;
-
-interface GroundProp {
-  board: Board;
-  meters: number;
-  x: number;
-  z: number;
-  cap: number;
-  shadow: THREE.Mesh;
-  /** Board-center height as a fraction of size - lower for art with big bottom padding. */
-  yOff: number;
-  /** Rendered size when the prop first appears - position convergence is measured against it. */
-  startSize: number;
-  /** Position-scale floor so a converging prop never enters the tower's footprint. */
-  minPosScale: number;
-  /** Raw-height visibility band [fadeInStart, fadeInEnd, fadeOutStart, fadeOutEnd] - scenery
-   *  belongs to an altitude ERA (counter clutter goes before the yard arrives, etc.). */
-  band: [number, number, number, number];
-}
-
-function bandAlpha(raw: number, b: [number, number, number, number]): number {
-  const rise = b[1] <= b[0] ? 1 : clamp01((raw - b[0]) / (b[1] - b[0]));
-  const fall = 1 - clamp01((raw - b[2]) / Math.max(1e-6, b[3] - b[2]));
-  return rise * fall;
+/** Absolute stage altitude for a prop keyed to a raw height (see header). */
+export function altitudeY(raw: number): number {
+  return crownLocal(raw) + scrollOf(raw);
 }
 
 interface Flyby {
-  raw: number;
-  meters: number;
-  floor: number;
   board: Board;
   baseX: number;
+  baseY: number;
   baseZ: number;
   phase: number;
-  /** Visibility half-window in raw units. Low-altitude gags need a TIGHT window - the default
-   *  ±9 raw covers the entire early game, which is how the cat photo haunted the kitchen. */
-  window: number;
   animate?: (obj: THREE.Group, t: number) => void;
 }
 
 export class ScaleMarkers {
   readonly group = new THREE.Group();
   private flybys: Flyby[] = [];
-  private ground: GroundProp[] = [];
-  private planet: THREE.Sprite;
   private shadowTex: THREE.CanvasTexture;
   /** Toast-pop gag: the toaster fires two slices the moment you ding Zone 2. */
-  private toaster: GroundProp | null = null;
+  private toaster: { x: number; y: number; z: number; size: number } | null = null;
+  private toasterBoard: Board | null = null;
   private toastBoards: Board[] = [];
   private toastFiredAt = -1;
-  /** Boss hand actor state. */
+  /** Boss hand actor (positions are set in ABSOLUTE stage space each frame). */
   private boss: Partial<Record<'hand' | 'handFlick' | 'handThumb', Board>> = {};
   private bossPrevPhase = 'idle';
   private bossPhaseAt = 0;
+  /** Current scroll (set by update; used to convert absolute positions into group-local). */
+  private scroll = 0;
 
   constructor() {
     this.shadowTex = makeShadowTexture();
 
-    // ---- Ground scenery: true-proportion neighborhood (near → far depth layers) ----
-    const g = (
-      art: keyof typeof ART,
-      meters: number,
-      x: number,
-      z: number,
-      tilt: number,
-      cap = MAX_SIZE,
-      yOff = 0.42,
-      band: [number, number, number, number] = [0, 0, 6.5, 10],
-      rotZ = 0,
-    ) => {
+    // ---- Ground scenery: fixed sizes, parked on the counter (y=0 plane), scrolls away ----
+    const g = (art: keyof typeof ART, size: number, x: number, z: number, tilt: number, yOff = 0.42, rotZ = 0) => {
       const b = board(ART[art]!, 1, 1, tilt);
       if (rotZ) b.group.rotation.z = rotZ;
+      b.group.scale.setScalar(size);
+      b.group.position.set(x, size * yOff, z);
       this.group.add(b.group);
       const shadow = new THREE.Mesh(
         new THREE.PlaneGeometry(1, 1),
         new THREE.MeshBasicMaterial({ map: this.shadowTex, transparent: true, depthWrite: false, opacity: 0.32 }),
       );
       shadow.rotation.x = -Math.PI / 2;
+      shadow.scale.setScalar(size * 0.9);
       shadow.position.set(x, 0.02, z);
-      shadow.renderOrder = -2; // after the ground disc (-3), before the cutouts (0) - see zone1.ts
+      shadow.renderOrder = -2; // after the ground disc (-3), before the cutouts (0)
       this.group.add(shadow);
-      this.ground.push({
-        board: b,
-        meters,
-        x,
-        z,
-        cap,
-        shadow,
-        yOff,
-        // Size when the prop first fades in - convergence is relative to its own era.
-        startSize: Math.min(cap, meters / mPerWAt(band[1])),
-        minPosScale: 3.4 / Math.max(3.4, Math.hypot(x, z)),
-        band,
-      });
+      return b;
     };
-    // Each prop lives in the altitude ERA it belongs to (raw bands): counter clutter leaves as
-    // you clear the fridge; the yard/neighborhood only exists once you burst through the roof.
-    // KITCHEN STILL LIFE (zone-1 redesign): one deliberate baseline arc behind the goop, deep
-    // enough that nothing crops at portrait framing (fit rule: |x| + size/2 <= 0.215 * (7+|z|)).
-    // Toaster full-in-frame left, mascot salt shaker mid-right, steaming mug far right, and the
-    // spoon LYING FLAT up front (rotZ) like someone just stirred something.
-    g('toaster', 0.34, -1.8, -12, -0.1, 4.4, 0.42, [0, 0, 9, 12]); // outlives the rest: it has a toast to deliver at zone 2
-    g('saltShaker', 0.32, 1.7, -11, 0.12, 3.6, 0.42);
-    g('mug', 0.14, 2.7, -13.5, 0.16, 3.0, 0.29);
-    g('spoon', 0.24, -1.3, -9, -0.06, 2.4, 0.16, [0, 0, 6.5, 10], 1.35);
-    this.toaster = this.ground[0]!;
-    // Yard (appears at the roofline).
-    g('fence', 1.4, 2.6, -9, 0.12, 6, 0.42, [11, 13.5, 17, 22]);
-    g('bush', 1.1, -2.8, -8.5, -0.1, 5, 0.42, [11, 13.5, 17, 22]);
-    // Neighborhood (suburban skyline era).
-    g('house', 8, -4.5, -14, -0.15, 10, 0.42, [12, 14, 20, 26]);
-    g('waterTower', 12, 5, -17, 0.22, 11, 0.42, [12.5, 14.5, 21, 27]);
-    g('house', 10, 8, -22, 0.3, 12, 0.42, [12, 14, 20, 26]);
-    // (The distant landscape is now the 360-degree parallax panorama - see backdrop.ts. A
-    // finite hills cutout here had visible left/right edges.)
+    // KITCHEN STILL LIFE: one deliberate baseline arc behind the goop (fit rule for ortho:
+    // |x| + size/2 must stay inside ~5.5 * aspect at zoom 1; these all do in portrait).
+    this.toasterBoard = g('toaster', 4.4, -1.8, -12, -0.1);
+    this.toaster = { x: -1.8, y: 4.4 * 0.42, z: -12, size: 4.4 };
+    g('saltShaker', 3.6, 1.7, -11, 0.12);
+    g('mug', 3.0, 2.9, -13.5, 0.16, 0.29);
+    g('spoon', 2.4, -1.3, -9, -0.06, 0.16, 1.35);
+    // Yard + neighborhood, parked at the altitudes where they belong (they sweep past).
+    const park = (art: keyof typeof ART, raw: number, size: number, x: number, z: number, tilt: number) => {
+      const b = board(ART[art]!, 1, 1, tilt);
+      b.group.scale.setScalar(size);
+      b.group.position.set(x, altitudeY(raw), z);
+      this.group.add(b.group);
+    };
+    park('fence', 11, 3.5, 2.6, -9, 0.12);
+    park('bush', 11.5, 2.8, -2.8, -8.5, -0.1);
+    park('house', 13, 6, -3.6, -14, -0.15);
+    park('waterTower', 14, 7, 3.4, -15, 0.22);
+    park('house', 15.5, 6.5, 4.2, -20, 0.3);
 
-    // ---- Altitude flybys: placed at REAL altitudes, sized honestly with a readable floor ----
+    // ---- Flybys: parked at their real altitudes, fixed readable sizes ----
     const add = (
       art: keyof typeof ART,
       altMeters: number,
-      meters: number,
-      floor: number,
+      size: number,
       x: number,
       z: number,
       tilt: number,
-      window = WINDOW,
       animate?: Flyby['animate'],
     ) => {
       const b = board(ART[art]!, 1, 1, tilt);
+      b.group.scale.setScalar(size);
       b.group.visible = false;
       this.group.add(b.group);
       this.flybys.push({
-        raw: rawForMeters(altMeters),
-        meters,
-        floor,
         board: b,
         baseX: x,
+        baseY: altitudeY(rawForMeters(altMeters)),
         baseZ: z,
         phase: this.flybys.length * 1.7,
-        window,
         animate,
       });
     };
 
-    // Low-altitude gags get tight windows so they only exist in their own era. (The cat photo
-    // now hangs on the kitchen WALL - backdrop.ts era 0 - where a cat photo belongs.)
-    add('bird', 25, 0.5, 1.7, -2.8, -5, -0.15, 3, (o, t) => (o.position.x += Math.sin(t * 0.7) * 0.8));
-    add('bird', 60, 0.5, 1.3, 2.4, -6, 0.1, 3.5, (o, t) => (o.position.x += Math.cos(t * 0.55) * 0.7));
-    add('kite', 120, 1.5, 2.3, 2.9, -8, 0.18, 4, (o, t) => {
-      o.position.x += Math.sin(t * 0.5) * 0.5;
+    add('bird', 25, 1.7, -2.8, -5, -0.15, (o, t) => (o.position.x = -2.8 + Math.sin(t * 0.7) * 0.8));
+    add('bird', 60, 1.3, 2.4, -6, 0.1, (o, t) => (o.position.x = 2.4 + Math.cos(t * 0.55) * 0.7));
+    add('kite', 120, 2.3, 2.9, -8, 0.18, (o, t) => {
+      o.position.x = 2.9 + Math.sin(t * 0.5) * 0.5;
       o.rotation.z = Math.sin(t * 0.8) * 0.25;
     });
-    add('blimp', 420, 60, 4.6, -3.4, -10, -0.12, 5, (o, t) => (o.position.x += Math.sin(t * 0.22) * 1.2));
-    add('balloon', 750, 22, 3.6, 3.6, -10, 0.16, 5, (o, t) => (o.position.y += Math.sin(t * 0.4) * 0.3));
-    add('cloud', 2_000, 400, 4.4, 3.2, -9, 0.1, WINDOW, (o, t) => (o.position.x += Math.sin(t * 0.18) * 1.2));
-    add('cloud', 5_500, 700, 5, -3.6, -8, -0.14, WINDOW, (o, t) => (o.position.x += Math.cos(t * 0.15) * 1.4));
-    add('jet', 10_500, 45, 4.6, 0, -12, 0, WINDOW, (o, t) => {
+    add('blimp', 420, 4.6, -3.4, -10, -0.12, (o, t) => (o.position.x = -3.4 + Math.sin(t * 0.22) * 1.2));
+    add('balloon', 750, 3.6, 3.6, -10, 0.16, (o, t) => (o.position.y = o.userData.y0 + Math.sin(t * 0.4) * 0.3));
+    add('cloud', 2_000, 4.4, 3.2, -9, 0.1, (o, t) => (o.position.x = 3.2 + Math.sin(t * 0.18) * 1.2));
+    add('cloud', 5_500, 5, -3.6, -8, -0.14, (o, t) => (o.position.x = -3.6 + Math.cos(t * 0.15) * 1.4));
+    add('jet', 10_500, 4.6, 0, -12, 0, (o, t) => {
       o.position.x = ((t * 2.6) % 30) - 15; // a busy route, apparently
     });
-    add('satellite', 6e5, 15, 4, 3.2, -9, -0.2);
-    add('astronaut', 9e5, 2, 3, -2.8, -8, 0.14, WINDOW, (o, t) => {
+    add('satellite', 6e5, 4, 3.2, -9, -0.2);
+    add('astronaut', 9e5, 3, -2.8, -8, 0.14, (o, t) => {
       o.rotation.z = Math.sin(t * 0.3) * 0.35;
-      o.position.x += Math.sin(t * 0.25) * 0.6;
+      o.position.x = -2.8 + Math.sin(t * 0.25) * 0.6;
     });
-    add('ufo', 5e6, 18, 4.2, 3.4, -10, -0.1, WINDOW, (o, t) => (o.position.x += Math.sin(t * 0.6) * 0.9));
-    add('moon', 5e7, 3.5e6, 6.5, -5.5, -16, 0.12);
-    add('facePlanet', 4e8, 1.2e7, 8, 6, -18, -0.14);
-    add('whale', 1.2e11, 3e9, 8.5, -5, -16, 0.1, WINDOW, (o, t) => {
-      o.position.x += Math.sin(t * 0.2) * 1.5;
-      o.position.y += Math.sin(t * 0.35) * 0.4;
+    add('ufo', 5e6, 4.2, 3.4, -10, -0.1, (o, t) => (o.position.x = 3.4 + Math.sin(t * 0.6) * 0.9));
+    add('moon', 5e7, 6.5, -4, -16, 0.12);
+    add('facePlanet', 4e8, 8, 4.4, -18, -0.14);
+    add('whale', 1.2e11, 8.5, -3.5, -16, 0.1, (o, t) => {
+      o.position.x = -3.5 + Math.sin(t * 0.2) * 1.5;
+      o.position.y = o.userData.y0 + Math.sin(t * 0.35) * 0.4;
     });
-    // (The hand of God is no longer a passive flyby - it is the BOSS, staged below.)
+    for (const f of this.flybys) f.board.group.userData.y0 = f.baseY;
 
     // ---- The Flick: boss hand actor (three pose boards, crossfaded by phase) ----
     for (const art of ['hand', 'handFlick', 'handThumb'] as const) {
@@ -230,12 +159,7 @@ export class ScaleMarkers {
       this.boss[art] = b;
     }
 
-    // The home planet, receding below as you leave it (ground recession).
-    this.planet = cutout(ART['planetBall']!, 1, 1, 512);
-    this.planet.visible = false;
-    this.group.add(this.planet);
-
-    // Two toast slices, hidden until the Zone 2 ding (the gag lives in update()).
+    // Two toast slices, hidden until the Zone 2 ding.
     for (let i = 0; i < 2; i++) {
       const tb = board(ART['toast']!, 1, 1, i === 0 ? 0.15 : -0.1);
       tb.group.visible = false;
@@ -244,104 +168,51 @@ export class ScaleMarkers {
     }
   }
 
-  /** `topRaw`/`topY` should be the SMOOTHED reference (renderer's slow follower), not the live
-   *  sprung tower top - that is what keeps the world from bouncing on taps. */
-  update(topRaw: number, topY: number, t: number, zoom = 1, bossPhase = 'idle', bossMeter = 0): void {
-    this.updateBoss(topY, t, bossPhase, bossMeter);
-    // Meters represented by one world unit at the current height (guarded near zero).
-    const mPerW = Math.max(0.02, displayMeters(Math.max(0.35, topRaw))) / Math.max(0.5, topY);
+  /** `topRaw` is the SMOOTHED raw reference; `crownY` the goop crown's local world y. The
+   *  renderer sets this.group.position.y = -scrollOf(topRaw) BEFORE calling update. */
+  update(topRaw: number, crownY: number, t: number, zoom = 1, bossPhase = 'idle', bossMeter = 0): void {
+    this.scroll = scrollOf(topRaw);
+    this.updateBoss(crownY, t, bossPhase, bossMeter);
 
-    // Ground scenery: true proportion, each prop confined to its altitude band. Positions
-    // CONVERGE with the same factor the sizes shrink by ("a growing giant sees the neighborhood
-    // pull together beneath it") - fixed positions read as "items shrinking apart", the exact
-    // wrong story.
-    for (const p of this.ground) {
-      const alpha = bandAlpha(topRaw, p.band);
-      const size = Math.min(p.cap, p.meters / mPerW);
-      const visible = alpha > 0.02 && size > 0.1;
-      p.board.group.visible = visible;
-      p.shadow.visible = visible;
-      if (!visible) continue;
-      const s = Math.max(p.minPosScale, Math.min(1, size / p.startSize));
-      const px = p.x * s;
-      const pz = p.z * s;
-      p.board.group.scale.setScalar(size);
-      p.board.group.position.set(px, size * p.yOff, pz);
-      p.board.setOpacity(alpha);
-      p.shadow.position.set(px, 0.02, pz);
-      p.shadow.scale.setScalar(size * 0.9);
-      (p.shadow.material as THREE.MeshBasicMaterial).opacity = 0.32 * alpha;
-    }
-
-    // Flybys.
+    // Flybys: visible while on the stage (cheap screen-band cull); idle wobble.
+    const band = 8 * zoom + 6;
     for (const m of this.flybys) {
-      const delta = m.raw - topRaw;
       const o = m.board.group;
-      if (Math.abs(delta) > m.window * zoom) {
-        o.visible = false;
-        continue;
-      }
-      // Honest size with a readable approach floor that decays away once passed.
-      const trueSize = m.meters / mPerW;
-      const floorNow = m.floor * (delta >= 0 ? 1 : Math.exp(delta / 2.6));
-      const size = Math.min(MAX_SIZE, Math.max(trueSize, floorNow));
-      if (size < 0.18) {
-        o.visible = false;
-        continue;
-      }
-      o.visible = true;
-      o.scale.setScalar(size);
-      o.position.set(m.baseX, Math.max(0.4, topY + delta * K), m.baseZ);
-      o.rotation.z = Math.sin(t * 0.9 + m.phase) * 0.05; // paper wobble
+      const screenY = m.baseY - this.scroll;
+      const visible = Math.abs(screenY - crownY * 0.6) < band;
+      o.visible = visible;
+      if (!visible) continue;
+      o.rotation.z = Math.sin(t * 0.9 + m.phase) * 0.05 + (o.rotation.z - Math.sin(t * 0.9 + m.phase) * 0.05) * 0;
       m.animate?.(o, t);
     }
 
-    // Toast-pop gag: crossing into Zone 2 (raw 8.5) while the toaster is still on screen fires
-    // two slices in a lazy arc. One-shot per run (rearms when a fresh run starts near 0).
+    // Toast-pop gag: crossing into Zone 2 (raw 8.5) fires two slices in a lazy arc.
     if (topRaw < 2 && this.toastFiredAt >= 0) this.toastFiredAt = -1;
-    if (this.toastFiredAt < 0 && topRaw >= 8.5 && topRaw < 10.5 && this.toaster) {
-      this.toastFiredAt = t;
-    }
+    if (this.toastFiredAt < 0 && topRaw >= 8.5 && topRaw < 10.5 && this.toaster) this.toastFiredAt = t;
     if (this.toastFiredAt >= 0 && this.toaster) {
-      const p = t - this.toastFiredAt; // seconds since pop
+      const p = t - this.toastFiredAt;
       const tp = this.toaster;
-      const ts = Math.min(tp.cap, tp.meters / mPerW);
-      const s = Math.max(tp.minPosScale, Math.min(1, ts / tp.startSize));
       for (let i = 0; i < 2; i++) {
         const tb = this.toastBoards[i]!;
-        const alive = p >= 0 && p < 2.4 && tp.board.group.visible;
+        const alive = p >= 0 && p < 2.4 && (this.toasterBoard?.group.visible ?? false);
         tb.group.visible = alive;
         if (!alive) continue;
         const dir = i === 0 ? -0.55 : 0.7;
-        const size = ts * 0.3;
-        tb.group.scale.setScalar(size);
+        tb.group.scale.setScalar(tp.size * 0.3);
         tb.group.position.set(
-          tp.x * s + dir * p * ts * 0.35,
-          ts * tp.yOff + ts * 0.35 + 2.6 * ts * 0.35 * p - 1.6 * ts * 0.35 * p * p,
-          tp.z * s + 0.3,
+          tp.x + dir * p * tp.size * 0.35,
+          tp.y + tp.size * 0.35 + 2.6 * tp.size * 0.35 * p - 1.6 * tp.size * 0.35 * p * p,
+          tp.z + 0.3,
         );
         tb.group.rotation.z = (i === 0 ? 1 : -1) * p * 2.2;
         tb.setOpacity(p < 1.8 ? 1 : Math.max(0, 1 - (p - 1.8) / 0.6));
       }
     }
-
-    // Planet recession: from "the ground you left" to a dot far below (raw ~13 → ~72).
-    if (topRaw > 13 && topRaw < 72) {
-      const p = Math.min(1, (topRaw - 13) / 45);
-      const size = 26 * (1 - p) + 2.2 * p;
-      this.planet.visible = true;
-      this.planet.scale.set(size, size, 1);
-      this.planet.position.set(0.5, -size * 0.32 - (topRaw - 13) * K * 0.55, -20);
-      (this.planet.material as THREE.SpriteMaterial).opacity =
-        Math.min(1, (topRaw - 13) / 3) * (p < 0.92 ? 1 : (1 - p) / 0.08);
-    } else {
-      this.planet.visible = false;
-    }
   }
 
-  /** The Flick choreography: descend + wind up while fighting (tremble grows with the meter),
-   *  snap-and-withdraw on the flick, a slow thumbs-up on defeat. */
-  private updateBoss(topY: number, t: number, phase: string, meter: number): void {
+  /** The Flick choreography in ABSOLUTE stage space (+scroll converts to group-local so the
+   *  hand tracks the goop, not the scenery). */
+  private updateBoss(crownY: number, t: number, phase: string, meter: number): void {
     if (phase !== this.bossPrevPhase) {
       this.bossPrevPhase = phase;
       this.bossPhaseAt = t;
@@ -353,41 +224,39 @@ export class ScaleMarkers {
     if (!hand || !flick || !thumb) return;
     hand.group.visible = flick.group.visible = thumb.group.visible = false;
     const SIZE = 7;
+    const yAt = (worldY: number) => worldY + this.scroll; // group-local for an absolute stage y
 
     if (phase === 'fight') {
-      // Descend over ~2s, hover beside the crown, wind up + tremble as the meter fills.
       const drop = Math.min(1, since / 2);
       const ease = 1 - Math.pow(1 - drop, 3);
       hand.group.visible = true;
       hand.group.scale.setScalar(SIZE);
       hand.group.position.set(
         2.4 + Math.sin(t * 0.6) * 0.2 + Math.sin(t * 21) * 0.12 * meter,
-        topY + 8.5 - ease * 4.6 + Math.sin(t * 0.8) * 0.15,
+        yAt(crownY + 8.5 - ease * 4.6 + Math.sin(t * 0.8) * 0.15),
         -9,
       );
-      hand.group.rotation.z = -0.12 - meter * 0.5; // the cocked finger draws back
+      hand.group.rotation.z = -0.12 - meter * 0.5;
       hand.setOpacity(Math.min(1, since / 0.6));
     } else if (phase === 'cooldown') {
-      // THE FLICK: snap pose for a beat, then withdraw skyward.
       if (since < 1.1) {
         flick.group.visible = true;
         flick.group.scale.setScalar(SIZE);
-        flick.group.position.set(2.1, topY + 3.6, -9);
+        flick.group.position.set(2.1, yAt(crownY + 3.6), -9);
         flick.group.rotation.z = 0.55 - Math.min(0.4, since * 1.6);
         flick.setOpacity(1);
       } else if (since < 2.6) {
         hand.group.visible = true;
         hand.group.scale.setScalar(SIZE);
-        hand.group.position.set(2.4, topY + 3.9 + (since - 1.1) * 5, -9);
+        hand.group.position.set(2.4, yAt(crownY + 3.9 + (since - 1.1) * 5), -9);
         hand.group.rotation.z = -0.12;
         hand.setOpacity(Math.max(0, 1 - (since - 1.1) / 1.4));
       }
     } else if (phase === 'defeated') {
-      // Begrudging divine approval, then gone.
       if (since < 6) {
         thumb.group.visible = true;
         thumb.group.scale.setScalar(SIZE);
-        thumb.group.position.set(2.2, topY + 4 + Math.sin(t * 0.7) * 0.25, -9);
+        thumb.group.position.set(2.2, yAt(crownY + 4 + Math.sin(t * 0.7) * 0.25), -9);
         thumb.group.rotation.z = Math.sin(t * 0.5) * 0.06;
         thumb.setOpacity(since < 4.6 ? Math.min(1, since / 0.8) : Math.max(0, 1 - (since - 4.6) / 1.4));
       }
@@ -411,8 +280,4 @@ export function makeShadowTexture(): THREE.CanvasTexture {
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
-}
-
-function clamp01(v: number): number {
-  return v < 0 ? 0 : v > 1 ? 1 : v;
 }

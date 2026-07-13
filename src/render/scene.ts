@@ -21,7 +21,9 @@ export function createScene(canvas: HTMLCanvasElement, maxDpr = 2): SceneBundle 
   canvas.addEventListener('webglcontextlost', (e) => e.preventDefault(), false);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0x14121a, 12, 60);
+  // Ranges account for the ORTHO stage camera sitting at z=60: the goop plane is ~60 away,
+  // cutout layers 65-80, backdrop shells ~100-120 (they get the deepest haze).
+  scene.fog = new THREE.Fog(0x14121a, 66, 130);
 
   // Soft fill from sky/ground + a key light for goop gloss + a warm rim.
   const hemi = new THREE.HemisphereLight(0xffffff, 0x404050, 0.9);
