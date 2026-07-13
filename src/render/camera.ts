@@ -4,17 +4,14 @@
  * Orthographic, locked front-on: the scene reads like a paper diorama, which is what the
  * cardboard-cutout art wants, and - the real reason - it makes GROWTH legible. A perspective
  * camera confounds three signals (dolly-back, prop rescaling, goop growth); an ortho frame is
- * a fixed ruler. Growth now presents in two phases:
+ * a fixed ruler. The camera NEVER rises: the goop base (world y=0) sits on the DOM-stage
+ * base line (anchor.yBase) for the whole game, the goop grows within that fixed frame (its
+ * 9x growth is the primary cue) while the WORLD scrolls down behind it (the altitude cue).
+ * One frame, no phases, nothing to mis-read.
  *
- *   1. GROW-IN: while the tower is short the frame holds still and the goop visibly gets
- *      bigger inside it (a smear becomes half the screen).
- *   2. SCROLL: once the goop top clears the headroom line the camera RISES with it, so the
- *      world (counter, houses, clouds, Moon - all parked at absolute altitudes) streams
- *      DOWNWARD past you. Rising past a water tower is unambiguous scale.
- *
- * The camera rise eases (~1.5s) so growth spurts push the crown up-screen before the frame
- * catches up - "the goop grew" stays the perceived cause. The `anchor` keeps the tower inside
- * the DOM stage region (portrait vs landscape HUD layouts), same contract as before.
+ * The anchor is stage-derived (index.ts measures the #stage rect), which matters for INPUT
+ * too: the stage click-catcher ends above the bottom HUD (portrait: bottom 22vh), so the
+ * base line must stay inside it or the early-game goop renders below the tappable region.
  */
 
 import * as THREE from 'three';
@@ -30,10 +27,12 @@ export interface Anchor {
  *  HEIGHT-driven in landscape. */
 const VIEW_H = 12;
 const VIEW_W = 9.4;
-/** NDC line the goop's base (world y=0) sits on - CONSTANT for the whole game. The goop grows
- *  within this fixed frame (its 9x growth is the primary cue) while the WORLD scrolls down
- *  behind it (the altitude cue). One frame, no phases, nothing to mis-read. */
-const BASE_NDC = -0.92;
+/** The tower's max crown (~10.8 world at WIN, tower.ts STAGE_SCALE) plus margin: the frame
+ *  must always hold this much world between the base line and HEADROOM_NDC, or the crown
+ *  clips off the top of the screen late game (bites in landscape, where the stage-anchored
+ *  base line sits well above the screen bottom). */
+const CROWN_FIT = 11.4;
+const HEADROOM_NDC = 0.95;
 
 export class TowerCamera {
   readonly camera: THREE.OrthographicCamera;
@@ -82,14 +81,16 @@ export class TowerCamera {
       this.zoomBoost = 1;
     }
     this.zoomBoost = Math.max(0, this.zoomBoost - dt);
-    const targetH = Math.max(VIEW_H, VIEW_W / Math.max(0.2, this.aspect)) * zoom + this.pulseAmt;
+    const yBase = Math.max(-0.98, Math.min(0, anchor.yBase));
+    const crownH = (2 * CROWN_FIT) / Math.max(0.4, HEADROOM_NDC - yBase);
+    const targetH = Math.max(VIEW_H, VIEW_W / Math.max(0.2, this.aspect), crownH) * zoom + this.pulseAmt;
     const kH = 1 - Math.exp(-dt / (this.zoomBoost > 0 ? 0.3 : 1.2));
     this.viewH += (targetH - this.viewH) * kH;
 
-    // Fixed vertical framing: the base line never moves.
+    // Fixed vertical framing: world y=0 sits on the stage base line for the whole game.
     const halfH = this.viewH / 2;
-    const baseCy = -BASE_NDC * halfH; // world y=0 lands on the base line
-    const kC = 1 - Math.exp(-dt / 0.6); // only zoom changes move it
+    const baseCy = -yBase * halfH;
+    const kC = 1 - Math.exp(-dt / 0.6); // only zoom/orientation changes move it
     this.cy += (baseCy - this.cy) * kC;
 
     // Horizontal anchor glide (portrait/landscape stage offsets).
