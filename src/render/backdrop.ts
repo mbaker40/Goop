@@ -59,7 +59,8 @@ export class Backdrop {
         side: THREE.BackSide, // we are inside the cylinder
         opacity: 0,
       });
-      const geo = new THREE.CylinderGeometry(radius, radius, 34, 48, 1, true);
+      // Height sized for the ORTHO stage (perspective distance no longer shrinks the shell).
+      const geo = new THREE.CylinderGeometry(radius, radius, 20, 48, 1, true);
       const mesh = new THREE.Mesh(geo, mat);
       mesh.renderOrder = renderOrder;
       group.add(mesh);
@@ -72,13 +73,15 @@ export class Backdrop {
 
   /** `topRaw`/`topY` are the renderer's SMOOTHED reference (no tap bounce). */
   update(topRaw: number, topY: number, _dt: number, t: number): void {
+    // `topY` is the crown's ABSOLUTE stage altitude (side-view scroll model): the shells ride
+    // just below the camera so a horizon always exists, sinking slightly per-shell for
+    // parallax - the near shell trails more than the far one.
+    const cam = topY - 2;
     for (const s of this.shells) {
       // Slow drift + a climb-coupled turn: rising also pans the horizon (parallax between
       // shells comes from the differing factors).
       s.group.rotation.y = t * 0.004 * s.parallax + topRaw * 0.012 * s.parallax;
-      // The band sits at horizon height and SINKS gently as you climb (passing it), clamped so
-      // a backdrop always remains - "background parallaxes persist indefinitely".
-      s.group.position.y = topY * 0.4 - Math.min(7, topRaw * 0.14) * s.parallax;
+      s.group.position.y = cam - Math.min(6, Math.max(0, topRaw - 6) * 0.35) * s.parallax;
       // Era blend by altitude.
       for (let era = 0; era < ERAS; era++) {
         const w = eraWeight(topRaw, era);

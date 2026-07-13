@@ -52,7 +52,8 @@ export class GoopTower {
   addBlob(world: THREE.Vector3, power = 1): void {
     const fx = clamp(0.5 + world.x / (2 * RADIUS), 0.22, 0.78);
     const fz = clamp(0.5 + world.z / (2 * RADIUS), 0.22, 0.78);
-    const fy = clamp(world.y / TOWER_WORLD_HEIGHT, 0.09, 0.82);
+    // World -> field space accounts for the tower riding the altitude scroll (position.y).
+    const fy = clamp((world.y - this.object.position.y) / TOWER_WORLD_HEIGHT, 0.09, 0.82);
     this.blobs.push({ fx, fy, fz, r: 0.4 + 0.35 * power, age: 0 });
     if (this.blobs.length > 14) this.blobs.shift();
   }
@@ -90,6 +91,8 @@ export class GoopTower {
       sheen: 0.5,
       emissive: new THREE.Color(0x000000),
     });
+    this.shaft.material = this.material;
+    this.shaft.visible = false;
     this.mc = new MarchingCubes(resolution, this.material, true, false, 40000);
     this.mc.isolation = 60;
     this.mc.scale.set(RADIUS, TOWER_WORLD_HEIGHT / 2, RADIUS);
@@ -126,7 +129,9 @@ export class GoopTower {
     combo: number,
     collapseTimer: number,
     dt: number,
+    scroll = 0,
   ): number {
+    const riding = scroll > 2;
     this.t += dt;
 
     // Height growth spring: under-damped follow so goop gains visibly push the tower up
@@ -163,18 +168,23 @@ export class GoopTower {
     this.fieldAcc += dt;
     if (this.fieldAcc >= this.fieldDt) {
       this.fieldAcc %= this.fieldDt;
-      const bottom = 0.07;
+      // While RIDING the altitude scroll, the lattice is a sliding WINDOW onto the top of an
+      // endless column: the body fills the whole lattice (its floor cut is a full-width plane
+      // the shaft cylinder continues from, far below the crown). Grounded, it's the classic
+      // blob standing on its foot.
       // 0.76 (not 0.8): ball centers + iso-surface extent must stay inside the marching-cubes
       // unit lattice, or a maxed tower's crown gets planar-clipped at the grid ceiling (the
       // "top of the goop cuts off" bug at Zone 15 heights).
-      const top = bottom + fill * 0.76;
-      const count = Math.max(3, Math.round(fill * 22));
+      const bottom = riding ? 0.02 : 0.07;
+      const top = riding ? 0.79 : bottom + fill * 0.76; // riding: headroom for the fresh-goop swell too
+      const count = riding ? 24 : Math.max(3, Math.round(fill * 22));
       const mc = this.mc;
       mc.reset();
       // Base foot; slim while young (a fresh run starts as a cute blob, not a monolith), thickens
-      // as the tower fills toward WIN, and swells/spreads into a puddle during collapse.
+      // as the tower fills toward WIN, and swells/spreads into a puddle during collapse. While
+      // riding there is no foot - the column runs off the lattice floor at full width.
       const girth = 0.55 + fill * 0.75;
-      mc.addBall(0.5, bottom, 0.5, (0.82 + fill * 0.85) + cAmt * 1.9, 10);
+      if (!riding) mc.addBall(0.5, bottom, 0.5, (0.82 + fill * 0.85) + cAmt * 1.9, 10);
       const spread = cAmt * 0.34;
       if (spread > 0.001) {
         for (let j = 0; j < 6; j++) {
@@ -253,8 +263,10 @@ export class GoopTower {
     const swayZ = Math.cos(this.t * 1.03) * swayAmp * 0.8;
 
     // Apply lean as rotation about the base; taller towers lean more visibly. Clamped so spam
-    // slapping wobbles the tower dramatically but can never pitch it out of frame.
-    const leanScale = 0.6 + fill * 0.9;
+    // slapping wobbles the tower dramatically but can never pitch it out of frame. While riding
+    // the scroll the pivot is ~a full frame below the crown, so the same angle displaces the
+    // visible column hugely - damp it (the jelly feel lives in swell/boil up there anyway).
+    const leanScale = (0.6 + fill * 0.9) * (riding ? 0.22 : 1);
     this.object.rotation.z = clamp((this.leanX + swayX) * leanScale, -0.17, 0.17);
     this.object.rotation.x = clamp(-(this.leanZ + swayZ) * leanScale, -0.17, 0.17);
     // Squash (collapse only) from the ground up + the radial slap swell.
@@ -275,12 +287,44 @@ export class GoopTower {
     // only the collapse slump moves the framing (the camera should follow the tower down).
     const fillTop = 0.07 + fill * 0.76;
     const camScaleY = collapsing || dead ? this.object.scale.y : 1;
-    return TOWER_WORLD_HEIGHT * fillTop * camScaleY;
+    const localTop = TOWER_WORLD_HEIGHT * fillTop * camScaleY;
+    // ABSOLUTE crown on the stage. Grounded: base sits on the counter (foot-sink -0.7).
+    // Riding: slide the lattice window down so its drawn top IS the crown.
+    const crownAbs = scroll - 0.7 + localTop;
+    this.object.position.y = riding ? crownAbs - TOWER_WORLD_HEIGHT * 0.79 : scroll - 0.7;
+    return crownAbs;
   }
 
   /** World position near the tower top (for spawning splats at the impact point). */
   topWorld(out: THREE.Vector3): THREE.Vector3 {
-    return out.set(0, TOWER_WORLD_HEIGHT * 0.55 * this.object.scale.y, 0).applyEuler(this.object.rotation);
+    out.set(0, TOWER_WORLD_HEIGHT * 0.55 * this.object.scale.y, 0).applyEuler(this.object.rotation);
+    out.y += this.object.position.y;
+    return out;
+  }
+
+  /** The goop SHAFT: on the side-view stage the tower rides the altitude scroll, so its true
+   *  base leaves the frame - this plain column (same material, so it tints/glows in sync)
+   *  fills from below the viewport up into the marching-cubes foot, selling "the tower
+   *  continues down forever". Added to the scene by the renderer. */
+  readonly shaft = new THREE.Mesh(
+    // Origin at the TOP: the shaft hangs from the goop's base point (which never displaces -
+    // the lean pivots there), so wobble can sway the column below without splitting the seam.
+    new THREE.CylinderGeometry(1.06, 0.92, 1, 28, 1).translate(0, -0.5, 0),
+  );
+
+  setShaft(bottomY: number, topY: number, fill: number): void {
+    const len = topY - bottomY;
+    if (len <= 0.1) {
+      this.shaft.visible = false;
+      return;
+    }
+    this.shaft.visible = true;
+    // Track the mc column's measured width so the hand-off is silhouette-continuous.
+    const r = (1.14 + fill * 0.42) * (1 + Math.max(0, this.swell) * 0.3);
+    this.shaft.scale.set(r, len, r);
+    this.shaft.position.set(this.object.position.x, topY, this.object.position.z);
+    // Gentle counter-sway below the seam; the top stays glued to the goop's pivot point.
+    this.shaft.rotation.z = this.object.rotation.z * 0.6;
   }
 
   get debugHeight(): number {

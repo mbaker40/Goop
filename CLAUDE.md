@@ -247,6 +247,26 @@ the whole tutorial headless and screenshots each beat.
   ~47K). 50 tests green (boss gate, flick knockback, endless depth). `scripts/_bossprobe.mjs`
   forces each phase via ?debug for screenshots.
 
+**Done: M3 (slice 10) - FLAT SIDE-VIEW STAGE (2026-07-13, the view rework).** Perspective 3D
+confounded growth signals (dolly vs rescale vs growth); the game is now an ORTHO side-view
+paper-diorama elevator ride. Key mental model:
+- `camera.ts`: OrthographicCamera, locked front-on. Frame WIDTH-driven in portrait (VIEW_W
+  10.5) / height-driven landscape (VIEW_H 11); zoom scales the frame. Two phases: GROW-IN
+  (base y=0 pinned to BASE_NDC -0.52, goop visibly grows in a fixed frame) then SCROLL (camera
+  rises to keep the crown at HEADROOM 0.66, tau 1.5s ease + never-lose-the-crown clamp).
+- `markers.ts`: props parked at ABSOLUTE altitudes with FIXED sizes - altitudeY(raw) =
+  crownLocal(raw) + scrollOf(raw), scrollOf = 3*(raw-6) world units. NOTHING rescales; things
+  sweep past. Kitchen still life on the y=0 counter; yard/houses parked at raw 11-15.5;
+  flybys at rawForMeters altitudes; boss hand positions in absolute stage space.
+- `tower.ts`: while riding (scroll>2) the mc lattice is a sliding WINDOW on the column top
+  (body fills lattice 0.02..0.79, full-width planar floor cut, no foot; position = crown -
+  7.9); a same-material cylinder `shaft` (top-pivoted so lean can't split the seam, radius
+  matched 1.14+0.42*fill) continues the column below frame. Grounded (scroll<=2) it's the
+  classic foot blob. update() takes `scroll` and returns the ABSOLUTE crown.
+- Fog retuned (66..130) for the ortho camera at z=60. Backdrop shells ride just below the
+  camera with per-shell sink = parallax. Old world-shrink/true-proportion/groundShrink/orbit
+  code is GONE. Verify with mockshots (grow-in ~2s, ride 6s+, eras, boss via _bossprobe).
+
 **Next (see `docs/release-roadmap.md` for the full ordered list):** Phase 2 release hardening
 (real-device iOS/Android QA, save export/import UI + offline tests, service worker/wake-lock,
 dynamic-import render for first paint), prestige-path mid-zone-wall smoothing, Endless GE

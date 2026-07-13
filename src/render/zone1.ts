@@ -259,26 +259,9 @@ export class Environment {
     this.towerShadow.scale.setScalar(Math.max(0.1, scale));
   }
 
-  /** Shrink the whole counter diorama (disc + tile grid + rim) with the world - same factor as
-   *  the scenery convergence in markers.ts (see groundShrink there). The tiles shrinking under
-   *  the goop is the strongest "I am growing" cue on screen. */
-  setGroundShrink(s: number): void {
-    // Floor: the disc must always outsize the tower's footprint (radius 26 × 0.42 ≈ 11 world
-    // units vs foot ~5), or its rim draws as a ring cutting through the goop.
-    const g = Math.max(0.42, s);
-    // The disc is rotated flat, so local x/y span world x/z; the texture shrinks with the mesh.
-    this.ground.scale.set(g, g, 1);
-    this.edge.scale.set(g, g, g);
-    this.edge.position.y = -0.82 * g;
-    // The cutting board shrinks with the TRUE factor (no floor needed - it may vanish under
-    // the goop; by then you have outgrown the prep station).
-    const bs = Math.max(0.1, s);
-    this.board.scale.set(bs, bs, 1);
-    // Past the mesh floor, keep the TILES honest by tiling the texture more - otherwise the grid
-    // freezes at a constant size and reads as growing along with the goop.
-    const repeat = Math.min(8, g / Math.max(0.04, s));
-    const map = this.groundMat.map as THREE.CanvasTexture;
-    if (Math.abs(map.repeat.x - repeat) > 0.01) map.repeat.set(repeat, repeat);
+  /** Keep the far-shell dressing (starfield) centred on the camera as it rides the scroll. */
+  setViewCenter(y: number): void {
+    this.stars.position.y = y * 0.92;
   }
 }
 
