@@ -130,6 +130,7 @@ export function newState() {
     bangs: 0,                          // Big Bangs so far: survives hops, like asc (the Cosmic Memory perk reads it)
     startStage: 0,                     // the stage this run began in (a Head Start); prestige.canHop reads it
     costMult: 1,                       // feeder prices x this. 1 in the main game; the daily goop's mutators change it
+    caught: 0,                         // events caught this run (the run summary a leaderboard checks; stats.caught is lifetime)
   };
 }
 export function feederCost(s, i) { return Math.ceil(FEEDERS[i].cost * Math.pow(COST_GROWTH, s.own[i]) * (s.costMult || 1)); }

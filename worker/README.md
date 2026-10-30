@@ -11,7 +11,11 @@ Two pieces are already real, because they are the game's own code:
   event deck, perks and simulator (`../src/sim.js`), from the start the submission claims, at the
   submitted feeding rate. A run more than 35% faster than the best of three simulated seeds, or with more
   paid feeds than the click cap allows, or more caught events than can turn up, is flagged for the
-  Suspicious Goop board. It is tested in Node from the game's test suite (`test/worker.test.js`), no
+  Suspicious Goop board. Claims longer than 36 hours are refused (they would never place on a
+  "fastest" board), and one check simulates at most 56 hours of play: seeds after the first run only
+  while the claim still looks too fast. That is a few seconds of CPU in the worst case, so run the check
+  from a Queue consumer or `ctx.waitUntil` (store the run as pending, rank it when the check returns)
+  rather than inside the request. It is tested in Node from the game's test suite (`test/worker.test.js`), no
   Miniflare needed.
 - **The daily rule** behind `GET /daily` is `localDaily()` from `../src/daily.js`, the same function the
   game falls back to offline, so the two always agree.

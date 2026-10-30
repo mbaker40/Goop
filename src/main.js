@@ -6,7 +6,7 @@ import { SCENES } from './scenes/index.js';
 import { ASCEND_BONUS, OFFLINE_GRACE, SUN_AT, STAGES, END, newState, feederCost, slopPerSec, feedValue, earn, clickGate, awayPay, UPGRADES, canEatRest, eatRest, stageSpan } from './econ.js';
 import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget, riskNote, hitRadius } from './events.js';
 import { hop as hopRun, canHop, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, milestoneMult, PERKS } from './prestige.js';
-import { recordStage, recordEvent, recordFeed, newRun, bump, seedUnknownStages, SUN, UNIVERSE } from './stats.js';
+import { recordStage, recordEvent, recordFeed, newRun, bump, seedUnknownStages, runClaim, SUN, UNIVERSE } from './stats.js';
 import { passMilestones, seedMilestones } from './milestones.js';
 import { moodOf, pickThought, remember } from './mood.js';
 import { BEATS, LENGTH, cuesBetween, canSkip, frameAt, interruptedEnding } from './cutscene.js';
@@ -127,7 +127,7 @@ function onStage() {
 function win() {
   const s = G.state;
   s.winSeen = true; G.stats.wins++;
-  recordStage(G.stats, SUN, s.played); scores.submit('sun', s.played);
+  recordStage(G.stats, SUN, s.played); scores.submit('sun', s.played, undefined, runClaim(s));
   ui.showWin(); save(); badges();
 }
 function hop() {
@@ -153,7 +153,7 @@ function eatTheRest() {
   G.eatArm = 0; $('eatRest').querySelector('.nm').textContent = 'Eat the Rest';
   eatRest(s);
   G.stats.universes++;
-  recordStage(G.stats, UNIVERSE, s.played); scores.submit('universe', s.played);
+  recordStage(G.stats, UNIVERSE, s.played); scores.submit('universe', s.played, undefined, runClaim(s));
   sfx.gulp(); save();
   startCutscene(false);
 }
@@ -244,7 +244,7 @@ function collectEvent(i) {
   const s = G.state, st = G.stats, def = ev.def, tg = ev.targets[i] || ev.targets[0];
   const effect = isHazard(def) ? def.tap : isChoice(def) ? def.options[tg.opt].effect : def.effect;
   const res = applyEffect(s, effect, G.rand);
-  recordEvent(st, def.id, true);
+  recordEvent(st, def.id, true); s.caught = (s.caught | 0) + 1;
   if (isHazard(def)) st.hazardsTapped++;
   if (res.won === true) st.gambleWins++; else if (res.won === false) st.gambleLosses++;
   G.ev = null; G.evIn = gapAfter(true);
@@ -532,7 +532,7 @@ function leaveDaily(quiet) {
 function finishDaily() {
   const run = G.daily, secs = G.state.played;
   run.done = secs;
-  const r = scores.submit('daily', secs, run.date, { seconds: secs, clicks: G.stats.feeds, events: G.stats.caught });
+  const r = scores.submit('daily', secs, run.date, runClaim(G.state, run.mutator));
   G.main.stats.dailyDone++;
   G.ev = null; ui.announce('');
   sfx.stage(); buzz(BUZZ.stage);

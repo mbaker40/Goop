@@ -1,6 +1,11 @@
 // The leaderboard Worker's pure parts, in Node: no Miniflare, no deploy. See worker/README.md.
 import { describe, it, expect } from 'vitest';
-import { checkRun, summaryProblem, startState, TOLERANCE } from '../worker/src/plausible.js';
+import { checkRun, summaryProblem, startState, TOLERANCE, MAX_CLAIM_SECS, SIM_BUDGET } from '../worker/src/plausible.js';
+import { runSummary } from '../src/platform/scores.cloud.js';
+import { runClaim } from '../src/stats.js';
+import { newState } from '../src/econ.js';
+import { newDailyRun } from '../src/daily.js';
+import { freshRun } from '../src/prestige.js';
 import { handle, STUB_NOTE } from '../worker/src/index.js';
 import { maxedRun } from '../src/sim.js';
 import { localDaily } from '../src/daily.js';
@@ -35,6 +40,57 @@ describe('the plausibility check (the game\'s own rules, replayed)', () => {
     for (const bad of [null, {}, { kind: 'week', seconds: 5, clicks: 1 }, { kind: 'sun', seconds: -1, clicks: 0 }, { kind: 'sun', seconds: 600, clicks: 1, perks: { nope: 1 } }, { kind: 'daily', seconds: 600, clicks: 1, mutator: 'nope' }])
       expect(summaryProblem(bad)).not.toBe('');
     expect(checkRun({ kind: 'sun', seconds: 'x' }).flagged).toBe(true);
+  });
+  it('lookups are own properties only: prototype names are refused, never thrown on', () => {
+    for (const perks of [{ constructor: 1 }, { toString: 1 }, { __proto__: { head: 1 } }, JSON.parse('{"__proto__": 1}'), [1]]) {
+      const run = { kind: 'sun', seconds: 600, clicks: 600, perks };
+      expect(() => checkRun(run)).not.toThrow();
+      if (Object.keys(perks).length || Array.isArray(perks)) expect(summaryProblem(run)).not.toBe('');
+    }
+    for (const mutator of ['__proto__', 'constructor', 'hasOwnProperty', 'toString'])
+      expect(summaryProblem({ kind: 'daily', key: '2026-10-30', seconds: 900, clicks: 900, mutator })).toBe('unknown daily');
+    for (const kind of ['__proto__', 'constructor', 'toString']) expect(summaryProblem({ kind, seconds: 900, clicks: 900 })).toBe('not a time board');
+  });
+  it('odd claims cost little: a month is refused outright, a zero-click claim needs no replay, and no check outspends its budget', () => {
+    expect(summaryProblem({ kind: 'universe', seconds: 30 * 24 * 3600, clicks: 0 })).toBe('seconds out of range');
+    let t = performance.now();
+    expect(checkRun({ kind: 'universe', seconds: MAX_CLAIM_SECS, clicks: 0 })).toMatchObject({ flagged: true, reason: expect.stringMatching(/without feeding/) });
+    expect(performance.now() - t).toBeLessThan(50);
+    // a trickle of feeds and a pantry to start from: the replay runs, inside its budget
+    t = performance.now();
+    const r = checkRun({ kind: 'universe', seconds: MAX_CLAIM_SECS, clicks: 3, perks: { pantry: 3 } });
+    expect(r.flagged).toBe(false); expect(r.simulated).toBeLessThanOrEqual(SIM_BUDGET);
+    expect(r.simulated).toBe(r.floor);                    // honest: one replay, stopped when it won
+    expect(performance.now() - t).toBeLessThan(10000);
+    // a claim too fast for any seed spends every seed, but never more than the budget
+    const f = checkRun({ kind: 'sun', seconds: 150, clicks: 150 });
+    expect(f.flagged).toBe(true); expect(f.simulated).toBeLessThanOrEqual(SIM_BUDGET); expect(f.simulated).toBeLessThanOrEqual(3 * (150 / (1 - TOLERANCE) + 600));
+  }, 30000);
+});
+
+describe('what the game sends is what the check reads', () => {
+  it('a main run claim carries its time, feeds, events, hops, perks and Big Bangs', () => {
+    const s = freshRun({ asc: 3, dust: 0, perks: { head: 1, pantry: 2 }, bangs: 1 });
+    s.played = 900; s.feeds = 850; s.caught = 9;
+    const body = runSummary('sun', s.played, { ...runClaim(s), key: null });
+    expect(body).toMatchObject({ kind: 'sun', value: 900, seconds: 900, clicks: 850, events: 9, asc: 3, perks: { head: 1, pantry: 2 }, bangs: 1 });
+    expect(body.mutator).toBeUndefined();
+    expect(summaryProblem(body)).toBe('');
+    expect(startState(body).stage).toBe(1);                 // the Head Start the run really had
+    expect(checkRun(body).flagged).toBe(false);
+  });
+  it('a daily claim carries its mutator and a plain start, whatever the main goop owns', () => {
+    const run = newDailyRun({ date: '2026-10-30', seed: 1, mutator: 'pricey' });
+    run.state.played = 1100; run.state.feeds = 1100; run.state.caught = 4;
+    const body = runSummary('daily', 1100, { ...runClaim(run.state, run.mutator), key: run.date });
+    expect(body).toMatchObject({ kind: 'daily', key: '2026-10-30', mutator: 'pricey', clicks: 1100, events: 4, asc: 0, perks: {}, bangs: 0 });
+    expect(summaryProblem(body)).toBe('');
+    expect(checkRun(body).flagged).toBe(false);
+  });
+  it('a claim without the run (the old payload) is what got every run flagged', () => {
+    expect(checkRun(runSummary('sun', 900, {})).flagged).toBe(true);
+    expect(summaryProblem(runSummary('daily', 900, { key: '2026-10-30' }))).toBe('unknown daily');
+    expect(newState().caught).toBe(0);
   });
 });
 

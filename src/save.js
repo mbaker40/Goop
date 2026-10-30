@@ -38,7 +38,8 @@ const num = v => (Number.isFinite(v) && v >= 0 ? v : 0);
 export function adoptState(o) {
   const s = newState();
   if (!o || typeof o !== 'object') return s;
-  for (const k of ['slop', 'life', 'feeds', 'asc', 'played', 'dust', 'frenzy', 'freeze']) s[k] = num(o[k]);
+  for (const k of ['slop', 'life', 'feeds', 'asc', 'played', 'dust', 'frenzy', 'freeze', 'caught']) s[k] = num(o[k]);
+  s.caught = Math.floor(s.caught);
   s.asc = Math.floor(s.asc); s.dust = Math.floor(s.dust);
   if (Number.isFinite(o.fmult) && o.fmult >= 1 && o.fmult <= 100) s.fmult = o.fmult; else s.fmult = FRENZY_MULT;
   if (Array.isArray(o.own)) s.own = s.own.map((_, i) => Math.max(0, Math.floor(+o.own[i] || 0)));

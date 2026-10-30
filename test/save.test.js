@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { migrate, loadSave, writeSave, exportString, importString, serialize, adoptPrefs, adoptProfile, saveHealth, SAVE_KEY, SHADOW_KEY, OLD_SHADOW_KEYS, CORRUPT_KEY, LEGACY_KEY, SAVE_VERSION } from '../src/save.js';
+import { adoptState, migrate, loadSave, writeSave, exportString, importString, serialize, adoptPrefs, adoptProfile, saveHealth, SAVE_KEY, SHADOW_KEY, OLD_SHADOW_KEYS, CORRUPT_KEY, LEGACY_KEY, SAVE_VERSION } from '../src/save.js';
 import { createMemoryStorage } from '../src/platform/storage.js';
 import { early, late } from './fixtures/v1-saves.js';
 import { pastSun, midGame } from './fixtures/v2-saves.js';
@@ -233,5 +233,12 @@ describe('schema 4: Big Bangs on the state, settings, and the shadow as a fallba
     expect(saveHealth(storage)).toEqual({ schema: SAVE_VERSION, shadow: 'in step', corrupt: false });
     storage.set(SAVE_KEY, storage.get(SAVE_KEY).replace('"v":4', '"v":4 '));
     expect(saveHealth(storage).shadow).toBe('behind');
+  });
+});
+
+describe('the run claim fields', () => {
+  it('events caught this run survive a save and load; anything odd reads as 0', () => {
+    expect(adoptState({ caught: 7.9 }).caught).toBe(7);
+    expect(adoptState({ caught: -3 }).caught).toBe(0); expect(adoptState({ caught: 'x' }).caught).toBe(0); expect(adoptState({}).caught).toBe(0);
   });
 });
