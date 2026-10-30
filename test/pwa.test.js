@@ -12,6 +12,8 @@ describe('the service worker build', () => {
     expect(src).toContain("const VERSION = 'abc123'"); expect(src).toContain('const PRECACHE = ["index.html"]');
     expect(src).not.toMatch(/skipWaiting\(\);\s*\}\);\s*self\.addEventListener\('activate'/);   // install does not skip waiting
     expect(buildVersion(['a.js'], '<html>1')).not.toBe(buildVersion(['a.js'], '<html>2'));
+    expect(buildVersion(['a.js'], '<html>', 'sw 1')).not.toBe(buildVersion(['a.js'], '<html>', 'sw 2'));   // a fix to the worker alone is a new build
+    expect(src).toContain('ignoreVary: true');     // a "Vary: Origin" response must still serve module scripts offline
   });
   it('the manifest names the icons, and the icons are committed at the standard sizes', () => {
     const m = JSON.parse(readFileSync('public/manifest.webmanifest', 'utf8'));

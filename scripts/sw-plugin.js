@@ -15,7 +15,8 @@ export function precacheList(bundleFiles, publicFiles = []) {
   }
   return [...out].sort();
 }
-export function buildVersion(files, html = '') { return createHash('sha256').update(files.join('\n') + '\n' + html).digest('hex').slice(0, 12); }
+// The version changes with the file list, the page (which names the hashed bundles) and the worker's own code.
+export function buildVersion(files, html = '', template = '') { return createHash('sha256').update(files.join('\n') + '\n' + html + '\n' + template).digest('hex').slice(0, 12); }
 export function swSource(template, files, version) {
   return template.replace('__VERSION__', version).replace('__PRECACHE__', JSON.stringify(files));
 }
@@ -33,8 +34,8 @@ export default function serviceWorker({ template = 'src/sw.js', publicDir = 'pub
     enforce: 'post',
     generateBundle(_, bundle) {
       const files = precacheList(Object.keys(bundle), listFiles(publicDir));
-      const html = bundle['index.html'] ? String(bundle['index.html'].source) : '';
-      this.emitFile({ type: 'asset', fileName: 'sw.js', source: swSource(readFileSync(template, 'utf8'), files, buildVersion(files, html)) });
+      const html = bundle['index.html'] ? String(bundle['index.html'].source) : '', src = readFileSync(template, 'utf8');
+      this.emitFile({ type: 'asset', fileName: 'sw.js', source: swSource(src, files, buildVersion(files, html, src)) });
     },
   };
 }
