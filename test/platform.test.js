@@ -63,6 +63,9 @@ describe('local identity: the name chooser rules', () => {
     expect(foldName('Sh1t 4ever')).toBe('shitaever');
     for (const n of ['fuckface', 'SH1T', 'B.i.t.c.h', 'Admin', 'n4zi goop']) expect(validateName(n).ok, n).toBe(false);
     expect(validateName('Mr Snuggles').ok).toBe(true);
+    // whole words: places and ordinary words that merely contain a blocked one pass
+    for (const n of ['Scunthorpe', 'Cockpit', 'Hancock', 'Grape Ape', 'Shitake Fan', 'Assassin', 'Dickens', 'Penistone', 'Sussex Slime', 'Therapist']) expect(validateName(n).ok, n).toBe(true);
+    for (const n of ['Dr Fuck', 'Big Cock', 'c0ck', 'Shitty Goop', 'DrShit', 'shit99', 'Bitches', 'n.a.z.i', 'Wankers', 'MotherFlipper'.replace('Flipper', 'fucker')]) expect(validateName(n).ok, n).toBe(false);
   });
   it('the provider keeps an old long name on load, and only sets a valid new one', () => {
     const id = createLocalIdentity();
