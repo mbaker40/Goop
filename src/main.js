@@ -1,56 +1,86 @@
 /* Feed the Goop: the browser game. Wires the pure rules (econ, events, prestige, stats, achievements,
-   save) to the canvas, the page and the platform adapters, and runs the clock. */
+   save, daily, away, share) to the canvas, the page and the platform adapters, and runs the clock. */
 import './style.css';
-import { W, H, reduce, clamp } from './draw.js';
+import { W, H, reduce, clamp, setReduce, systemReduce } from './draw.js';
 import { SCENES } from './scenes/index.js';
-import { ASCEND_BONUS, OFFLINE_GRACE, SUN_AT, STAGES, END, newState, feederCost, slopPerSec, baseRate, feedValue, earn, clickGate, awayEarnings, UPGRADES, canEatRest, eatRest, stageSpan } from './econ.js';
-import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget } from './events.js';
-import { hop as hopRun, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, PERKS } from './prestige.js';
-import { recordStage, recordEvent, recordFeed, newRun, bump, SUN, UNIVERSE } from './stats.js';
+import { ASCEND_BONUS, OFFLINE_GRACE, SUN_AT, STAGES, END, newState, feederCost, slopPerSec, feedValue, earn, clickGate, awayPay, UPGRADES, canEatRest, eatRest, stageSpan } from './econ.js';
+import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget, riskNote, hitRadius } from './events.js';
+import { hop as hopRun, canHop, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, milestoneMult, PERKS } from './prestige.js';
+import { recordStage, recordEvent, recordFeed, newRun, bump, seedUnknownStages, SUN, UNIVERSE } from './stats.js';
 import { passMilestones, seedMilestones } from './milestones.js';
 import { moodOf, pickThought, remember } from './mood.js';
-import { BEATS, LENGTH, cuesBetween, canSkip, frameAt } from './cutscene.js';
+import { BEATS, LENGTH, cuesBetween, canSkip, frameAt, interruptedEnding } from './cutscene.js';
 import { checkBadges, BADGE_BY_ID } from './achievements.js';
-import { loadSave, writeSave, exportString, importString } from './save.js';
+import { loadSave, writeSave, exportString, importString, saveHealth, SAVE_VERSION, CORRUPT_KEY } from './save.js';
+import { rulesOf, loadDaily, writeDaily, retryDaily, dailyFinished, dailyDeck, weekKey, MUTATOR_BY_ID, HANDS_IDLE } from './daily.js';
+import { awayReport, burpBonus, awayFor } from './away.js';
+import { shareModel, GAME_URL } from './share.js';
+import { drawShareCard, copyCard, shareCard } from './sharecard.js';
 import { platform } from './platform/index.js';
-import { fmt } from './fmt.js';
-import { G, anim, par, shots, drops, floats, view, mouthPoint, clearStage } from './game.js';
+import { fmt, clock, setNumberStyle } from './fmt.js';
+import { rng } from './rng.js';
+import { G, anim, par, shots, drops, floats, view, mouthPoint, clearStage, mainRun } from './game.js';
 import { sfx } from './audio.js';
+import { buzz, BUZZ } from './haptics.js';
+import { initPwa } from './pwa.js';
 import { initCanvas, fit, render } from './render.js';
 import * as ui from './ui.js';
+import * as panels from './panels.js';
 
 const { $ } = ui;
 const { storage, achievements, scores, identity } = platform;
 const cv = $('scene');
 initCanvas(cv);
+G.rules = rulesOf(null); G.deck = EVENTS;
 
 /* ---------- saving: one versioned blob through the storage adapter (see save.js) ---------- */
+// The main save always holds the main run, also while the daily goop is on stage (then `at` stays at the
+// moment the main goop was left, so it is paid for the time away). The daily has its own slot.
 function snapshot() {
-  return { v: 3, at: Date.now(), prefs: { ...G.prefs }, state: G.state, stats: G.stats, badges: achievements.earned(), bests: scores.all(), profile: identity.snapshot() };
+  const m = mainRun();
+  return { v: SAVE_VERSION, at: G.main ? G.main.leftAt : Date.now(), prefs: { ...G.prefs }, state: m.state, stats: m.stats, badges: achievements.earned(), bests: scores.all(), profile: identity.snapshot() };
 }
-function save() { writeSave(storage, snapshot()); }
+function save() {
+  writeSave(storage, snapshot());
+  if (G.daily) { G.daily.at = Date.now(); writeDaily(storage, G.daily); }
+}
 function adopt(d) {
-  G.state = d.state; G.stats = d.stats; G.prefs.sound = d.prefs.sound;
+  G.state = d.state; G.stats = d.stats; G.prefs = { ...d.prefs };
   achievements.load(d.badges); scores.load(d.bests); identity.load(d.profile);
   G.badgeCount = achievements.count();
+  seedUnknownStages(G.stats, G.state.stage);
+  applyPrefs();
 }
+// Badges read the main run only: nothing in the daily goop counts towards them except finishing it.
 function badges() {
-  const names = [];
-  for (const id of checkBadges(G.state, G.stats, id => achievements.has(id))) if (achievements.unlock(id)) { names.push(BADGE_BY_ID[id].name); G.stats.runBadges.push(id); }
+  const m = mainRun(), names = [];
+  for (const id of checkBadges(m.state, m.stats, id => achievements.has(id))) if (achievements.unlock(id)) { names.push(BADGE_BY_ID[id].name); m.stats.runBadges.push(id); }
   if (names.length) { G.badgeCount = achievements.count(); ui.award(names); sfx.badge(); save(); }
+}
+/* ---------- settings (prefs live in the save) ---------- */
+function applyPrefs() {
+  setNumberStyle(G.prefs.numbers);
+  setReduce(G.prefs.motion === 'system' ? systemReduce : G.prefs.motion === 'reduce');
+  document.documentElement.classList.toggle('reduce', reduce);
 }
 
 /* ---------- playing ---------- */
+let week = weekKey(), weekT = 0;
 function gain(n) {
   if (!(n > 0)) return;
   G.stats.lifetimeSlop += n;
+  if (!G.daily) scores.add('week', n, week);       // the weekly board counts the main goop's slop
   if (earn(G.state, n)) onStage();
-  if (G.state.won && !G.state.winSeen) win();
+  winCheck();
   milestones();
+}
+function winCheck() {
+  if (G.daily) { if (G.daily.done == null && dailyFinished(G.state)) finishDaily(); }
+  else if (G.state.won && !G.state.winSeen) win();
 }
 // Mid-stage milestones (milestones.js): a toast, a small bonus, and sometimes a prop goes missing.
 function milestones() {
-  const passed = passMilestones(G.state);
+  const passed = passMilestones(G.state, milestoneMult(G.state));
   if (!passed.length) return;
   for (const { m, bonus } of passed) {
     G.stats.milestones++;
@@ -59,7 +89,7 @@ function milestones() {
     G.stats.lifetimeSlop += bonus;
     if (earn(G.state, bonus)) onStage();
   }
-  if (G.state.won && !G.state.winSeen) win();
+  winCheck();
   ui.refresh();
   milestones();                      // a bonus can carry the goop over the next one
 }
@@ -92,7 +122,7 @@ function onStage() {
   const s = G.state;
   anim.zoom = reduce ? 1 : 1.6; shots.length = 0;
   for (let k = 1; k <= s.stage; k++) recordStage(G.stats, k, s.played);
-  ui.banner(s.stage); sfx.stage(); ui.buildFeeders(); ui.refresh();
+  ui.banner(s.stage); sfx.stage(); buzz(BUZZ.stage); ui.buildFeeders(); ui.refresh();
 }
 function win() {
   const s = G.state;
@@ -101,9 +131,10 @@ function win() {
   ui.showWin(); save(); badges();
 }
 function hop() {
+  if (G.daily || !canHop(G.state)) return;
   const { state, dust, bigBang } = hopRun(G.state);
   G.state = state; G.stats.hops++;
-  if (bigBang) G.stats.bigBangs++;
+  if (bigBang) { G.stats.bigBangs++; scores.submit('bigbangs', G.stats.bigBangs); }
   newRun(G.stats, state.stage); scores.submit('hops', G.stats.hops);
   $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; clearStage(); ui.closeSheets();
   anim.r = SCENES[state.stage].goop.r0; G.clock.hopped = G.clock.fed = G.stats.playSecs;
@@ -126,17 +157,21 @@ function eatTheRest() {
   sfx.gulp(); save();
   startCutscene(false);
 }
-// TODO(PR 3): closing the tab during the first viewing leaves `ate` saved with cutsceneSeen 0, so the
-// replay from the shelf stays unskippable; count the viewing as seen on load when ate is true.
-// TODO(PR 3): Load save (import) does not clear G.cut; end any playing ending first.
-// TODO(PR 3): the away-earnings toast from returnFrom() can show over the ending; hold it until it ends.
+// Closing the tab during the first viewing: start() counts it as seen and shows the landing. Load save and
+// Start over stop a playing ending first (stopCutscene). The away card waits until the ending is over.
 function startCutscene(replay) {
   G.cut = { t: 0, replay, confirm: 0, beat: -1 };
   G.ev = null; ui.announce(''); clearStage(); ui.closeSheets();
   $('win').hidden = true; $('land').hidden = true; $('toast').hidden = true; $('hint').hidden = true;
+  if (!$('away').hidden) { $('away').hidden = true; if (G.away) G.away.shown = false; }   // the away card comes back after the ending
   $('skipBtn').hidden = !canSkip(G.stats); $('skipBtn').textContent = 'Skip the ending';
   cv.setAttribute('aria-label', 'The ending is playing. ' + (canSkip(G.stats) ? 'Press Escape twice, or tap twice, to skip.' : 'It plays through once.'));
   ui.refresh();
+}
+function stopCutscene() {
+  if (!G.cut) return;
+  G.cut = null; $('skipchip').hidden = true; $('skipBtn').hidden = true; $('cutlive').textContent = '';
+  cv.setAttribute('aria-label', 'Feed the goop');
 }
 function endCutscene(watched) {
   const c = G.cut; if (!c) return;
@@ -185,8 +220,11 @@ function tickMood(real) {
 }
 
 /* ---------- events: the deck lives in events.js; this is where they appear, get caught or get away ---------- */
+// Seconds to the next event: the perks, then the daily's twist (0: no events at all).
+function gapAfter(caught) { return G.rules.gapMult === 0 ? Infinity : nextGap(caught, G.rand, spawnGapMult(G.state) * G.rules.gapMult); }
+function firstGap() { return G.rules.gapMult === 0 ? Infinity : FIRST_EVENT * G.rules.gapMult; }
 function spawnEvent(forced) {
-  const s = G.state, def = forced || pickEvent(EVENTS, s.stage, Math.random);
+  const s = G.state, def = forced || pickEvent(G.deck, s.stage, G.rand);
   const life = (isHazard(def) ? def.window : VIAL_LIFE) * eventLifeMult(s);
   let targets;
   if (isChoice(def)) {
@@ -196,20 +234,22 @@ function spawnEvent(forced) {
   G.ev = { def, age: 0, life, seed: Math.random() * 6, targets };
   bump(G.stats.seen, def.id);
   if (isHazard(def)) sfx.visitor();
-  ui.announce(isChoice(def) ? 'Two vials: ' + def.options.map((o, i) => (i + 1) + ', ' + o.label).join('; ') + '. Tap one, or press 1 or 2 (E takes the first).'
+  const risk = riskNote(def);
+  ui.announce((isChoice(def) ? 'Two vials: ' + def.options.map((o, i) => (i + 1) + ', ' + o.label).join('; ') + '. Tap one, or press 1 or 2 (E takes the first).'
     : isHazard(def) ? def.name + ' is here. Tap him or press E to shoo him away.'
-    : def.name + ' appeared. Tap it or press E to grab it.');
+    : def.name + ' appeared. Tap it or press E to grab it.') + (risk ? ' ' + risk : ''));
 }
 function collectEvent(i) {
   const ev = G.ev; if (!ev) return;
   const s = G.state, st = G.stats, def = ev.def, tg = ev.targets[i] || ev.targets[0];
   const effect = isHazard(def) ? def.tap : isChoice(def) ? def.options[tg.opt].effect : def.effect;
-  const res = applyEffect(s, effect, Math.random);
+  const res = applyEffect(s, effect, G.rand);
   recordEvent(st, def.id, true);
   if (isHazard(def)) st.hazardsTapped++;
   if (res.won === true) st.gambleWins++; else if (res.won === false) st.gambleLosses++;
-  G.ev = null; G.evIn = nextGap(true, Math.random, spawnGapMult(s));
+  G.ev = null; G.evIn = gapAfter(true);
   G.clock.caught = st.playSecs;
+  buzz(BUZZ.catch);
   if (res.text) ui.toast(res.text);
   if (res.lost > 0) { sfx.spill(); splash(8, '#8fdc2f'); } else { sfx.vial(); splash(res.gain > 0 ? 16 : 6); }
   anim.squashV += 9; ui.announce('');
@@ -220,39 +260,67 @@ function expireEvent() {
   const s = G.state, def = G.ev.def;
   recordEvent(G.stats, def.id, false);
   if (isHazard(def)) {
-    const res = applyEffect(s, def.miss, Math.random);
+    const res = applyEffect(s, def.miss, G.rand);
     G.stats.hazardsMissed++; if (res.text) ui.toast(res.text); sfx.spill();
   }
-  G.ev = null; G.evIn = nextGap(false, Math.random, spawnGapMult(s)); ui.announce('');
+  G.ev = null; G.evIn = gapAfter(false); ui.announce('');
   ui.refresh(); badges();
 }
-// TODO(follow-up): larger touch targets at phone widths (a 56-unit radius is about 39 px at 390 wide).
+// Hit test for event targets: the drawn size, grown on a small screen so every target is at least a
+// 44 CSS pixel tap (events.hitRadius). At 390 wide that is about a 69-unit radius instead of 56.
 function hitEvent(x, y) {
   if (!G.ev) return -1;
+  const css = cv.clientWidth ? cv.clientWidth / W : 1, r = hitRadius(isHazard(G.ev.def) ? 66 : 56, css);
   let best = -1, bd = Infinity;
-  G.ev.targets.forEach((tg, i) => { const d = Math.hypot(x - tg.px, y - tg.py); if (d < (isHazard(G.ev.def) ? 66 : 56) && d < bd) { bd = d; best = i; } });
+  G.ev.targets.forEach((tg, i) => { const d = Math.hypot(x - tg.px, y - tg.py); if (d < r && d < bd) { bd = d; best = i; } });
   return best;
 }
 
-/* ---------- time: one rule for being away, hidden tab or closed (econ.awayEarnings) ---------- */
+/* ---------- time: one rule for being away, hidden tab or closed (econ.awayPay) ---------- */
 const AWAY_GAP = 2;                 // a frame gap longer than this is treated as time away
-// TODO(follow-up): across a short stall (2 to 60 s) pay boosts and freezes for the part of the gap they
-// actually covered, instead of base rate with the timers simply run down.
+// A boost or a freeze running when the gap began is paid for the part of the gap it covered (awayPay).
+// Past a minute away, the goop's away card comes up: what it ate, a joke, and one burp to double it.
 function returnFrom(secs) {
-  const s = G.state;
-  const n = awayEarnings(baseRate(s), secs, offlineCap(s));
-  s.frenzy = Math.max(0, s.frenzy - secs); s.freeze = Math.max(0, s.freeze - secs);
+  const s = G.state, mult = G.rules.handsOn ? 0 : G.rules.offline;
+  const n = awayPay(s, secs, offlineCap(s)) * mult;
   if (n > 0) gain(n);
   if (secs > OFFLINE_GRACE) G.clock.back = G.clock.fed = G.stats.playSecs;
-  if (secs > OFFLINE_GRACE && n > 0) {
+  const report = awayReport(secs, n, s.stage);
+  if (report) {
     G.stats.offlineReturns++; G.stats.offlineSlop += n;
-    ui.toast('While you were out, the goop ate ' + fmt(n) + ' slop on its own.');
+    G.away = report;                 // shown by tickAway when nothing else covers the theatre
   }
   ui.refresh(); badges();
 }
+function tickAway() {
+  const a = G.away;
+  if (!a || a.shown || G.cut || !$('win').hidden || !$('land').hidden || !$('dailyEnd').hidden || ui.sheetOpen()) return;
+  a.shown = true;
+  $('awayFor').textContent = 'You were away for ' + awayFor(a.secs);
+  $('awayN').textContent = fmt(a.n); $('awayJoke').textContent = a.joke;
+  $('burpBtn').disabled = false; $('burpBtn').textContent = 'Watch the goop burp: double it';
+  $('away').hidden = false; $('burpBtn').focus();
+}
+function closeAway() { $('away').hidden = true; G.away = null; ui.refresh(); cv.focus(); }
+function watchBurp() {
+  const a = G.away, n = burpBonus(a);
+  if (!(n > 0)) return;
+  $('away').hidden = true; G.away = null;
+  G.stats.offlineSlop += n; if (!G.daily) G.stats.burps++; else G.main.stats.burps++;
+  const g = SCENES[view().k].goop;
+  anim.squashV -= 16; anim.mouth = 1; splash(36); splash(10, '#ffd23f');
+  floats.push({ x: g.x, y: Math.max(80, anim.cy - anim.r - 40), txt: '+' + fmt(n), life: 1.6 });
+  G.mood.text = 'BURP. Pardon me.'; G.mood.life = 3; G.mood.next = 14;
+  sfx.burp(); setTimeout(() => sfx.gulp(), 260); buzz(BUZZ.burp);
+  gain(n);
+  ui.toast('The goop burped up another ' + fmt(n) + ' slop. It looks very pleased with itself.');
+  ui.refresh(); badges(); save(); cv.focus();
+}
 let uiT = 0, saveT = 0, badgeT = 0, resetArm = 0, autoAcc = 0;
 function step(real, dt) {
-  const s = G.state, st = G.stats, sps = slopPerSec(s);
+  const s = G.state, st = G.stats;
+  G.handsIdle = G.rules.handsOn && st.playSecs - G.clock.fed > HANDS_IDLE;     // the daily's Hands On twist
+  const sps = G.handsIdle ? 0 : slopPerSec(s);
   if (sps > 0) gain(sps * real);
   if (s.frenzy > 0) s.frenzy = Math.max(0, s.frenzy - real);
   if (s.freeze > 0) s.freeze = Math.max(0, s.freeze - real);
@@ -271,11 +339,14 @@ function step(real, dt) {
   const tick = tickEventClock(G, { real, dt, life: s.life, peek: G.peek, covered: canvasCovered() });
   if (tick === 'expire') expireEvent(); else if (tick === 'spawn') spawnEvent();
   if (G.cut) tickCutscene(real); else tickMood(real);
+  if (G.away && !G.away.shown) tickAway();
+  if (G.daily) $('dailyBarClock').textContent = clock(G.daily.done != null ? G.daily.done : s.played);
   ui.tickUi(real);
   if (resetArm > 0) { resetArm -= real; if (resetArm <= 0) $('resetBtn').textContent = 'Start over'; }
   if (G.eatArm > 0) { G.eatArm -= real; if (G.eatArm <= 0) { $('eatRest').querySelector('.nm').textContent = 'Eat the Rest'; ui.refresh(); } }
   uiT += real; if (uiT >= .15) { uiT = 0; ui.refresh(); }
-  badgeT += real; if (badgeT >= 1) { badgeT = 0; scores.submit('peak', st.peakSps); badges(); }
+  badgeT += real; if (badgeT >= 1) { badgeT = 0; if (!G.daily) scores.submit('peak', st.peakSps); badges(); }
+  weekT += real; if (weekT >= 30) { weekT = 0; week = weekKey(); }
   saveT += real; if (saveT >= 10) { saveT = 0; save(); }
 }
 let lastNow = 0;
@@ -287,7 +358,7 @@ function frame(now) {
 }
 
 /* ---------- hands on ---------- */
-function canvasCovered() { return !$('win').hidden || !$('land').hidden || !!G.cut || ui.sheetOpen(); }
+function canvasCovered() { return !$('win').hidden || !$('land').hidden || !!G.cut || ui.sheetOpen() || ui.coverOpen(); }
 function scenePoint(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; }
 function feedFromKeys() { feed(SCENES[view().k].goop.x, Math.max(60, anim.cy - anim.r - 20)); }
 cv.addEventListener('pointerdown', e => {
@@ -339,13 +410,17 @@ $('eatRest').addEventListener('click', eatTheRest);
 $('skipBtn').addEventListener('click', trySkip);
 $('replayBtn').addEventListener('click', () => { ui.closeSheets(); startCutscene(true); });
 $('stayBtn').addEventListener('click', () => { $('win').hidden = true; ui.refresh(); });
-$('soundBtn').addEventListener('click', () => { G.prefs.sound = !G.prefs.sound; ui.paintSound(); save(); if (G.prefs.sound) sfx.buy(); });
+const toggleSound = () => { G.prefs.sound = !G.prefs.sound; ui.paintSound(); save(); if (G.prefs.sound) sfx.buy(); };
+$('soundBtn').addEventListener('click', toggleSound);
+$('setSound').addEventListener('click', toggleSound);
+// Start over lives in the settings drawer now, with the same press-twice guard.
 $('resetBtn').addEventListener('click', () => {
   if (resetArm <= 0) { resetArm = 4; $('resetBtn').textContent = 'Wipe everything? Click again'; return; }
   resetArm = 0; $('resetBtn').textContent = 'Start over';
-  G.state = newState(); G.peek = null; ui.paintPeek(); $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; ui.announce('');
-  if (G.cut) { G.cut = null; $('skipchip').hidden = true; $('skipBtn').hidden = true; }
-  newRun(G.stats); clearStage(); anim.r = SCENES[0].goop.r0; ui.buildFeeders(); ui.refresh(); save();
+  if (G.daily) leaveDaily(true);
+  stopCutscene();
+  G.state = newState(); G.peek = null; ui.paintPeek(); $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = firstGap(); ui.announce('');
+  newRun(G.stats); clearStage(); anim.r = SCENES[0].goop.r0; ui.closeSheets(); ui.buildFeeders(); ui.refresh(); save();
   ui.toast('Fresh petri dish. One gram of goop. Your trophies stay on the shelf.');
 });
 
@@ -356,21 +431,22 @@ $('shelfBtn').addEventListener('click', openShelf);
 $('dustBtn').addEventListener('click', openPerks);
 $('winPerks').addEventListener('click', openPerks);
 $('perkList').addEventListener('click', e => {
-  const b = e.target.closest('button[data-perk]');
-  if (!b || !buyPerk(G.state, b.dataset.perk)) return;
-  G.stats.perksBought++; sfx.buy();
+  const b = e.target.closest('button[data-perk]'), m = mainRun();
+  if (!b || !buyPerk(m.state, b.dataset.perk)) return;
+  m.stats.perksBought++; sfx.buy();
   ui.toast(PERKS.find(p => p.id === b.dataset.perk).name + ': yours for good.');
   ui.renderPerks(); ui.refresh(); save(); badges();
 });
-for (const id of ['shelf', 'perks']) $(id).addEventListener('click', e => { if (e.target.id === id || e.target.closest('[data-close]')) ui.closeSheets(); });
+for (const id of ui.SHEETS) $(id).addEventListener('click', e => { if (e.target.id === id || e.target.closest('[data-close]')) ui.closeSheets(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && ui.sheetOpen()) { e.preventDefault(); ui.closeSheets(); }
+  else if (e.key === 'Escape' && !$('away').hidden) { e.preventDefault(); closeAway(); }
   else if (e.key === 'Escape' && G.cut) { e.preventDefault(); trySkip(); }
 });
 
 // export and import
 $('exportBtn').addEventListener('click', async () => {
-  G.stats.exports++; save();
+  mainRun().stats.exports++; save();
   const str = exportString(snapshot());
   try { await navigator.clipboard.writeText(str); ui.toast('Save copied. Keep it somewhere safe, or paste it into Load save on another device.'); }
   catch (e) { window.prompt('Copy your save:', str); }
@@ -380,8 +456,11 @@ $('importBtn').addEventListener('click', () => {
   const str = window.prompt('Paste a save you copied earlier. It replaces the goop you have now.');
   if (!str) return;
   try {
-    adopt(importString(str));
-    G.peek = null; G.ev = null; G.evIn = FIRST_EVENT; G.clickTimes.length = 0; clearStage(); $('win').hidden = true; $('land').hidden = true; ui.closeSheets();
+    const d = importString(str);
+    if (G.daily) leaveDaily(true);
+    stopCutscene();
+    adopt(d);
+    G.peek = null; G.ev = null; G.evIn = firstGap(); G.clickTimes.length = 0; clearStage(); $('win').hidden = true; $('land').hidden = true; $('away').hidden = true; G.away = null; ui.closeSheets();
     anim.r = SCENES[G.state.stage].goop.r0;
     ui.paintSound(); ui.paintPeek(); ui.buildFeeders(); ui.refresh(); save();
     ui.toast('Save loaded. The goop remembers you.'); badges();
@@ -394,11 +473,168 @@ if (window.ResizeObserver) new ResizeObserver(fit).observe(cv);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
 window.addEventListener('pagehide', save);
 
+/* ---------- the away card ---------- */
+$('burpBtn').addEventListener('click', watchBurp);
+$('awayOk').addEventListener('click', closeAway);
+
+/* ---------- the daily goop: its own slot, its own stats, the main goop waiting (and eating) meanwhile ---------- */
+let today = platform.daily.todayNow();
+platform.daily.today().then(d => { today = d; paintDailyBtn(); });
+const dailyBest = date => scores.best('daily', date);
+function paintDailyBtn() {
+  const best = dailyBest(today.date), b = $('dailyBtn');
+  b.textContent = G.daily ? 'Daily goop: on' : best != null ? 'Daily goop: ' + clock(best) : 'Daily goop';
+  b.classList.toggle('done', best != null && !G.daily);
+}
+function dailyRunFor(d) { return G.daily && G.daily.date === d.date ? G.daily : loadDaily(storage, d); }
+function openDaily() {
+  if (G.cut) return;
+  const run = dailyRunFor(today);
+  panels.renderDailySheet({ daily: today, run, best: dailyBest(today.date), recent: panels.recentDailies(scores.all()), active: !!G.daily });
+  ui.openSheet('dailySheet');
+}
+// Swap the daily's run onto the stage. The main run waits in G.main; its save keeps the time it was left.
+function swapIn(run) {
+  G.ev = null; G.peek = null; ui.paintPeek(); clearStage(); ui.announce('');
+  $('away').hidden = true; G.away = null;            // an unclaimed burp belongs to the run that earned it, and it is gone
+  $('win').hidden = true; $('land').hidden = true; $('dailyEnd').hidden = true;
+  G.state = run.state; G.stats = run.stats; G.clickTimes.length = 0;
+  G.clock = { fed: G.stats.playSecs, caught: -99, hopped: -99, back: -99 };
+  anim.r = SCENES[G.state.stage].goop.r0;
+  ui.buildFeeders(); ui.refresh();
+}
+function enterDaily(run) {
+  if (G.daily) return;
+  save();
+  G.main = { state: G.state, stats: G.stats, leftAt: Date.now(), clock: { ...G.clock }, evIn: G.evIn };
+  G.daily = run; G.rules = rulesOf(run.mutator); G.deck = dailyDeck(EVENTS, run.mutator);
+  G.rand = rng((run.seed ^ (run.tries * 0x9e3779b1)) >>> 0);        // same seed for everyone; a new try reshuffles
+  swapIn(run); G.evIn = firstGap();
+  const m = MUTATOR_BY_ID[run.mutator];
+  $('dailyBarName').textContent = 'Daily goop'; $('dailyBarRule').textContent = m.name + ': ' + m.blurb;
+  $('dailyBar').hidden = false; document.body.classList.add('in-daily');
+  if (run.at && run.done == null) returnFrom(Math.max(0, (Date.now() - run.at) / 1000));
+  save(); paintDailyBtn();
+  if (run.done != null) showDailyEnd(false);
+  else ui.toast('Today\'s twist: ' + m.name + '. Eat the Sun as fast as you can. Your own goop keeps eating.');
+}
+function leaveDaily(quiet) {
+  if (!G.daily) return;
+  G.daily.at = Date.now(); writeDaily(storage, G.daily);
+  const back = G.main, away = (Date.now() - back.leftAt) / 1000;
+  G.daily = null; G.main = null; G.rules = rulesOf(null); G.deck = EVENTS; G.rand = Math.random;
+  swapIn({ state: back.state, stats: back.stats });
+  G.clock = back.clock; G.clock.fed = G.stats.playSecs; G.evIn = back.evIn;
+  $('dailyBar').hidden = true; document.body.classList.remove('in-daily');
+  if (!quiet && away > 0) returnFrom(away);                   // the main goop ate while you were in the daily
+  save(); paintDailyBtn(); badges();
+}
+function finishDaily() {
+  const run = G.daily, secs = G.state.played;
+  run.done = secs;
+  const r = scores.submit('daily', secs, run.date, { seconds: secs, clicks: G.stats.feeds, events: G.stats.caught });
+  G.main.stats.dailyDone++;
+  G.ev = null; ui.announce('');
+  sfx.stage(); buzz(BUZZ.stage);
+  save(); paintDailyBtn(); badges();
+  showDailyEnd(r.improved);
+}
+function showDailyEnd(improved) {
+  const run = G.daily, m = MUTATOR_BY_ID[run.mutator], best = dailyBest(run.date);
+  $('dailyEndAct').textContent = 'Daily goop, ' + run.date + ': ' + m.name;
+  $('dailyEndTitle').textContent = 'The Sun is eaten.';
+  $('dailyEndText').textContent = 'It took ' + clock(run.done) + ' and ' + fmt(run.stats.feeds) + ' spoonfuls by hand' + (run.tries > 1 ? ', on try ' + run.tries : '') + '.';
+  $('dailyEndBest').textContent = (improved ? 'A new best for today. ' : 'Your best today: ' + clock(best) + '. ') + 'Time to beat: ' + clock(best) + ', your own, until online boards arrive.';
+  $('dailyEnd').hidden = false; $('dailyHome').focus();
+}
+function retryToday() {
+  const run = retryDaily(dailyRunFor(today));
+  if (G.daily) { $('dailyEnd').hidden = true; G.daily = run; G.rand = rng((run.seed ^ (run.tries * 0x9e3779b1)) >>> 0); swapIn(run); G.evIn = firstGap(); save(); ui.toast('Try ' + run.tries + '. Fresh petri dish, same twist.'); }
+  else { writeDaily(storage, run); enterDaily(run); }
+}
+$('dailyBtn').addEventListener('click', openDaily);
+$('dailyGo').addEventListener('click', () => { ui.closeSheets(); if (!G.daily) enterDaily(dailyRunFor(today)); });
+$('dailyRetry').addEventListener('click', () => { ui.closeSheets(); retryToday(); });
+$('dailyLeave').addEventListener('click', () => leaveDaily(false));
+$('dailyHome').addEventListener('click', () => { $('dailyEnd').hidden = true; leaveDaily(false); });
+$('dailyAgain').addEventListener('click', retryToday);
+$('dailyShare').addEventListener('click', async () => {
+  const run = G.daily; if (!run) return;
+  const txt = 'Feed the Goop daily goop, ' + run.date + ' (' + MUTATOR_BY_ID[run.mutator].name + '): I ate the Sun in ' + clock(run.done) + '. ' + GAME_URL;
+  try { await navigator.clipboard.writeText(txt); ui.toast('Result copied. Paste it anywhere.'); } catch (e) { window.prompt('Copy your result:', txt); }
+});
+
+/* ---------- settings ---------- */
+let pwa = null, installable = false;
+function openSettings() {
+  panels.renderSettings({ identity, health: saveHealth(storage), installable });
+  if ($('settings').hidden) ui.openSheet('settings');
+}
+$('settingsBtn').addEventListener('click', () => { save(); openSettings(); });
+$('setHaptics').addEventListener('click', () => { G.prefs.haptics = !G.prefs.haptics; buzz(BUZZ.catch); save(); openSettings(); });
+document.querySelectorAll('[data-numbers]').forEach(b => b.addEventListener('click', () => { G.prefs.numbers = b.dataset.numbers; applyPrefs(); ui.buildFeeders(); ui.refresh(); save(); openSettings(); }));
+document.querySelectorAll('[data-motion]').forEach(b => b.addEventListener('click', () => { G.prefs.motion = b.dataset.motion; applyPrefs(); save(); openSettings(); }));
+$('installBtn').addEventListener('click', async () => { if (pwa && await pwa.install()) ui.toast('The goop is on your home screen. It is very proud.'); openSettings(); });
+$('corruptBtn').addEventListener('click', async () => {
+  const str = storage.get(CORRUPT_KEY) || '';
+  try { await navigator.clipboard.writeText(str); ui.toast('The damaged save is copied.'); } catch (e) { window.prompt('The damaged save:', str); }
+});
+
+/* ---------- the name chooser and personal bests ---------- */
+$('setNameBtn').addEventListener('click', () => panels.openNamer(identity));
+$('shelfName').addEventListener('click', () => panels.openNamer(identity));
+$('bestsNameBtn').addEventListener('click', () => panels.openNamer(identity));
+$('shareName').addEventListener('click', () => panels.openNamer(identity));
+$('nameForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = identity.claim ? await identity.claim($('nameInput').value) : identity.setName($('nameInput').value);
+  if (!r.ok) { $('nameErr').textContent = r.reason; $('nameInput').focus(); return; }
+  save(); ui.closeSheets();
+  ui.toast('The goop will call you ' + r.name + '. It may not say it nicely.');
+});
+function openBests() {
+  const m = mainRun();
+  panels.renderBests({ identity, scores, mainState: m.state, mainStats: m.stats, keys: { week, daily: today.date } });
+  ui.openSheet('bests');
+}
+$('bestsBtn').addEventListener('click', openBests);
+
+/* ---------- the share card ---------- */
+let shareCanvas = null, shareData = null;
+async function openShare() {
+  const m = mainRun();
+  shareData = shareModel({ state: m.state, stats: m.stats, badges: achievements.earned(), name: identity.name() });
+  try { await Promise.race([document.fonts.load('400 40px "Lilita One"'), new Promise(r => setTimeout(r, 1200))]); } catch (e) { /* draw with the fallback font */ }
+  shareCanvas = drawShareCard(shareData, shareCanvas || undefined);
+  $('shareImg').src = shareCanvas.toDataURL('image/png'); $('shareImg').alt = shareData.text;
+  $('shareHint').textContent = 'Copy the picture, or share it straight to an app. You can also press and hold (or right-click) it to save it.';
+  m.stats.shares++;
+  ui.openSheet('share'); save(); badges();
+}
+$('winShare').addEventListener('click', openShare);
+$('landShare').addEventListener('click', openShare);
+$('shelfShare').addEventListener('click', openShare);
+$('copyImg').addEventListener('click', async () => {
+  if (!shareCanvas) return;
+  if (await copyCard(shareCanvas)) ui.toast('Picture copied. Paste it into a chat.');
+  else $('shareHint').textContent = 'This browser will not copy pictures. Press and hold (or right-click) the picture above to save it.';
+});
+$('shareBtn').addEventListener('click', async () => {
+  if (!shareCanvas) return;
+  const r = await shareCard(shareCanvas, shareData);
+  if (r === 'link-copied') ui.toast('This browser cannot share pictures, so the link is copied instead.');
+  else if (r === 'failed') $('shareHint').textContent = 'Sharing is not available here. Press and hold (or right-click) the picture to save it.';
+});
+
 /* ---------- go ---------- */
 function start() {
-  const { data, from } = loadSave(storage);
-  if (data) adopt(data);
+  const { data, from, corrupt } = loadSave(storage);
+  if (data) adopt(data); else applyPrefs();
   fit(); ui.paintSound(); ui.buildFeeders(); ui.refresh();
+  if (corrupt) ui.award([from === 'shadow' ? 'Your save could not be read, so the goop loaded its backup copy. The damaged one is kept aside in Settings.'
+    : from === 'v1' ? 'Your save could not be read and there was no recent backup, so the goop loaded an older copy from before the last big update. The damaged one is kept aside in Settings.'
+    : 'Your save could not be read and there was no backup. Fresh petri dish. The damaged one is kept aside in Settings.'], 'Save trouble');
+  else if (from === 'shadow' && data.schema >= SAVE_VERSION) ui.award(['An older tab wrote over your save, or it went missing. The goop loaded its backup copy, and nothing was lost.'], 'Save restored');
   anim.r = SCENES[G.state.stage].goop.r0;
   G.clock.fed = G.stats.playSecs;
   if (data && data.schema === 2 && G.state.life >= SUN_AT)          // said first, before any trophies or away news
@@ -409,12 +645,18 @@ function start() {
     save();                          // writes the v2 key; the v1 key stays untouched as a backup
     if (G.state.dust > 0) ui.award([G.state.dust + ' Star Dust for your ' + G.stats.hops + ' past hop' + (G.stats.hops > 1 ? 's' : '') + '. Spend it in the shop.'], 'New in the lab');
   }
-  if (data && data.schema === 2) save();   // schema 3, written over the same key, once
-  // TODO(PR 3): a migrated player past the Sun gets runStageAt only up to the Sun, so the next stage they
-  // reach records an inflated "Fastest to" time (measured from the start of the run). Seed the stages
-  // between the Sun and their current stage as unknown so recordStage skips them.
-  if (G.state.ate && G.state.won) $('hopSmall').hidden = false;
+  if (data && data.schema < SAVE_VERSION) save();   // the current schema, written over the same key, once
+  if (G.stats.bigBangs > 0) scores.submit('bigbangs', G.stats.bigBangs);   // the Big Bang board starts from what you already have
+  // Closed the tab during the first viewing of the ending: it counts as seen (the replay is skippable),
+  // and the landing it never reached comes up now.
+  if (interruptedEnding(G.state, G.stats)) { G.stats.cutsceneSeen = 1; save(); ui.showLanding(); }
+  if (G.state.ate && canHop(G.state)) $('hopSmall').hidden = false;
   badges();
+  paintDailyBtn();
+  pwa = initPwa({
+    onUpdate: apply => { $('update').hidden = false; $('updateBtn').onclick = () => { save(); $('updateBtn').disabled = true; apply(); }; },
+    onInstallable: v => { installable = v; if (!$('settings').hidden) openSettings(); },
+  });
   lastNow = performance.now(); requestAnimationFrame(frame);
 }
 start();
@@ -436,5 +678,10 @@ if (import.meta.env.DEV) window.__goop = {
   endCut: () => endCutscene(true),
   mood(id, text) { G.mood.force = id || null; G.mood.text = text || ''; G.mood.life = text ? 99 : 0; G.mood.next = 99; },
   eatTheRest, END, STAGES,
+  away(secs) { returnFrom(secs); },                       // pretend the tab was away this long
+  gain,
+  daily: () => G.daily, enterDaily: () => enterDaily(dailyRunFor(today)), leaveDaily: () => leaveDaily(false), today: () => today,
+  finishDaily() { const s = G.state; earn(s, Math.max(0, SUN_AT - s.life)); winCheck(); },
+  share: openShare, bests: openBests, settings: openSettings, platform, storage,
   scene: k => ({ x: SCENES[k].goop.x, y: anim.cy }),
 };

@@ -3,8 +3,8 @@
 
    web (today): the local trophy shelf. The map of { id: earnedAt } is persisted inside the save, so an
    exported save carries its trophies.
-   TODO(steam): wrap the local provider and also call steamworks.js
-   (client.achievement.activate(id)) on unlock; badge ids map one to one onto Steam achievement ids. */
+   steam: achievements.steam.js wraps this provider and also unlocks the Steam achievement through the
+   desktop bridge (steamworks.js client.achievement.activate(id)); badge ids map one to one. */
 export function createLocalAchievements() {
   let earned = {};
   return {

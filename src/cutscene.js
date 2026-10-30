@@ -61,3 +61,6 @@ export function zoomAt(local, reduced = false) {
 export function cuesBetween(t0, t1) { return CUES.filter(c => c.at > t0 && c.at <= t1); }
 // Skipping is allowed after the first full viewing.
 export function canSkip(st) { return !!st && st.cutsceneSeen >= 1; }
+// The tab was closed during the first viewing: Eat the Rest was pressed (ate is saved) but the ending
+// never finished. On load this counts as seen, so the replay can be skipped, and the landing comes up.
+export function interruptedEnding(state, stats) { return !!(state && state.ate) && !!stats && stats.universes > 0 && stats.cutsceneSeen === 0; }

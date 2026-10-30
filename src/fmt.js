@@ -4,9 +4,17 @@
 export const SHORT = ['K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
 export const GOOP_UNITS = [['Burp', 'Burps'], ['Belly', 'Bellies'], ['Gulp', 'Gulps'], ['Feast', 'Feasts'], ['Gorge', 'Gorges'], ['Glut', 'Gluts']];
 const three = n => (n < 10 ? n.toFixed(2) : n < 100 ? n.toFixed(1) : String(Math.floor(n + 1e-9)));
+// The number style from the settings drawer: 'names' (1.50M, 2.00 Burps) or 'sci' (1.50e6). Module state,
+// set once at boot and whenever the setting changes; every readout goes through fmt().
+export const NUMBER_STYLES = ['names', 'sci'];
+let style = 'names';
+export function setNumberStyle(s) { style = NUMBER_STYLES.includes(s) ? s : 'names'; return style; }
+export function numberStyle() { return style; }
+export function sci(n) { return n.toExponential(2).replace('+', ''); }
 export function fmt(n) {
   if (!Number.isFinite(n)) return n > 0 ? 'Way too much' : '0';
   if (n < 1000) return n < 10 && n % 1 ? n.toFixed(1) : Math.floor(n).toLocaleString('en-US');
+  if (style === 'sci') return n < 1e6 ? Math.floor(n).toLocaleString('en-US') : sci(n);
   const units = SHORT.length + GOOP_UNITS.length;
   // divide once by an exact power of ten (repeated /1000 drifts: 1e33 would come out as 999.99 No)
   let i = Math.min(units, Math.floor(Math.log10(n) / 3)) - 1;

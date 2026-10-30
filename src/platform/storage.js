@@ -2,8 +2,8 @@
    remove(key). Values are strings; save.js does the JSON.
 
    web (today): localStorage, falling back to memory in a private window so the game still plays.
-   TODO(steam): a file provider (one JSON file in the user's data folder, written atomically) for the
-   Electron build in desktop/; Steam Auto-Cloud syncs that folder with no code. */
+   steam: storage.steam.js, one file per key through the desktop bridge (desktop/); Steam Auto-Cloud
+   syncs that folder with no code. */
 export function createLocalStorage() {
   const mem = new Map();
   let ls = null;

@@ -50,9 +50,10 @@ export function dueMilestones(s) {
 }
 export function milestoneBonus(m) { return Math.max(MILE_MIN, AT[MILESTONES.indexOf(m)] * MILE_SHARE); }
 // Fire everything due: marks each once and returns [{ m, bonus }]. The caller adds the bonus with earn().
-export function passMilestones(s) {
+// mult: the Crumb Hoarder perk (prestige.milestoneMult), passed in so this file stays below prestige.js.
+export function passMilestones(s, mult = 1) {
   const out = [];
-  for (const m of dueMilestones(s)) { s.miles = { ...s.miles, [m.id]: true }; out.push({ m, bonus: milestoneBonus(m) }); }
+  for (const m of dueMilestones(s)) { s.miles = { ...s.miles, [m.id]: true }; out.push({ m, bonus: milestoneBonus(m) * mult }); }
   return out;
 }
 // Mark everything already behind the goop as done, with no bonus and no toast: a Head Start run, or an

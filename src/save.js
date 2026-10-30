@@ -6,19 +6,29 @@
    Version 3 (Act 2: twenty stages) has the same shape and the same key; the state gains `miles` and
    `ate` and grows thirteen feeders. A v2 save is migrated in place on first load: stages are recomputed
    from lifetime slop, so a goop already past the Sun lands on the right new stage with nothing lost.
+   Version 4 (phase 3) has the same shape and key again. The state gains `bangs` (Big Bangs so far,
+   taken from stats.bigBangs on migration) and the Act 2 perks; prefs gain haptics, number style and a
+   reduced-motion override; bests gain weekly and daily records ('week:…', 'daily:…'). The daily goop
+   has a slot of its own (src/daily.js), outside this save.
    A v1 save is migrated on first load and the v1 key is left untouched as a backup for one release.
-   TODO(next release): stop reading LEGACY_KEY's backup and remove it once players have moved over. */
+   TODO(a later release): stop reading LEGACY_KEY's backup once players have moved over. Kept in phase 3
+   on purpose: phases 1 to 3 all shipped within days, so a v1 player may not have loaded the game since,
+   and dropping the key now would lose their goop. */
 import { FEEDERS, UPGRADES, SUN_AT, FRENZY_MULT, newState, stageOf } from './econ.js';
 import { PERKS, DUST_AT_SUN } from './prestige.js';
 import { newStats, adoptStats, SUN } from './stats.js';
 import { MILESTONE_BY_ID, seedMilestones } from './milestones.js';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const SAVE_KEY = 'feed-the-goop-v2';
-// A copy of every save under a key the six-stage build never reads or writes. If an old tab (or an old
-// cached page) saves over SAVE_KEY in the v2 shape, it silently drops the Act 2 feeders and Mutations;
-// loadSave then recovers from this copy. See loadSave.
-export const SHADOW_KEY = 'feed-the-goop-v3';
+// A copy of every save under a key no older build writes. If an old tab (or an old cached page) saves
+// over SAVE_KEY in an older shape, it silently drops what it does not know (the Act 2 feeders for the
+// six-stage build; the Act 2 perks and the Big Bang count for the twenty-stage one); loadSave then
+// recovers from this copy. The shadow is also the fallback when SAVE_KEY is missing or corrupt.
+// Each schema bump moves the shadow to a new key, because the previous build writes the previous one.
+export const SHADOW_KEY = 'feed-the-goop-v4';
+export const OLD_SHADOW_KEYS = ['feed-the-goop-v3'];       // read as a last resort, never written
+export const CORRUPT_KEY = 'feed-the-goop-corrupt';        // a main save that could not be read, kept aside
 export const LEGACY_KEY = 'feed-the-goop-v1';
 export const EXPORT_PREFIX = 'GOOP2:';
 
@@ -39,6 +49,9 @@ export function adoptState(o) {
   }
   s.winSeen = !!o.winSeen; s.stage = stageOf(s.life); s.won = s.life >= SUN_AT;
   s.ate = !!o.ate;
+  s.bangs = Math.floor(num(o.bangs));
+  s.startStage = Math.min(s.stage, Math.floor(num(o.startStage)));
+  if (Number.isFinite(o.costMult) && o.costMult >= 1 && o.costMult <= 10) s.costMult = o.costMult;
   if (o.miles && typeof o.miles === 'object') {
     for (const id of Object.keys(o.miles)) if (MILESTONE_BY_ID[id] && o.miles[id]) s.miles[id] = true;
   } else seedMilestones(s);          // a save from before milestones: everything behind the goop counts as done, quietly
@@ -58,15 +71,38 @@ export function migrate(raw) {
   if (!Number.isFinite(d.v) || d.v < 2) d = fromV1(d);
   const state = adoptState(d.state);
   const stats = adoptStats(d.stats);
+  if (!(raw.v >= 4)) state.bangs = Math.floor(stats.bigBangs);   // v4 keeps the count on the state, where perks can read it
   return {
     v: SAVE_VERSION,
     schema: Number.isFinite(raw.v) && raw.v >= 2 ? raw.v : 1,   // the schema this save was written in, before migration (not saved: serialize drops it)
     at: Number.isFinite(d.at) ? d.at : 0,
-    prefs: { sound: !(d.prefs && d.prefs.sound === false) },
+    prefs: adoptPrefs(d.prefs),
     state, stats,
     badges: idMap(d.badges, k => k.length < 40),
     bests: idMap(d.bests, k => k.length < 40),
-    profile: { name: d.profile && typeof d.profile.name === 'string' ? d.profile.name.slice(0, 24) : '' },
+    profile: adoptProfile(d.profile),
+  };
+}
+
+// The identity adapter's profile: a display name, plus the Worker's token once names are claimed online
+// (cloud builds only; a local build never has one).
+export function adoptProfile(p) {
+  const out = { name: p && typeof p.name === 'string' ? p.name.slice(0, 24) : '' };
+  if (p && typeof p.token === 'string' && /^[A-Za-z0-9_-]{16,128}$/.test(p.token)) out.token = p.token;
+  if (p && typeof p.claimed === 'string' && p.claimed.length <= 24) out.claimed = p.claimed;
+  return out;
+}
+
+// Settings. sound and haptics default on; numbers 'names' or 'sci'; motion 'system' (follow the device),
+// 'reduce' or 'full'.
+export const MOTION = ['system', 'reduce', 'full'];
+export function adoptPrefs(p) {
+  p = p && typeof p === 'object' ? p : {};
+  return {
+    sound: p.sound !== false,
+    haptics: p.haptics !== false,
+    numbers: p.numbers === 'sci' ? 'sci' : 'names',
+    motion: MOTION.includes(p.motion) ? p.motion : 'system',
   };
 }
 
@@ -87,32 +123,53 @@ export function fromV1(d) {
 
 export function serialize(d) { const { schema, ...rest } = d; return JSON.stringify({ ...rest, v: SAVE_VERSION }); }
 
-// Read the save through a storage adapter. Returns { data, from } where from names the key it came
-// from ('v2' or 'v1', or null); data.schema says which version that save was written in (1, 2 or 3).
-// TODO(follow-up): a v2 save that exists but is corrupt currently falls back to the v1 backup silently;
-// keep the corrupt string aside and tell the player instead.
-const readRaw = (storage, key) => { try { return JSON.parse(storage.get(key) || 'null'); } catch (e) { return null; } };
+// Read the save through a storage adapter. Returns { data, from, corrupt } where from names where it came
+// from ('v2' for the main key, 'shadow', or 'v1'; null for nothing) and data.schema says which version
+// that save was written in (1 to 4). corrupt is true when the main key held something unreadable: that
+// string is kept aside under CORRUPT_KEY (the latest corrupt string wins)
+// and the game tells the player which copy it loaded instead. Order:
+//   1. An older build wrote over the main key after this build saved: if a shadow copy is a newer schema
+//      and has at least as much play time, it is the real save. Restore it and put it back under the main key.
+//   2. The main key, if it reads.
+//   3. Main key missing or corrupt: the shadow copy with the most play time.
+//   4. The v1 backup. When the main key was corrupt this is never silent (see corrupt).
+const parse = str => { if (str == null || str === '') return null; try { return JSON.parse(str); } catch (e) { return undefined; } };
 const playSecs = raw => (raw && raw.stats && Number.isFinite(raw.stats.playSecs) ? raw.stats.playSecs : 0);
+function shadows(storage) {
+  const out = [];
+  for (const key of [SHADOW_KEY, ...OLD_SHADOW_KEYS]) { const raw = parse(storage.get(key)); const data = raw ? migrate(raw) : null; if (data) out.push({ key, raw, data }); }
+  return out.sort((a, b) => playSecs(b.raw) - playSecs(a.raw) || b.raw.v - a.raw.v);
+}
 export function loadSave(storage) {
-  // An older build wrote over the main key (v < 3) after this build saved: if the shadow copy has at
-  // least as much play time, it is the real save. Restore it and put it back under the main key.
-  const main = readRaw(storage, SAVE_KEY), shadow = readRaw(storage, SHADOW_KEY);
-  if (main && Number.isFinite(main.v) && main.v < SAVE_VERSION && shadow && shadow.v >= SAVE_VERSION && playSecs(shadow) >= playSecs(main)) {
-    const data = migrate(shadow);
-    if (data) { writeSave(storage, data); return { data, from: 'shadow' }; }
+  const mainStr = storage.get(SAVE_KEY), main = parse(mainStr), mainData = main ? migrate(main) : null;
+  const corrupt = mainStr != null && mainStr !== '' && !mainData;
+  const sh = shadows(storage);
+  if (mainData && Number.isFinite(main.v)) {
+    const newer = sh.find(c => c.raw.v >= 3 && c.raw.v > main.v && playSecs(c.raw) >= playSecs(main));
+    if (newer) { writeSave(storage, newer.data); return { data: newer.data, from: 'shadow', corrupt: false }; }
   }
-  for (const [key, from] of [[SAVE_KEY, 'v2'], [LEGACY_KEY, 'v1']]) {
-    let raw = null;
-    try { raw = JSON.parse(storage.get(key) || 'null'); } catch (e) { raw = null; }
-    const data = migrate(raw);
-    if (data) return { data, from };
-  }
-  return { data: null, from: null };
+  if (mainData) return { data: mainData, from: 'v2', corrupt: false };
+  if (corrupt && storage.get(CORRUPT_KEY) !== mainStr) storage.set(CORRUPT_KEY, mainStr);
+  if (sh.length) return { data: sh[0].data, from: 'shadow', corrupt };
+  const legacy = parse(storage.get(LEGACY_KEY)), legacyData = legacy ? migrate(legacy) : null;
+  if (legacyData) return { data: legacyData, from: 'v1', corrupt };
+  return { data: null, from: null, corrupt };
 }
 export function writeSave(storage, d) {
   const str = serialize(d);
   storage.set(SHADOW_KEY, str);
   return storage.set(SAVE_KEY, str);
+}
+// For the settings drawer: the schema on disk and whether the shadow copy matches it.
+// shadow: 'in step' (same as the main save), 'behind' (an older copy), 'missing'; corrupt: a damaged
+// save is kept aside under CORRUPT_KEY.
+export function saveHealth(storage) {
+  const main = storage.get(SAVE_KEY), shadow = storage.get(SHADOW_KEY), raw = parse(main);
+  return {
+    schema: raw && Number.isFinite(raw.v) ? raw.v : null,
+    shadow: shadow == null ? 'missing' : shadow === main ? 'in step' : 'behind',
+    corrupt: storage.get(CORRUPT_KEY) != null,
+  };
 }
 
 /* ---------- export and import: a copyable string ---------- */

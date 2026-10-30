@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BEATS, CARDS, LENGTH, EVOLUTION, EVO_FROM, EVO_EACH, timeline, frameAt, zoomAt, cuesBetween, canSkip } from '../src/cutscene.js';
+import { BEATS, CARDS, LENGTH, EVOLUTION, EVO_FROM, EVO_EACH, timeline, frameAt, zoomAt, cuesBetween, canSkip, interruptedEnding } from '../src/cutscene.js';
 
 describe('the ending timeline', () => {
   it('six beats, back to back, with the design timings, 60 to 75 seconds long', () => {
@@ -45,5 +45,15 @@ describe('the ending timeline', () => {
   });
   it('skippable only after a full viewing', () => {
     expect(canSkip({ cutsceneSeen: 0 })).toBe(false); expect(canSkip({ cutsceneSeen: 1 })).toBe(true); expect(canSkip(null)).toBe(false);
+  });
+});
+
+describe('closing the tab during the first viewing', () => {
+  it('counts as an interrupted ending only when Eat the Rest was pressed and the ending never finished', () => {
+    expect(interruptedEnding({ ate: true }, { universes: 1, cutsceneSeen: 0 })).toBe(true);
+    expect(interruptedEnding({ ate: true }, { universes: 1, cutsceneSeen: 1 })).toBe(false);
+    expect(interruptedEnding({ ate: false }, { universes: 1, cutsceneSeen: 0 })).toBe(false);
+    expect(interruptedEnding({ ate: true }, { universes: 0, cutsceneSeen: 0 })).toBe(false);
+    expect(interruptedEnding(null, null)).toBe(false);
   });
 });

@@ -3,13 +3,13 @@
 import { clamp } from './draw.js';
 import { goopColours } from './sprites/goop.js';
 import { STAGES, FEEDERS, UPGRADES, END, LAST, feederCost, feederRate, slopPerSec, stageProgress, massGrams, feederOpen, upgradeOpen, boostMult, canEatRest } from './econ.js';
-import { PERKS, perkLevel, perkCost, perkMax, dustForRun, clickCap, BIG_BANG_DUST } from './prestige.js';
+import { PERKS, perkLevel, perkCost, perkMax, perkOpen, dustForRun, clickCap, canHop, BIG_BANG_DUST } from './prestige.js';
 import { BADGES, BADGE_BY_ID } from './achievements.js';
 import { EVENTS } from './events.js';
-import { SUN, UNIVERSE, totalCaught } from './stats.js';
+import { SUN, UNIVERSE, totalCaught, knownTime } from './stats.js';
 import { fmt, fmtMass, heavierThan, clock } from './fmt.js';
 import { wallOf, wallClasses, readout, stageLine, WALL_CLASSES } from './fourthwall.js';
-import { G } from './game.js';
+import { G, mainRun } from './game.js';
 
 export const $ = id => document.getElementById(id);
 
@@ -88,13 +88,14 @@ export function refresh() {
   $('bar').style.width = (full ? 100 : p * 100).toFixed(1) + '%'; $('bar').style.background = goopColours(k, p)[0];
   $('barBox').setAttribute('aria-valuenow', Math.round(full ? 100 : p * 100));
   paintWall(w); paintFinale(s);
-  const buff = s.freeze > 0 ? 'Feeders frozen for ' + Math.ceil(s.freeze) + 's' : s.frenzy > 0 ? 'Frenzy x' + boostMult(s) + ' for ' + Math.ceil(s.frenzy) + 's' : '';
+  const frozenHands = G.daily && G.handsIdle;
+  const buff = s.freeze > 0 ? 'Feeders frozen for ' + Math.ceil(s.freeze) + 's' : s.frenzy > 0 ? 'Frenzy x' + boostMult(s) + ' for ' + Math.ceil(s.frenzy) + 's' : frozenHands ? 'Feeders wait for your hand' : '';
   $('buff').hidden = !buff; if (buff) $('buff').textContent = buff;
-  $('hint').hidden = s.feeds >= 3 || !$('toast').hidden || !!G.cut;
-  $('hopSmall').hidden = !(s.won && $('win').hidden && $('land').hidden && !G.cut);
+  $('hint').hidden = s.feeds >= 3 || !$('toast').hidden || !!G.cut || coverOpen();
+  $('hopSmall').hidden = !(canHop(s) && !G.daily && $('win').hidden && $('land').hidden && !G.cut);
   $('hopSmall').textContent = s.ate ? 'Become the new universe' : 'Hop to the next star';
   $('shelfCount').textContent = G.badgeCount + '/' + BADGES.length;
-  $('dustCount').textContent = fmt(s.dust);
+  $('dustCount').textContent = fmt(mainRun().state.dust);
   document.querySelectorAll('#feeders button').forEach(b => {
     const i = +b.dataset.f, c = feederCost(s, i);
     b.querySelector('.c').textContent = fmt(c); b.querySelector('.own').textContent = s.own[i];
@@ -130,7 +131,7 @@ function paintFinale(s) {
 /* ---------- winning: Act 1 at the Sun, and the landing after the ending ---------- */
 export function showWin() {
   const s = G.state;
-  $('winText').textContent = 'It took ' + clock(G.stats.runStageAt[SUN] != null ? G.stats.runStageAt[SUN] : s.played) + ' and ' + s.feeds.toLocaleString('en-US') + ' spoonfuls by hand. The goop now weighs ' + fmtMass(massGrams(s.life)) + '.';
+  $('winText').textContent = 'It took ' + clock(knownTime(G.stats.runStageAt[SUN]) ? G.stats.runStageAt[SUN] : s.played) + ' and ' + s.feeds.toLocaleString('en-US') + ' spoonfuls by hand. The goop now weighs ' + fmtMass(massGrams(s.life)) + '.';
   paintWinDust();
   $('win').hidden = false;
 }
@@ -151,26 +152,33 @@ export function showLanding() {
   $('bangBtn').focus();
 }
 
-/* ---------- sheets: the trophy shelf and the Star Dust panel ---------- */
+/* ---------- sheets: the trophy shelf, Star Dust, settings, bests, the name chooser, share, daily ---------- */
+export const SHEETS = ['shelf', 'perks', 'settings', 'bests', 'namer', 'share', 'dailySheet'];
 let sheetBack = null;
+// One sheet at a time: opening one from another (the name chooser from settings) swaps them, and focus
+// goes back to whatever opened the first one.
 export function openSheet(id) {
-  sheetBack = document.activeElement;
+  const from = SHEETS.find(s => !$(s).hidden);
+  if (!from) sheetBack = document.activeElement;
+  for (const s of SHEETS) if (s !== id) $(s).hidden = true;
   $(id).hidden = false;
   const c = $(id).querySelector('[data-close]'); if (c) c.focus();
 }
 export function closeSheets() {
   let was = false;
-  for (const id of ['shelf', 'perks']) if (!$(id).hidden) { $(id).hidden = true; was = true; }
+  for (const id of SHEETS) if (!$(id).hidden) { $(id).hidden = true; was = true; }
   if (was && sheetBack && document.contains(sheetBack)) sheetBack.focus();
   return was;
 }
-export function sheetOpen() { return !$('shelf').hidden || !$('perks').hidden; }
+export function sheetOpen() { return SHEETS.some(id => !$(id).hidden); }
+// A card over the theatre (the away card, the daily result): events pause behind it, like a sheet.
+export function coverOpen() { return !$('away').hidden || !$('dailyEnd').hidden; }
 
 export function renderShelf(achievements, scores, identity) {
-  const st = G.stats, earned = achievements.earned();
+  const st = mainRun().stats, earned = achievements.earned();
   $('shelfTitle').textContent = identity.name() + "'s trophy shelf";
   $('shelfSub').textContent = Object.keys(earned).length + ' of ' + BADGES.length + ' earned. Trophies stay on the shelf when you start over.';
-  $('replayBtn').hidden = !(st.cutsceneSeen > 0 || st.universes > 0);
+  $('replayBtn').hidden = !(st.cutsceneSeen > 0 || st.universes > 0) || !!G.daily;
   const B = $('badges'); B.textContent = '';
   for (const b of BADGES) {
     const d = document.createElement('div'); d.className = 'badge' + (earned[b.id] ? '' : ' off');
@@ -188,6 +196,7 @@ export function renderShelf(achievements, scores, identity) {
     ['Time with the goop', clock(st.playSecs)], ['Fastest Sun', sun != null ? clock(sun) : 'not yet'],
     ['Milestones passed', fmt(st.milestones)], ['Universes eaten', fmt(st.universes)], ['Big Bangs', fmt(st.bigBangs)],
   ];
+  if (st.dailyDone) rows.push(['Daily goops finished', fmt(st.dailyDone)]);
   if (st.bestStageAt[UNIVERSE] != null) rows.push(['Fastest universe', clock(st.bestStageAt[UNIVERSE])]);
   for (let k = 1; k < STAGES.length; k++) if (k !== SUN && st.bestStageAt[k] != null) rows.push(['Fastest to ' + STAGES[k].name, clock(st.bestStageAt[k])]);
   for (const e of EVENTS) if (st.seen[e.id]) rows.push([e.name + 's caught', (st.caught[e.id] || 0) + ' of ' + st.seen[e.id]]);
@@ -196,13 +205,20 @@ export function renderShelf(achievements, scores, identity) {
 }
 
 export function renderPerks() {
-  const s = G.state;
+  const s = mainRun().state;
   $('perksTitle').textContent = 'Star Dust: ' + fmt(s.dust);
-  $('perksSub').textContent = 'Each hop leaves Star Dust behind. Perks are yours for good and survive every hop. ' +
+  $('perksSub').textContent = (G.daily ? 'Perks are for your own goop; the daily goop is played without them. ' : '') + 'Each hop leaves Star Dust behind. Perks are yours for good and survive every hop. ' +
     (s.won ? 'Hopping now would earn ' + dustForRun(s.life, s.ate) + ' more.' : 'Eat the Sun, then hop, to earn some.') + ' Hand feeds pay up to ' + clickCap(s) + ' a second.';
   const L = $('perkList'), keep = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.perk;
   L.textContent = '';
+  let act = 0, hidden = 0;
   for (const p of PERKS) {
+    if (p.act !== act) {
+      act = p.act;
+      const h = document.createElement('h3'); h.textContent = act === 1 ? 'Act 1: the lab to the Sun' : 'Act 2: the universe and after';
+      L.appendChild(h);
+    }
+    if (!perkOpen(s, p.id)) { hidden++; continue; }
     const lv = perkLevel(s, p.id), max = perkMax(p.id), cost = perkCost(s, p.id);
     const b = document.createElement('button'); b.type = 'button'; b.className = 'item perk' + (lv >= max ? ' maxed' : ''); b.dataset.perk = p.id;
     b.innerHTML = '<span class="nm"></span><span class="cost"></span><span class="fx"></span>';
@@ -217,11 +233,15 @@ export function renderPerks() {
     b.setAttribute('aria-label', p.name + (lv >= max ? ', owned' : ', costs ' + cost + ' Star Dust') + '. ' + p.blurb);
     L.appendChild(b);
   }
+  if (hidden) { const n = document.createElement('p'); n.className = 'note'; n.textContent = hidden + ' more perk' + (hidden > 1 ? 's are' : ' is') + ' still under wraps. ' + ((s.bangs | 0) ? 'One needs the Long Nap first.' : 'Become the new universe to find out.'); L.appendChild(n); }
   if (keep) { const b = L.querySelector('[data-perk="' + keep + '"]'); if (b && !b.disabled) b.focus(); else $('perks').querySelector('[data-close]').focus(); }
 }
 
 /* ---------- small things ---------- */
-export function paintSound() { $('soundBtn').textContent = G.prefs.sound ? 'Sound on' : 'Sound off'; $('soundBtn').setAttribute('aria-pressed', G.prefs.sound); }
+export function paintSound() {
+  $('soundBtn').textContent = G.prefs.sound ? 'Sound on' : 'Sound off'; $('soundBtn').setAttribute('aria-pressed', G.prefs.sound);
+  $('setSound').textContent = G.prefs.sound ? 'On' : 'Off'; $('setSound').setAttribute('aria-pressed', G.prefs.sound);
+}
 export function paintPeek() {
   document.querySelectorAll('#peek button').forEach(b => b.setAttribute('aria-pressed', String(G.peek === +b.dataset.k)));
   $('peekchip').hidden = G.peek == null; if (G.peek != null) $('peekchip').textContent = 'Peeking at stage ' + (G.peek + 1) + ': ' + STAGES[G.peek].name;

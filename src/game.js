@@ -9,7 +9,11 @@ import { SCENES } from './scenes/index.js';
 export const G = {
   state: newState(),
   stats: newStats(),
-  prefs: { sound: true },
+  prefs: { sound: true, haptics: true, numbers: 'names', motion: 'system' },
+  daily: null,           // the daily goop while it is being played: { date, seed, mutator, state, stats, done, tries, … } (daily.js)
+  main: null,            // while the daily is played, the main run waits here: { state, stats, leftAt }
+  rand: Math.random,     // where event randomness comes from: seeded in the daily, so everyone gets the same deck
+  away: null,            // the offline-return card on show (away.js), or held until the ending finishes
   peek: null,            // stage index being peeked at, or null
   ev: null,              // the event on stage: { def, age, life, seed, targets: [{ look, label, x, y, opt, px, py }] }
   evIn: FIRST_EVENT,     // seconds until the next event
@@ -26,6 +30,8 @@ export const anim = { squash: 0, squashV: 0, mouth: 0, fling: 1, zoom: 1, r: 30,
 export const par = { x: 0, y: 0, tx: 0, ty: 0 };
 export const shots = [], drops = [], floats = [];
 
+// The main run (not the daily), whichever is on stage: saves, badges, the shelf and Star Dust read this.
+export function mainRun() { return G.main || { state: G.state, stats: G.stats }; }
 export function view() { return G.peek == null ? { k: G.state.stage, p: clamp(stageProgress(G.state.life), 0, 1) } : { k: G.peek, p: .72 }; }
 export function mouthPoint() { const g = SCENES[view().k].goop; return [g.x + anim.r * .05, anim.cy + anim.r * .3]; }
 export function clearStage() { shots.length = drops.length = floats.length = 0; }

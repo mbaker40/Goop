@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { migrate, loadSave, writeSave, exportString, importString, SAVE_KEY, SHADOW_KEY, LEGACY_KEY, SAVE_VERSION } from '../src/save.js';
+import { migrate, loadSave, writeSave, exportString, importString, serialize, adoptPrefs, adoptProfile, saveHealth, SAVE_KEY, SHADOW_KEY, OLD_SHADOW_KEYS, CORRUPT_KEY, LEGACY_KEY, SAVE_VERSION } from '../src/save.js';
 import { createMemoryStorage } from '../src/platform/storage.js';
 import { early, late } from './fixtures/v1-saves.js';
 import { pastSun, midGame } from './fixtures/v2-saves.js';
@@ -61,7 +61,7 @@ describe('save migration from v1', () => {
 describe('save migration from v2 (six stages) to v3 (twenty)', () => {
   it('a goop already past the Sun lands on the right new stage with nothing lost', () => {
     const before = JSON.parse(pastSun), d = migrate(before);
-    expect(SAVE_VERSION).toBe(3); expect(d.v).toBe(3); expect(d.schema).toBe(2);
+    expect(SAVE_VERSION).toBe(4); expect(d.v).toBe(4); expect(d.schema).toBe(2);
     expect(d.state.life).toBe(4.2e15); expect(d.state.slop).toBe(3.1e15);
     expect(d.state.stage).toBe(7); expect(STAGES[d.state.stage].name).toBe('Nebula Nibbler');
     expect(d.state.won).toBe(true); expect(d.state.winSeen).toBe(true); expect(d.state.ate).toBe(false);
@@ -86,10 +86,10 @@ describe('save migration from v2 (six stages) to v3 (twenty)', () => {
     expect(first.from).toBe('v2'); expect(first.data.schema).toBe(2);
     writeSave(storage, first.data);
     const raw = JSON.parse(storage.get(SAVE_KEY));
-    expect(raw.v).toBe(3); expect(raw.schema).toBeUndefined();
+    expect(raw.v).toBe(SAVE_VERSION); expect(raw.schema).toBeUndefined();
     expect(storage.get(LEGACY_KEY)).toBe(late);
     const again = loadSave(storage);
-    expect(again.data.schema).toBe(3); expect(again.data.state.stage).toBe(7); expect(again.data.state.slop).toBe(3.1e15);
+    expect(again.data.schema).toBe(SAVE_VERSION); expect(again.data.state.stage).toBe(7); expect(again.data.state.slop).toBe(3.1e15);
   });
   it('a v3 save round-trips milestones and the universe flag', () => {
     const d = migrate(JSON.parse(pastSun));
@@ -97,9 +97,9 @@ describe('save migration from v2 (six stages) to v3 (twenty)', () => {
     const back = migrate(JSON.parse(JSON.stringify({ ...d, v: 3 })));
     expect(back.state.ate).toBe(true); expect(back.state.miles).toEqual({ m1a: true });
   });
-  it('a v1 save goes all the way to v3', () => {
+  it('a v1 save goes all the way to the current schema', () => {
     const d = migrate(JSON.parse(late));
-    expect(d.v).toBe(3); expect(d.schema).toBe(1); expect(d.state.stage).toBe(3);
+    expect(d.v).toBe(SAVE_VERSION); expect(d.schema).toBe(1); expect(d.state.stage).toBe(3);
     expect(SUN_AT).toBe(3e13);
   });
 });
@@ -143,7 +143,7 @@ describe('an old six-stage tab saving over an Act 2 save', () => {
   it('reproduces the downgrade, then recovers the feeders and Mutations from the shadow copy', () => {
     const storage = createMemoryStorage();
     writeSave(storage, act2Save());
-    expect(JSON.parse(storage.get(SHADOW_KEY)).v).toBe(3);
+    expect(JSON.parse(storage.get(SHADOW_KEY)).v).toBe(SAVE_VERSION);
     // the old tab saves over the main key
     storage.set(SAVE_KEY, oldBuildSave(JSON.parse(storage.get(SAVE_KEY))));
     const downgraded = migrate(JSON.parse(storage.get(SAVE_KEY)));
@@ -156,7 +156,7 @@ describe('an old six-stage tab saving over an Act 2 save', () => {
     expect(data.state.own.slice(10, 13)).toEqual([12, 7, 3]);
     expect(data.state.ups).toMatchObject({ mut7: true, mut8: true, dyson2: true, mut5: true });
     expect(data.state.life).toBe(4.2e15); expect(data.state.stage).toBe(7);
-    expect(JSON.parse(storage.get(SAVE_KEY)).v).toBe(3);                         // the main key is put right
+    expect(JSON.parse(storage.get(SAVE_KEY)).v).toBe(SAVE_VERSION);              // the main key is put right
     expect(loadSave(storage).from).toBe('v2');                                    // and from then on loads normally
   });
   it('keeps the main save when the old tab has really played on longer', () => {
@@ -170,5 +170,68 @@ describe('an old six-stage tab saving over an Act 2 save', () => {
   it('a plain v2 player with no shadow copy migrates as before', () => {
     const storage = createMemoryStorage({ [SAVE_KEY]: pastSun });
     expect(loadSave(storage).from).toBe('v2');
+  });
+});
+
+describe('schema 4: Big Bangs on the state, settings, and the shadow as a fallback', () => {
+  const v3 = () => { const d = migrate(JSON.parse(pastSun)); d.stats.bigBangs = 3; d.stats.playSecs = 4000; return JSON.parse(JSON.stringify({ ...d, v: 3 })); };
+  it('a v3 save gains the Big Bang count from its stats, and default settings', () => {
+    const d = migrate(v3());
+    expect(d.schema).toBe(3); expect(d.state.bangs).toBe(3);
+    expect(d.prefs).toEqual({ sound: false, haptics: true, numbers: 'names', motion: 'system' });
+    const back = migrate(JSON.parse(serialize({ ...d, state: { ...d.state, bangs: 5 } })));
+    expect(back.state.bangs).toBe(5);                                    // from v4 on, the state's own count wins
+  });
+  it('settings are sanitised', () => {
+    expect(adoptPrefs({ sound: false, haptics: false, numbers: 'sci', motion: 'reduce' })).toEqual({ sound: false, haptics: false, numbers: 'sci', motion: 'reduce' });
+    expect(adoptPrefs({ numbers: 'roman', motion: 'warp' })).toEqual({ sound: true, haptics: true, numbers: 'names', motion: 'system' });
+    expect(adoptPrefs(null).sound).toBe(true);
+  });
+  it('a profile keeps only a sane name and token', () => {
+    expect(adoptProfile({ name: 'Dr. Ooze', token: 'abcdefghijklmnopqrst', evil: '<x>' })).toEqual({ name: 'Dr. Ooze', token: 'abcdefghijklmnopqrst' });
+    expect(adoptProfile({ name: 5, token: 'short' })).toEqual({ name: '' });
+  });
+  it('the twenty-stage build (v3) writing over a v4 save is recovered from the v4 shadow', () => {
+    const storage = createMemoryStorage();
+    const d = migrate(v3()); d.state.perks = { ...d.state.perks, crumbs: 2, late: 1 }; d.state.bangs = 3;
+    writeSave(storage, d);
+    // what the v3 build writes back: it drops perks it does not know and the Big Bang count, and stamps v: 3
+    const old = JSON.parse(storage.get(SAVE_KEY)); old.v = 3; old.state.perks = { head: 1, fingers: 1 }; delete old.state.bangs; old.at += 1000;
+    storage.set(SAVE_KEY, JSON.stringify(old)); storage.set(OLD_SHADOW_KEYS[0], JSON.stringify(old));
+    const { data, from } = loadSave(storage);
+    expect(from).toBe('shadow'); expect(data.state.perks).toMatchObject({ crumbs: 2, late: 1 }); expect(data.state.bangs).toBe(3);
+    expect(JSON.parse(storage.get(SAVE_KEY)).v).toBe(SAVE_VERSION);
+  });
+  it('a corrupt main save is kept aside, the shadow loads instead, and the player is told', () => {
+    const storage = createMemoryStorage();
+    const d = migrate(v3()); d.state.slop = 777; writeSave(storage, d);
+    storage.set(SAVE_KEY, '{"v":4,"state":{"slop":1');                  // a write cut short
+    storage.set(LEGACY_KEY, early);
+    const r = loadSave(storage);
+    expect(r.from).toBe('shadow'); expect(r.corrupt).toBe(true); expect(r.data.state.slop).toBe(777);
+    expect(storage.get(CORRUPT_KEY)).toBe('{"v":4,"state":{"slop":1');
+    expect(saveHealth(storage)).toMatchObject({ corrupt: true });
+  });
+  it('a corrupt main save with no shadow falls back to v1 loudly, not silently; with nothing, a fresh start, still told', () => {
+    const storage = createMemoryStorage({ [SAVE_KEY]: 'garbage', [LEGACY_KEY]: early });
+    expect(loadSave(storage)).toMatchObject({ from: 'v1', corrupt: true });
+    expect(loadSave(createMemoryStorage({ [SAVE_KEY]: 'garbage' }))).toMatchObject({ data: null, from: null, corrupt: true });
+    expect(loadSave(createMemoryStorage({ [SAVE_KEY]: JSON.stringify({ v: 4, state: 'nope' }) })).corrupt).toBe(true);
+  });
+  it('a missing main save loads from the shadow', () => {
+    const storage = createMemoryStorage();
+    const d = migrate(v3()); d.state.slop = 4242; writeSave(storage, d); storage.remove(SAVE_KEY);
+    expect(loadSave(storage)).toMatchObject({ from: 'shadow', corrupt: false }); expect(loadSave(storage).data.state.slop).toBe(4242);
+  });
+  it('a fresh browser has nothing to load and nothing is corrupt', () => {
+    expect(loadSave(createMemoryStorage())).toEqual({ data: null, from: null, corrupt: false });
+  });
+  it('save health: the schema and whether the shadow is in step', () => {
+    const storage = createMemoryStorage();
+    expect(saveHealth(storage)).toEqual({ schema: null, shadow: 'missing', corrupt: false });
+    writeSave(storage, migrate(v3()));
+    expect(saveHealth(storage)).toEqual({ schema: SAVE_VERSION, shadow: 'in step', corrupt: false });
+    storage.set(SAVE_KEY, storage.get(SAVE_KEY).replace('"v":4', '"v":4 '));
+    expect(saveHealth(storage).shadow).toBe('behind');
   });
 });

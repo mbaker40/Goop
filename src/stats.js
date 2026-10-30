@@ -27,6 +27,8 @@ export function newStats() {
     // Act 2
     milestones: 0, moods: {}, universes: 0, bigBangs: 0, cutsceneSeen: 0, cutsceneReplays: 0, cutsceneSkips: 0,
     runBadges: [],                                // badge ids earned during this run, for the landing
+    // Phase 3
+    burps: 0, dailyDone: 0, shares: 0,            // offline burps watched, daily goops finished, share cards made
   };
 }
 
@@ -36,7 +38,11 @@ const countMap = o => {
   if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) if (typeof k === 'string' && k.length < 40 && num(v)) m[k] = num(v);
   return m;
 };
-const timeArr = a => (Array.isArray(a) ? a.slice(0, UNIVERSE + 1).map(v => (Number.isFinite(v) && v >= 0 ? v : null)) : []);
+// A stage time is seconds, null (not reached) or UNKNOWN: reached before this save tracked it, so the
+// time is lost. UNKNOWN only ever appears in runStageAt, where it stops recordStage from writing an
+// inflated time for a stage reached long ago (see seedUnknownStages).
+export const UNKNOWN = -1;
+const timeArr = (a, unknown) => (Array.isArray(a) ? a.slice(0, UNIVERSE + 1).map(v => (Number.isFinite(v) && v >= 0 ? v : unknown && v === UNKNOWN ? UNKNOWN : null)) : []);
 
 // Rebuild a stats object from anything (an old save, an import). Unknown fields are dropped.
 export function adoptStats(o) {
@@ -47,7 +53,7 @@ export function adoptStats(o) {
   }
   for (const k of ['seen', 'caught', 'missed', 'peeked', 'moods']) st[k] = countMap(o[k]);
   st.runBadges = Array.isArray(o.runBadges) ? o.runBadges.filter(id => typeof id === 'string' && id.length < 40).slice(0, 100) : [];
-  st.runStageAt = timeArr(o.runStageAt); if (st.runStageAt[0] == null) st.runStageAt[0] = 0;
+  st.runStageAt = timeArr(o.runStageAt, true); if (st.runStageAt[0] == null) st.runStageAt[0] = 0;
   st.bestStageAt = timeArr(o.bestStageAt);
   return st;
 }
@@ -62,6 +68,15 @@ export function recordStage(st, k, secs) {
   if (best == null || secs < best) { st.bestStageAt[k] = secs; return true; }
   return false;
 }
+// A save that reached its stage before stage times were kept (a migrated player past the Sun has times
+// only up to the Sun, a v1 player none at all): mark the stages behind the goop that have no time as
+// UNKNOWN, so the next stage change does not record "now" as the time it took to reach them.
+export function seedUnknownStages(st, stage) {
+  for (let k = 1; k <= stage; k++) if (st.runStageAt[k] == null) st.runStageAt[k] = UNKNOWN;
+  return st;
+}
+// A run time worth showing: a real number of seconds, not null and not UNKNOWN.
+export const knownTime = v => Number.isFinite(v) && v >= 0;
 export function newRun(st, stage = 0) {
   st.runStageAt = []; st.runBadges = [];
   for (let k = 0; k <= stage; k++) st.runStageAt[k] = 0;
