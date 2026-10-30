@@ -1,8 +1,8 @@
 # Feed the Goop
 
 You are the scientist. It is hungry. Click the goop to feed it, spend the slop it burps up, and see
-how far this goes: twenty stages from a lab table to eating the Sun (Act 1), and then the rest of the
-universe (Act 2).
+how far this goes: twenty stages from a lab table, past the Sun (the end of Act 1), to the edge of
+the universe.
 
 **▶ Play: https://mbaker40.github.io/Goop/**
 
