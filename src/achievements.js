@@ -83,7 +83,7 @@ export const BADGES = [
   { id: 'nomiss',     name: 'Nobody Gets Past',      blurb: 'Hop after a whole run in which every visitor (three or more) was shooed.', test: (s, st) => !!st.flags.cleanRun },
   { id: 'gamble5',    name: 'Hot Streak',            blurb: 'Win five gambles in a row. The goop is starting to believe.',            test: (s, st) => st.bestGambleStreak >= 5 },
   { id: 'buzzer',     name: 'Buzzer Beater',         blurb: 'Catch an event with less than a second to spare.',                         test: (s, st) => st.lastSecond >= 1 },
-  { id: 'nomut',      name: 'Au Naturel',            blurb: 'Eat the Sun from a fresh dish without buying a single Mutation.',        test: s => s.stage >= SUN_STAGE && (s.startStage | 0) < SUN_STAGE && mutations(s) === 0 },
+  { id: 'nomut',      name: 'Au Naturel',            blurb: 'Eat the Sun without buying a single Mutation in that run.',        test: s => s.stage >= SUN_STAGE && (s.startStage | 0) < SUN_STAGE && mutations(s) === 0 },
   { id: 'replay3',    name: 'Director\'s Cut',       blurb: 'Watch the ending three more times from the trophy shelf.',              test: (s, st) => st.cutsceneReplays >= 3 },
   { id: 'mutesound',  name: 'Silent Snack',          blurb: 'Let the goop eat the sound toggle while the sound is off. It did not notice.', test: (s, st) => !!st.flags.muteEat },
   { id: 'handsdaily', name: 'Hands-On Experience',   blurb: 'Finish a daily goop on a Hands On day. Your wrist filed a complaint.', test: (s, st) => !!st.flags.dailyHands },
