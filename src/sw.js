@@ -10,7 +10,10 @@ const VERSION = '__VERSION__';
 const PRECACHE = __PRECACHE__;
 const CACHE = 'goop-' + VERSION, FONTS = 'goop-fonts';
 
-self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE))); });
+// cache: 'reload' goes past the HTTP cache. GitHub Pages sends max-age=600, so without it a player who
+// loaded the site in the last ten minutes would precache the previous build's index.html (naming bundles
+// this cache does not hold) under the new build's name, and the offline shell would be broken.
+self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(PRECACHE.map(u => new Request(u, { cache: 'reload' }))))); });
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
     for (const k of await caches.keys()) if (k.startsWith('goop-') && k !== CACHE && k !== FONTS) await caches.delete(k);

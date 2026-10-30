@@ -73,6 +73,32 @@ you left is paid for the part of the absence it covered.
   to the universe, most slop this week, today's daily, most Big Bangs). They are labelled as your own
   until the Worker exists; a server-backed list drops into the same panel.
 
+## Service worker runbook
+
+The service worker (`src/sw.js`, built to `dist/sw.js`) controls every page a player has open, so a bad
+one is the hardest thing in this repo to take back. If one ever reaches players and breaks loading:
+
+1. Replace `src/sw.js` with a kill switch and deploy it (the browser checks `sw.js` on every visit,
+   past the HTTP cache after at most 24 hours, usually at once):
+
+   ```js
+   self.addEventListener('install', () => self.skipWaiting());
+   self.addEventListener('activate', e => e.waitUntil((async () => {
+     for (const k of await caches.keys()) if (k.startsWith('goop-')) await caches.delete(k);
+     await self.registration.unregister();
+     for (const c of await self.clients.matchAll({ type: 'window' })) c.navigate(c.url);
+   })()));
+   ```
+
+   The build plugin fills in `__VERSION__` and `__PRECACHE__` only where they appear, so the kill switch
+   needs neither. Saves live in localStorage and are not touched.
+2. Leave the kill switch deployed for a few weeks, then restore the real worker with the fix.
+
+Updates in normal times: a new build installs in the background and waits. The page offers a "new
+version" toast whenever a build is waiting (including one that was already waiting when the page
+loaded), and Reload hands over and reloads. Install fetches with `cache: 'reload'`, so a build never
+precaches the previous build's page from the HTTP cache.
+
 ## Act 2 pacing
 
 Stage 7's door is the Sun (3e13 slop), where the old game ended: that is still the Act 1 card, and
