@@ -4,6 +4,8 @@ import { sciHead, scientist, bobY, pilot, heli, rocket, saucer } from '../sprite
 import { FOOD } from '../sprites/food.js';
 import { goopColours } from '../sprites/goop.js';
 
+const gone = (a, id) => !!(a && a.gone && a.gone.has(id));   // props eaten by a milestone (milestones.js)
+
 export default { // 1: loose in the lab (same room, camera pulled back)
   goop: { x: 566, base: 516, grounded: true, r0: 62, r1: 212 }, hand: [322, 268],
   back(t) {
@@ -18,7 +20,7 @@ export default { // 1: loose in the lab (same room, camera pulled back)
   mid(t, p, a) {
     lamp(566, 44, t);
     if (p > .4) { const d = (p - .4) / .6; line([[520, -10], [540, 40 + 40 * d], [512, 70 + 70 * d], [548, 100 + 110 * d]], INK, 4); line([[640, -10], [626, 30 + 30 * d], [660, 60 + 60 * d]], INK, 4); }
-    hang(840, 250, 846); cut(P.poly([[840, 250], [884, 294], [840, 338], [796, 294]]), '#ffd23f', { lw: 4, d: 1 }); label('!', 840, 296, 46, INK);
+    if (!gone(a, 'sign')) { hang(840, 250, 846); cut(P.poly([[840, 250], [884, 294], [840, 338], [796, 294]]), '#ffd23f', { lw: 4, d: 1 }); label('!', 840, 296, 46, INK); }
     cut(P.rect(34, 372, 176, 150, 10), '#22c3b0', { lw: 4, d: 1 });
     flat(P.rect(52, 390, 92, 56, 5), '#123b4a'); line([[60, 432], [78, 414], [96, 424], [114, 402], [134, 408]], '#8fdc2f', 3);
     for (let i = 0; i < 6; i++) inked(P.circ(62 + (i % 3) * 30, 468 + Math.floor(i / 3) * 26, 8), (reduce ? i % 2 : Math.floor(t * 2 + i * 1.3) % 2) ? '#ff5f8f' : '#ffd23f', 3);

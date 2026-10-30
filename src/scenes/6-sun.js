@@ -4,6 +4,8 @@ import { sciHead, scientist, bobY, pilot, heli, rocket, saucer } from '../sprite
 import { FOOD } from '../sprites/food.js';
 import { goopColours } from '../sprites/goop.js';
 
+const gone = (a, id) => !!(a && a.gone && a.gone.has(id));   // props eaten by a milestone (milestones.js)
+
 export default { // 5: eating the sun
   goop: { x: 622, base: 312, grounded: false, r0: 118, r1: 232 }, hand: [336, 520],
   back(t, p, a) {
@@ -13,7 +15,7 @@ export default { // 5: eating the sun
   },
   mid(t, p, a) {
     planet(886, 122, 46, '#e8b98a', () => { box(820, 100, 140, 9, '#c98f5f'); box(820, 124, 140, 12, '#c98f5f'); box(820, 148, 140, 7, '#c98f5f'); flat(P.ell(900, 134, 12, 7), '#d95f3a'); });
-    hang(392, 70); inked(P.ell(392, 100, 56, 13, -.25), '#f2d38a', 3.5); cut(P.circ(392, 100, 30), '#e8c46a', { lw: 4, d: 1.1 }); line([[366, 108], [420, 94]], '#c99a3a', 4);
+    if (!gone(a, 'saturn')) { hang(392, 70); inked(P.ell(392, 100, 56, 13, -.25), '#f2d38a', 3.5); cut(P.circ(392, 100, 30), '#e8c46a', { lw: 4, d: 1.1 }); line([[366, 108], [420, 94]], '#c99a3a', 4); }
     const sr = a.won ? 0 : lerp(140, 64, p), sx = 152, sy = 330;
     if (sr > 4) {
       const rays = [];

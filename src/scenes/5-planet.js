@@ -4,6 +4,8 @@ import { sciHead, scientist, bobY, pilot, heli, rocket, saucer } from '../sprite
 import { FOOD } from '../sprites/food.js';
 import { goopColours } from '../sprites/goop.js';
 
+const gone = (a, id) => !!(a && a.gone && a.gone.has(id));   // props eaten by a milestone (milestones.js)
+
 export default { // 4: a planet in its own right
   goop: { x: 512, base: 318, grounded: false, r0: 90, r1: 190 }, hand: [240, 280],
   back(t) { space(t, '#1a1450', '#4a1d6e', [[720, 420, 320, 'rgba(34,195,176,.2)'], [240, 140, 280, 'rgba(162,104,255,.26)']]); },
@@ -18,7 +20,7 @@ export default { // 4: a planet in its own right
   },
   mid(t, p, a) {
     const pull = (x, i) => x + (512 - x) * .1 * p + (reduce ? 0 : Math.sin(t * 1.1 + i * 2) * 5);
-    planet(pull(140, 0), 150, 30, '#d9dbe8', () => { flat(P.circ(pull(140, 0) - 9, 142, 8), '#b3b7cc'); flat(P.circ(pull(140, 0) + 10, 160, 6), '#b3b7cc'); });
+    if (!gone(a, 'moon')) planet(pull(140, 0), 150, 30, '#d9dbe8', () => { flat(P.circ(pull(140, 0) - 9, 142, 8), '#b3b7cc'); flat(P.circ(pull(140, 0) + 10, 160, 6), '#b3b7cc'); });
     planet(pull(826, 1), 132, 40, '#e2633a', () => { flat(P.ell(pull(826, 1) - 6, 146, 30, 8), '#b8431f'); flat(P.circ(pull(826, 1) + 14, 116, 8), '#b8431f'); });
     planet(pull(852, 2), 466, 34, '#f2d38a', () => { box(700, 452, 300, 8, '#d9b060'); box(700, 472, 300, 10, '#d9b060'); });
     planet(pull(248, 3), 512, 22, '#b9a79a', () => flat(P.circ(pull(248, 3) + 5, 506, 6), '#93827a'));

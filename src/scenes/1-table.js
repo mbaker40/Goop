@@ -4,6 +4,8 @@ import { sciHead, scientist, bobY, pilot, heli, rocket, saucer } from '../sprite
 import { FOOD } from '../sprites/food.js';
 import { goopColours } from '../sprites/goop.js';
 
+const gone = (a, id) => !!(a && a.gone && a.gone.has(id));   // props eaten by a milestone (milestones.js)
+
 export default { // 0: on the lab table
   goop: { x: 590, base: 436, grounded: true, r0: 30, r1: 116 }, hand: [336, 256],
   back(t) {
@@ -17,8 +19,9 @@ export default { // 0: on the lab table
   mid(t, p, a) {
     lamp(590, 58, t);
     cut(P.rect(404, 286, 150, 14, 3), '#f2a154', { lw: 3.5, d: .8 });
-    flask(432, 285, 52, '#ff5f8f'); flask(480, 285, 40, '#ffd23f'); flask(524, 285, 58, '#22c3b0');
-    scientist(214, 570, 1, t, a.fling);
+    if (!gone(a, 'pinkFlask')) flask(432, 285, 52, '#ff5f8f');
+    flask(480, 285, 40, '#ffd23f'); flask(524, 285, 58, '#22c3b0');
+    (a.swap ? a.swap.scientist : scientist)(214, 570, 1, t, a.fling);   // the ending swaps the roles (see ending.js)
     cut(P.rect(-50, 436, W + 100, 240), '#d9772b', { lw: 5, d: 1.4 });
     box(-50, 438, W + 100, 22, '#f2a154'); line([[-50, 461], [W + 50, 461]], INK, 3);
     for (const [gx, gy, gw] of [[60, 500, 120], [320, 540, 160], [640, 512, 110], [780, 566, 130], [150, 578, 90]]) line([[gx, gy], [gx + gw, gy + 3]], '#b85f1f', 3);

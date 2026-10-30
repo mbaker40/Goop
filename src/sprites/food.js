@@ -1,4 +1,5 @@
 import { P, cut, inked, flat, box, line, vgrad, hang, label, ctx, reduce, W, H, INK, EDGE, PAPER, FONT, clamp, lerp, easeOut, rng, mix } from '../draw.js';
+import { FOOD2 } from './food2.js';
 
 /* ---------- snacks: two per stage, each drawn around (0,0) about 40 units wide ---------- */
 export const FOOD = [
@@ -14,4 +15,5 @@ export const FOOD = [
    () => { cut(P.poly([[-20, -4], [-8, -17], [10, -14], [21, -2], [14, 14], [-6, 17], [-19, 9]]), '#b98852', { lw: 3.5, d: .5 }); flat(P.circ(-4, -2, 4), '#8f6638'); flat(P.circ(8, 5, 3), '#8f6638'); }],
   [() => { inked(P.ell(0, 0, 30, 8, -.3), '#f2d38a', 3); cut(P.circ(0, 0, 16), '#e8a25a', { lw: 3.5, d: .5 }); line([[-12, 8], [14, -1]], '#c9793a', 3); },
    () => { cut(P.poly([[-8, -8], [-36, -20], [-30, -6], [-40, 4], [-8, 8]]), '#c9f3ff', { lw: 3.5, d: .5 }); cut(P.circ(0, 0, 13), '#6be6d6', { lw: 3.5, d: .5 }); }],
+  ...FOOD2,
 ];

@@ -121,3 +121,39 @@ canvas{display:block;width:100%;aspect-ratio:960/600;max-width:100%;border:3px s
 .item.perk .fx{grid-column:1 / -1}
 .item.perk.maxed{background:#eaffc7;cursor:default}
 .lv{font-size:12px;font-weight:900;opacity:.75}
+
+/* Phase 2: the Act 1 card, the landing, the skip chip, Eat the Rest, and the Fourth Wall's bites */
+.wincard .act{font-weight:900;font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+.strip{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.strip span{font-size:12px;font-weight:900;background:var(--goop);border:2.5px solid var(--ink);border-radius:999px;padding:2px 9px}
+.strip:empty{display:none}
+.skipchip{right:20px;bottom:20px;padding:4px 12px 5px;font-family:var(--body);font-weight:800;font-size:13px;background:var(--slop)}
+.skipbtn{position:absolute;right:22px;top:22px;z-index:2}
+.toast.mile{background:var(--teal)}
+.toast.mile small{display:block;font-weight:900;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase}
+.finale{display:flex;flex-direction:column}
+.item.eatrest{background:var(--rose);grid-template-columns:minmax(0,1fr) auto}
+.item.eatrest .nm{font-size:22px}
+.item.eatrest .fx{grid-column:1 / -1}
+.item.eatrest:not(:disabled){animation:hungry 1.2s ease-in-out infinite alternate}
+@keyframes hungry{to{box-shadow:6px 7px 0 var(--kraft-lo)}}
+#replayBtn{align-self:flex-start}
+
+/* The Fourth Wall. Every one of these is paint: no pointer events, nothing hidden from assistive tech,
+   every button still where it was and still working (see src/fourthwall.js). */
+.bitten,.chewed,.banner.chewed{position:relative}
+.shop.bitten::before,.shop.bitten::after,.hud.chewed .tag:first-child::after,.banner.chewed::after,.top h1.bitten::after{
+  content:'';position:absolute;pointer-events:none;background:var(--night);border:4px solid var(--ink);border-radius:50%;z-index:1}
+.shop.bitten::before{width:56px;height:56px;right:-14px;top:-34px}
+.shop.bitten::after{width:52px;height:52px;left:-14px;bottom:-14px}
+.hud.chewed .tag{position:relative}
+.hud.chewed .tag:first-child::after{width:40px;height:40px;right:-18px;top:-16px}
+.banner.chewed::after{width:30px;height:30px;right:-14px;top:-12px;background:var(--kraft)}
+.top h1.bitten{display:inline-block}
+.top h1.bitten::after{width:46px;height:46px;right:-22px;top:-8px}
+#soundBtn.eaten{color:transparent;background:transparent;border-style:dashed;border-color:rgba(205,194,240,.4);text-shadow:none}
+#soundBtn.eaten:hover,#soundBtn.eaten:focus-visible{color:var(--mute)}
+@media (prefers-reduced-motion:reduce){.item.eatrest:not(:disabled){animation:none}}
+.hud.chewed .tag:first-child{overflow:hidden}
+/* On a phone the theatre is too short to hold a card: the Act 1 card and the landing cover the screen. */
+@media (max-width:900px){.win{position:fixed;inset:0;z-index:15;border-radius:0;overflow:auto;padding:16px}}
