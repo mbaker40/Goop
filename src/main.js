@@ -301,6 +301,16 @@ function tickAway() {
   $('burpBtn').disabled = false; $('burpBtn').textContent = 'Watch the goop burp: double it';
   $('away').hidden = false; $('burpBtn').focus();
 }
+// Switching goops (into or out of the daily, or a new daily try) with a burp still unclaimed: the goop
+// burps on its way out, into the run that earned it, so the doubling is never lost to the switch.
+function settleAway() {
+  const a = G.away; if (!a) return;
+  $('away').hidden = true; G.away = null;
+  const n = burpBonus(a);
+  if (!(n > 0)) return;
+  G.stats.offlineSlop += n; gain(n);
+  ui.toast('Before you switched, the goop burped up another ' + fmt(n) + ' slop for the time you were away.');
+}
 function closeAway() { $('away').hidden = true; G.away = null; ui.refresh(); cv.focus(); }
 function watchBurp() {
   const a = G.away, n = burpBonus(a);
@@ -496,7 +506,7 @@ function openDaily() {
 // Swap the daily's run onto the stage. The main run waits in G.main; its save keeps the time it was left.
 function swapIn(run) {
   G.ev = null; G.peek = null; ui.paintPeek(); clearStage(); ui.announce('');
-  $('away').hidden = true; G.away = null;            // an unclaimed burp belongs to the run that earned it, and it is gone
+  $('away').hidden = true; G.away = null;            // callers settle an unclaimed burp first (settleAway)
   $('win').hidden = true; $('land').hidden = true; $('dailyEnd').hidden = true;
   G.state = run.state; G.stats = run.stats; G.clickTimes.length = 0;
   G.clock = { fed: G.stats.playSecs, caught: -99, hopped: -99, back: -99 };
@@ -505,7 +515,7 @@ function swapIn(run) {
 }
 function enterDaily(run) {
   if (G.daily) return;
-  save();
+  settleAway(); save();
   G.main = { state: G.state, stats: G.stats, leftAt: Date.now(), clock: { ...G.clock }, evIn: G.evIn };
   G.daily = run; G.rules = rulesOf(run.mutator); G.deck = dailyDeck(EVENTS, run.mutator);
   G.rand = rng((run.seed ^ (run.tries * 0x9e3779b1)) >>> 0);        // same seed for everyone; a new try reshuffles
@@ -520,6 +530,7 @@ function enterDaily(run) {
 }
 function leaveDaily(quiet) {
   if (!G.daily) return;
+  settleAway();
   G.daily.at = Date.now(); writeDaily(storage, G.daily);
   const back = G.main, away = (Date.now() - back.leftAt) / 1000;
   G.daily = null; G.main = null; G.rules = rulesOf(null); G.deck = EVENTS; G.rand = Math.random;
@@ -549,7 +560,7 @@ function showDailyEnd(improved) {
 }
 function retryToday() {
   const run = retryDaily(dailyRunFor(today));
-  if (G.daily) { $('dailyEnd').hidden = true; G.daily = run; G.rand = rng((run.seed ^ (run.tries * 0x9e3779b1)) >>> 0); swapIn(run); G.evIn = firstGap(); save(); ui.toast('Try ' + run.tries + '. Fresh petri dish, same twist.'); }
+  if (G.daily) { settleAway(); $('dailyEnd').hidden = true; G.daily = run; G.rand = rng((run.seed ^ (run.tries * 0x9e3779b1)) >>> 0); swapIn(run); G.evIn = firstGap(); save(); ui.toast('Try ' + run.tries + '. Fresh petri dish, same twist.'); }
   else { writeDaily(storage, run); enterDaily(run); }
 }
 $('dailyBtn').addEventListener('click', openDaily);
