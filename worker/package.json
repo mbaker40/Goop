@@ -1,0 +1,16 @@
+{
+  "name": "feed-the-goop-worker",
+  "private": true,
+  "version": "0.0.0",
+  "description": "The leaderboard Worker for Feed the Goop. Scaffolding: not deployed.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:init": "wrangler d1 execute goop --file=schema.sql",
+    "db:init:remote": "wrangler d1 execute goop --remote --file=schema.sql"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

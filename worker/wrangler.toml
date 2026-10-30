@@ -1,0 +1,21 @@
+# Feed the Goop leaderboard Worker. NOT DEPLOYED: scaffolding for the cloud phase (see README.md).
+# No account ids live here. `wrangler login` picks the account; the ids below are filled in once, after
+# `wrangler d1 create goop` and `wrangler kv namespace create GOOP_KV` print them.
+name = "feed-the-goop"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# The game's origin, for CORS. Add a custom domain here if the game moves.
+ALLOWED_ORIGIN = "https://mbaker40.github.io"
+
+# D1: players, runs, badges and daily (schema.sql).
+[[d1_databases]]
+binding = "DB"
+database_name = "goop"
+database_id = "fill-in-after-wrangler-d1-create"
+
+# KV: rate limits per token and per IP, and the cached daily seed.
+[[kv_namespaces]]
+binding = "KV"
+id = "fill-in-after-wrangler-kv-namespace-create"
