@@ -12,8 +12,8 @@ the universe.
 npm install      # once
 npm run dev      # play locally with hot reload
 npm run build    # static build in dist/
-npm test         # rules, event deck value, click cap, offline, save migration
-npm run sim      # balance simulation: time to the Sun with and without events, then Act 2 pacing to the end
+npm test         # rules, event deck value, hop strategies, click cap, offline, save migration
+npm run sim      # balance simulation: event value, hop strategies to the universe, then Act 2 pacing
 npm run icons    # redraw the app icons from the goop sprite (needs Playwright; the PNGs are committed)
 ```
 
@@ -24,7 +24,7 @@ deploy `dist/` to GitHub Pages.
 
 - `src/econ.js`, `src/events.js`, `src/prestige.js`, `src/stats.js`, `src/achievements.js`,
   `src/save.js`: the rules. Pure, no DOM, importable from Node.
-- `src/milestones.js` (named checkpoints inside each stage), `src/mood.js` (moods and one-liners),
+- `src/legends.js` (feeder legends: 100 and 500 of one feeder), `src/milestones.js` (named checkpoints inside each stage), `src/mood.js` (moods and one-liners),
   `src/fourthwall.js` (what stage 20 eats of the interface), `src/cutscene.js` (the ending's timeline),
   `src/fmt.js` (number names and goop units): more rules, also pure and tested.
 - `src/scenes/`: one file per stage diorama (twenty). `src/sprites/`: the scientist, the goop, snacks,
@@ -99,6 +99,34 @@ version" toast whenever a build is waiting (including one that was already waiti
 loaded), and Reload hands over and reloads. Install fetches with `cache: 'reload'`, so a build never
 precaches the previous build's page from the HTTP cache.
 
+## Hops, events, perks and legends (phase 4)
+
+- **Hops pay by depth.** Each hop adds a permanent bonus to everything, and the bonuses add up: +10% for a
+  hop at the Sun, rising to +50% from stage 12 and +80% from stage 17 on (a Big Bang included). Each depth
+  also has a ceiling: hops from the Sun stop adding at +50%, hops from stage 12 at +200%, and from stage 17
+  there is none. The bonus is stored on the save (`hopBonus`, schema 5); a save from before keeps the
+  +50% per hop it had. The Act 1 card, the landing and the hop button say what a hop will pay first.
+- **Eighteen kinds of event** in the same four buckets. Seven only turn up from stage 7: a comet shower,
+  a black-hole hiccup (refunds your last purchase), a wormhole (your two best feeders swap rates for
+  30 s), a dark-matter vial (contents unknown), a rival goop (a 15 s click-off: 30 feeds wins), a
+  supernova-or-slow-burn choice and the cosmic tax collector. Early on there is also a lunch bell and a
+  lab pigeon. Weights are tuned so always collecting is worth within 25% of the phase 3 deck at every stage.
+- **Eight more perks** (both acts, about 350 Star Dust): Crystal Pipette (next milestone's name), Event
+  Pity, Starter Kit, Quicker Fingers, Mutation Discount, Fourth Wall Mercy, Daily Double, Big Bang Echo.
+- **Feeder legends.** At 100 of one feeder it earns a title, works twice as hard, gets a badge and a
+  crowd in the scene; at 500, a second title, six times in all, and a few-second set piece of its own.
+  The shop row hints at both once you pass 50.
+- **Badges**: about eighty, plus two per feeder legend, on a shelf grouped into sections (collapsed on a
+  phone). The notebook groups its "Fastest to" times by act; stages a Head Start skips say "skipped".
+
+Hop strategies at 5 clicks a second, from a fresh save to the end of the universe (`npm run sim`):
+
+| Strategy | Before (flat +50%) | Now |
+|---|---|---|
+| 20 hops at the Sun, then the universe | 1 h 28 min | 6 h 34 min |
+| 2 hops from stage 12, then the universe | 7 h 57 min | 8 h 07 min |
+| 5 hops at the Sun, 2 from stage 12, then the universe | 3 h 15 min | 6 h 14 min |
+
 ## Act 2 pacing
 
 Stage 7's door is the Sun (3e13 slop), where the old game ended: that is still the Act 1 card, and
@@ -109,24 +137,26 @@ so 123 at the end of the universe), and a hop after the ending is a Big Bang wor
 The Act 1 perks cost 45 Star Dust in all. The Act 2 perks give the rest somewhere to go, 720 in all:
 Crumb Hoarder (milestones x2, x3: 15, 40), Hibernation (24 h away: 25), Late Feeders (the four
 last feeders x1.5, x2: 60, 150), Head Start II (start at stage 7 after a Big Bang: 80) and Cosmic Memory
-(every feeder +5%, then +10%, per Big Bang: 100, 250).
+(every feeder +5%, then +10%, per Big Bang: 100, 250), plus the phase 4 perks above.
 
 `npm run sim` prints time to each stage for a first run (no perks) and for a run with every perk
-maxed (Act 1 only, then every perk after three Big Bangs), clicking once a second with events on.
-Current numbers (4 seeds):
+maxed (Act 1 only with 5 hops of +50%, then every perk with 3 Big Bangs and 2 hops from stage 12),
+clicking once a second with events on. Current numbers (4 seeds):
 
 | # | Stage | Enters at (slop) | First run, no perks | Act 1 perks maxed, 5 hops | All perks maxed, 5 hops, 3 Big Bangs |
 |---|---|---|---|---|---|
-| 7 | Neighbourhood Watch | 3e13 | 12.1 min | 1.5 min | 0.0 min (Head Start II) |
-| 10 | Milky Way Mukbang | 5e18 | 1 h 26 min | 11.2 min | 7.7 min |
-| 15 | The Cosmic Web | 1e27 | 10 h 58 min | 1 h 24 min | 1 h 01 min |
-| 20 | The Fourth Wall | 3e36 | 20 h 38 min | 2 h 36 min | 1 h 38 min |
-| End | Eat the Rest | 1e37 | 24 h 24 min | 3 h 05 min | 1 h 46 min |
+| 7 | Neighbourhood Watch | 3e13 | 11.8 min | 1.7 min | 0.0 min (Head Start II) |
+| 10 | Milky Way Mukbang | 5e18 | 1 h 24 min | 12.0 min | 6.4 min |
+| 15 | The Cosmic Web | 1e27 | 11 h 43 min | 1 h 30 min | 50.9 min |
+| 20 | The Fourth Wall | 3e36 | 21 h 22 min | 2 h 49 min | 1 h 20 min |
+| End | Eat the Rest | 1e37 | 25 h 25 min | 3 h 22 min | 1 h 28 min |
 
 ## Trying things in development
 
 `npm run dev` exposes `window.__goop` (stripped from the production build): `__goop.jump(k, f)` jumps to
-stage `k` (0-based) at progress `f`, `__goop.cut(t, true)` holds the ending at `t` seconds, and
+stage `k` (0-based) at progress `f`, `__goop.cut(t, true)` holds the ending at `t` seconds,
+`__goop.spawn(id)` brings on an event, `__goop.own('intern', 500)` sets a feeder count (and celebrates
+it), `__goop.piece('truck')` holds a legend's set piece, and
 `__goop.mood('hungry', 'text')` forces a mood and a line. `__goop.away(secs)` pretends the tab was away,
 `__goop.enterDaily()` / `__goop.finishDaily()` play the daily, and `__goop.share()`, `__goop.bests()`
 and `__goop.settings()` open those panels.
