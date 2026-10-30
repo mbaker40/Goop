@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { fmt, fmtMass, heavierThan, clock, SHORT, GOOP_UNITS } from '../src/fmt.js';
+import { fmt, fmtMass, heavierThan, clock, SHORT, GOOP_UNITS, setNumberStyle, numberStyle } from '../src/fmt.js';
 import { STAGES, END, massGrams } from '../src/econ.js';
 
 describe('number names', () => {
@@ -49,5 +49,14 @@ describe('mass', () => {
   });
   it('clock reads hours past sixty minutes', () => {
     expect(clock(65)).toBe('1 min 5 s'); expect(clock(3725)).toBe('1 h 2 min 5 s'); expect(clock(5)).toBe('5 s');
+  });
+});
+
+describe('number style from the settings drawer', () => {
+  it('scientific shows e-notation from a million, and names come back', () => {
+    expect(setNumberStyle('sci')).toBe('sci');
+    expect(fmt(999)).toBe('999'); expect(fmt(12345)).toBe('12,345'); expect(fmt(1.5e6)).toBe('1.50e6'); expect(fmt(3e36)).toBe('3.00e36');
+    setNumberStyle('names'); expect(fmt(1.5e6)).toBe('1.50M'); expect(numberStyle()).toBe('names');
+    expect(setNumberStyle('roman')).toBe('names');
   });
 });

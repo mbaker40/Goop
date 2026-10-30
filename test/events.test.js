@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { newState } from '../src/econ.js';
-import { EVENTS, LEGACY_DECK, pickEvent, weightAt, applyEffect, deckEV, incomeBoost, isHazard, isChoice, tickEventClock, grabTarget } from '../src/events.js';
+import { EVENTS, EVENT_BY_ID, LEGACY_DECK, pickEvent, weightAt, applyEffect, deckEV, incomeBoost, isHazard, isChoice, tickEventClock, grabTarget, riskNote, spillRisk, hitRadius, MIN_TAP_PX } from '../src/events.js';
 import { compare } from '../src/sim.js';
 import { rng } from '../src/rng.js';
 
@@ -126,5 +126,25 @@ describe('event clock', () => {
   it('no events before the goop has eaten a little', () => {
     const c = { ev: null, evIn: 0 };
     expect(tickEventClock(c, { ...frame, life: 10 })).toBe(null);
+  });
+});
+
+describe('risky gambles say so; event targets are big enough to tap', () => {
+  it('the gambles that can spill the bank say it on the label and to a screen reader', () => {
+    expect(EVENT_BY_ID.bubbling.label).toMatch(/spill/i);
+    expect(EVENT_BY_ID.fork.options[1].label).toMatch(/spill/i);
+    expect(riskNote(EVENT_BY_ID.bubbling)).toBe('Careful: it can spill 50% of your slop.');
+    expect(riskNote(EVENT_BY_ID.fork)).toBe('Careful: vial 2, Spicy, can spill 50% of your slop.');
+    for (const id of ['frenzy', 'geyser', 'drip', 'mystery', 'twin', 'inspector', 'rival']) expect(riskNote(EVENT_BY_ID[id]), id).toBe('');
+    expect(spillRisk(EVENT_BY_ID.bubbling.effect)).toBe(0.5); expect(spillRisk(EVENT_BY_ID.frenzy.effect)).toBe(0);
+  });
+  it('at 390 px wide every event target is at least a 44 px tap; on a desktop the drawn size stands', () => {
+    // a 390 px phone: the canvas is about 326 CSS px wide for 960 scene units
+    const phone = 326 / 960;
+    for (const base of [56, 66]) expect(2 * hitRadius(base, phone) * phone).toBeGreaterThanOrEqual(MIN_TAP_PX);
+    expect(2 * 56 * phone).toBeLessThan(MIN_TAP_PX);                     // which the old radius was not
+    expect(hitRadius(56, 760 / 960)).toBe(56); expect(hitRadius(56, 0)).toBe(56);
+    // the two vials of a choice sit 160 units apart, so even grown their hit circles barely touch
+    expect(2 * hitRadius(56, phone)).toBeLessThan(160 + 2 * 12);
   });
 });

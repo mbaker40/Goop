@@ -24,9 +24,9 @@ export const EVENTS = [
     w: [30, 22, 16, 16, 16, 16], effect: geyser(GEYSER_SECS, 'Slop geyser! +{n} slop.') },
   { id: 'drip', bucket: 'boost', name: 'Slow Drip', look: 'drip', label: 'Slow drip',
     w: [10, 10, 10, 10, 10, 10], effect: boost(2, 90, 'Slow drip. Feeders work twice as hard for {secs} seconds.') },
-  { id: 'bubbling', bucket: 'gamble', name: 'Bubbling Vial', look: 'bubbling', label: 'Bubbling vial?',
-    // TODO(follow-up): spell the risk out in the spawn label and the screen-reader announcement for the
-    // gambles that can spill the bank (this one and fork's "Spicy"), not just a question mark.
+  // The two gambles that can spill the bank say so on the label and in the screen-reader announcement
+  // (riskNote below), not just with a question mark.
+  { id: 'bubbling', bucket: 'gamble', name: 'Bubbling Vial', look: 'bubbling', label: 'Bubbling vial? Might spill',
     w: [0, 8, 9, 9, 9, 9],
     effect: { type: 'gamble', p: 0.5, win: boost(12, 20, 'It held! Feeders work {mult} times faster for {secs} seconds.'),
               lose: { type: 'spill', frac: 0.5, msg: 'It boiled over. {n} slop is on the floor.' } } },
@@ -41,7 +41,7 @@ export const EVENTS = [
   { id: 'fork', bucket: 'choice', name: 'Safe or Spicy', label: 'Pick one!',
     w: [0, 6, 8, 8, 8, 8],
     options: [{ look: 'drip', label: 'Safe', effect: boost(2, 90, 'The sensible choice. Feeders work twice as hard for {secs} seconds.') },
-              { look: 'bubbling', label: 'Spicy', effect: { type: 'gamble', p: 0.5, win: boost(12, 20, 'Spicy paid off! Feeders x{mult} for {secs} seconds.'),
+              { look: 'bubbling', label: 'Spicy, might spill', effect: { type: 'gamble', p: 0.5, win: boost(12, 20, 'Spicy paid off! Feeders x{mult} for {secs} seconds.'),
                                                             lose: { type: 'spill', frac: 0.5, msg: 'Too spicy. {n} slop boiled away.' } } }] },
   { id: 'inspector', bucket: 'hazard', name: 'Lab Inspector', look: 'inspector', label: 'Inspector! Tap or press E',
     w: [0, 6, 8, 8, 8, 8], window: 4,
@@ -73,6 +73,33 @@ export function nextGap(caught, rand, mult = 1) {
   return (lo + rand() * (hi - lo)) * mult;
 }
 export function isHazard(ev) { return ev.bucket === 'hazard'; }
+
+// The share of the bank an effect can take if it goes wrong (0 if it cannot): a spill inside a gamble.
+export function spillRisk(effect) {
+  if (!effect) return 0;
+  if (effect.type === 'spill' || effect.type === 'steal') return effect.frac;
+  if (effect.type === 'gamble') return Math.max(spillRisk(effect.win), spillRisk(effect.lose));
+  return 0;
+}
+// The warning a screen reader hears when a risky event appears, or '' when nothing on offer can spill.
+// Hazards are left out: their risk is in not tapping them, and their label already says what to do.
+export function riskNote(ev) {
+  if (isHazard(ev)) return '';
+  const opts = ev.options ? ev.options.map((o, i) => [o, i]) : [[ev, 0]];
+  const risky = opts.filter(([o]) => spillRisk(o.effect) > 0);
+  if (!risky.length) return '';
+  const pct = Math.round(Math.max(...risky.map(([o]) => spillRisk(o.effect))) * 100);
+  if (ev.options) return 'Careful: ' + risky.map(([o, i]) => 'vial ' + (i + 1) + ', ' + o.label.split(',')[0]).join(' and ') + ', can spill ' + pct + '% of your slop.';
+  return 'Careful: it can spill ' + pct + '% of your slop.';
+}
+
+// Hit radius for an event target, in scene units: the drawn size, but never less than a 44 CSS pixel
+// tap target (22 px radius) at the canvas's current size. cssPerUnit: CSS pixels per scene unit.
+export const MIN_TAP_PX = 44;
+export function hitRadius(base, cssPerUnit) {
+  if (!(cssPerUnit > 0)) return base;
+  return Math.max(base, MIN_TAP_PX / 2 / cssPerUnit + 4);
+}
 
 // Which target a key grabs, or -1. E (and G) grab the first target, or shoo a visitor, from anywhere on
 // the page, a focused button included. 1/2 and the arrows pick in a choice. Space and Enter are not

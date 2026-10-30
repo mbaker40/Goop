@@ -1,5 +1,6 @@
 /* Pure game rules. No DOM in here, so the same code runs in the browser, in tests, in the balance
    simulator and, later, in the leaderboard Worker. */
+import { lateMult, bangMult } from './perkfx.js';
 export const COST_GROWTH = 1.15;            // each copy of a feeder costs 15% more than the last (the Cookie Clicker constant)
 
 // lifetime slop needed to enter each stage, and the goop's real-world mass at that moment (grams).
@@ -126,16 +127,21 @@ export function newState() {
     dust: 0, perks: {},                // Star Dust and perks survive hops, like asc
     miles: {},                         // mid-stage milestones passed this run (see milestones.js)
     ate: false,                        // Eat the Rest pressed: the universe is gone and the ending has played
+    bangs: 0,                          // Big Bangs so far: survives hops, like asc (the Cosmic Memory perk reads it)
+    startStage: 0,                     // the stage this run began in (a Head Start); prestige.canHop reads it
+    costMult: 1,                       // feeder prices x this. 1 in the main game; the daily goop's mutators change it
+    caught: 0,                         // events caught this run (the run summary a leaderboard checks; stats.caught is lifetime)
   };
 }
-export function feederCost(s, i) { return Math.ceil(FEEDERS[i].cost * Math.pow(COST_GROWTH, s.own[i])); }
+export function feederCost(s, i) { return Math.ceil(FEEDERS[i].cost * Math.pow(COST_GROWTH, s.own[i]) * (s.costMult || 1)); }
+const perk = (s, id) => (s.perks && s.perks[id]) | 0;
 export function allMult(s) {
-  let m = 1 + ASCEND_BONUS * s.asc;
+  let m = (1 + ASCEND_BONUS * s.asc) * bangMult(perk(s, 'bang'), s.bangs);
   for (const u of ALL_UPS) if (s.ups[u.id]) m *= u.v;
   return m;
 }
-function ownRate(s, i) {               // feeder i's base rate with its own Mk II and Mk III
-  let r = FEEDERS[i].rate;
+function ownRate(s, i) {               // feeder i's base rate with its own Mk II and Mk III (and the Late Feeders perk)
+  let r = FEEDERS[i].rate * lateMult(perk(s, 'late'), FEEDERS[i].stage);
   for (const u of FEEDER_UPS[i]) if (s.ups[u.id]) r *= u.v;
   return r;
 }
@@ -201,10 +207,30 @@ export function clickGate(times, now, cap = CLICK_CAP) {
   return true;
 }
 
-// Slop earned while away for `secs` at feeder rate `rate`. Same rule for a hidden tab and a closed one.
-// TODO(follow-up): smooth the cliff at 60 s, e.g. 60 * rate + (secs - 60) * OFFLINE_RATE * rate.
+// Slop earned while away for `secs` at feeder rate `rate`. Same rule for a hidden tab and a closed one:
+// the first minute pays full rate, the rest half rate, up to the cap. No cliff at 60 s: 61 s pays a
+// little more than 60 s, never less.
 export function awayEarnings(rate, secs, cap = OFFLINE_CAP) {
   if (!(secs > 0) || !(rate > 0)) return 0;
-  if (secs <= OFFLINE_GRACE) return rate * secs;
-  return rate * Math.min(secs, cap) * OFFLINE_RATE;
+  return rate * awayWeight(0, Math.min(secs, Math.max(cap, OFFLINE_GRACE)));
+}
+// How much of [t0, t1] seconds into an absence counts: full weight up to OFFLINE_GRACE, then OFFLINE_RATE.
+function awayWeight(t0, t1) {
+  if (!(t1 > t0)) return 0;
+  const full = Math.max(0, Math.min(t1, OFFLINE_GRACE) - t0);
+  const half = Math.max(0, t1 - Math.max(t0, OFFLINE_GRACE));
+  return full + half * OFFLINE_RATE;
+}
+// The whole absence for a state: feeders at base rate, a running boost (frenzy) paid for the part of the
+// gap it really covered, and a freeze (the inspector) paying nothing for the part it covered; then the
+// timers are run down. Mutates s.frenzy and s.freeze only; returns the slop to add with earn().
+export function awayPay(s, secs, cap = OFFLINE_CAP) {
+  if (!(secs > 0)) return 0;
+  const rate = baseRate(s), end = Math.min(secs, Math.max(cap, OFFLINE_GRACE));
+  const fz = Math.min(s.freeze || 0, end), fr = Math.min(s.frenzy || 0, end), mult = s.fmult || FRENZY_MULT;
+  s.frenzy = Math.max(0, (s.frenzy || 0) - secs); s.freeze = Math.max(0, (s.freeze || 0) - secs);
+  if (!(rate > 0)) return 0;
+  // [0, fz): frozen, nothing. [fz, fr): boosted (if the boost outlasts the freeze). Then plain.
+  const boosted = fr > fz ? awayWeight(fz, fr) : 0;
+  return rate * (awayWeight(fz, end) + boosted * (mult - 1));
 }

@@ -5,7 +5,11 @@ export let ctx = null;
 export let S = 1;                            // device pixels per scene unit
 export function setContext(c) { ctx = c; }
 export function setScale(s) { S = s; }
-export const reduce = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Reduced motion: the system setting, unless the settings drawer overrides it (setReduce). A live binding:
+// every module that imports `reduce` sees the current value.
+export const systemReduce = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+export let reduce = systemReduce;
+export function setReduce(v) { reduce = !!v; return reduce; }
 export const INK = '#2a1838', EDGE = '#b98852', PAPER = '#fff3d6';
 export const FONT = '"Lilita One","Arial Rounded MT Bold","Trebuchet MS",sans-serif';
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t;

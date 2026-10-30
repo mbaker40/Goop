@@ -3,7 +3,7 @@
    keeps the local shelf today and will mirror to Steam later. Ids are permanent: never rename one. */
 import { FEEDERS, UPGRADES, STAGES } from './econ.js';
 import { EVENTS } from './events.js';
-import { PERKS, perksOwned, perksTotal } from './prestige.js';
+import { PERKS, perksOwned, perksOwnedIn, perksTotal } from './prestige.js';
 import { SUN, totalCaught } from './stats.js';
 import { MOOD_IDS } from './mood.js';
 
@@ -68,10 +68,15 @@ export const BADGES = [
   { id: 'hop1',       name: 'New Neighbourhood',     blurb: 'Hop to the next star. Bring snacks.',                         test: (s, st) => st.hops >= 1 },
   { id: 'hop5',       name: 'Frequent Flyer',        blurb: 'Hop five times. The goop has a loyalty card.',               test: (s, st) => st.hops >= 5 },
   { id: 'perk1',      name: 'Stardust Shopper',      blurb: 'Spend Star Dust on a perk.',                                  test: s => perksOwned(s) >= 1 },
-  { id: 'perkall',    name: 'Fully Loaded',          blurb: 'Own every level of every perk. There is nothing left to buy.', test: s => perksOwned(s) >= perksTotal() },
+  // perkall meant the whole tree when the tree was only Act 1; it still means the Act 1 tree, so nobody loses it
+  { id: 'perkall',    name: 'Fully Loaded',          blurb: 'Own every level of every Act 1 perk.',                         test: s => perksOwnedIn(s, 1) >= perksTotal(1) },
+  { id: 'perkall2',   name: 'Nothing Left to Buy',   blurb: 'Own every level of every perk, Act 2 included. Truly.',         test: s => perksOwned(s) >= perksTotal() },
   // around the lab
   { id: 'offline',    name: 'It Ate While You Slept', blurb: 'Come back to find the goop fed itself.',                    test: (s, st) => st.offlineReturns >= 1 },
   { id: 'tourist',    name: 'Tourist',               blurb: 'Peek at every stage. Spoilers.',                              test: (s, st) => STAGES.every((_, k) => st.peeked[k]) },
+  { id: 'burp',       name: 'Excuse You',            blurb: 'Come back to the lab and watch the goop burp.',                test: (s, st) => st.burps >= 1 },
+  { id: 'daily1',     name: 'Daily Special',         blurb: 'Finish a daily goop: eat the Sun with today\'s twist.',     test: (s, st) => st.dailyDone >= 1 },
+  { id: 'share1',     name: 'Show and Tell',         blurb: 'Make a share card of your goop.',                              test: (s, st) => st.shares >= 1 },
   { id: 'backup',     name: 'Backup Plan',           blurb: 'Copy your save somewhere safe. Very responsible.',           test: (s, st) => st.exports >= 1 },
 ];
 export const BADGE_BY_ID = Object.fromEntries(BADGES.map(b => [b.id, b]));
