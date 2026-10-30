@@ -28,8 +28,8 @@ export const FEEDERS = [
 
 // kind: 'click' doubles the spoon, 'pct' adds a share of slop/sec to every feed, 'feeder' doubles one feeder, 'all' boosts everything
 export const UPGRADES = [
-  { id: 'spoon',   kind: 'click', name: 'Bigger Spoon',       cost: 60,    need: s => s.life >= 20,   text: 'Feeding by hand gives twice as much.' },
-  { id: 'ladle',   kind: 'click', name: 'Ladle of Science',   cost: 700,   need: s => s.life >= 300,  text: 'Feeding by hand gives twice as much again.' },
+  { id: 'spoon',   kind: 'click', name: 'Bigger Spoon',       cost: 60,    need: s => s.life >= 20,   text: 'Doubles the base helping you feed by hand. Bonuses from slop per second stay the same.' },
+  { id: 'ladle',   kind: 'click', name: 'Ladle of Science',   cost: 700,   need: s => s.life >= 300,  text: 'Doubles the base helping again. The slop-per-second share is not invited.' },
   { id: 'cata',    kind: 'pct', v: 0.03, name: 'Catapult Arm',     cost: 6000,  need: s => s.life >= 2500, text: 'Every feed also adds 3% of your slop per second.' },
   { id: 'treb',    kind: 'pct', v: 0.04, name: 'Trebuchet',        cost: 4e5,   need: s => s.life >= 2e5,  text: 'Every feed adds a further 4% of slop per second.' },
   { id: 'rail',    kind: 'pct', v: 0.05, name: 'Railgun Feeder',   cost: 6e7,   need: s => s.life >= 3e7,  text: 'Every feed adds a further 5% of slop per second.' },
@@ -39,18 +39,33 @@ export const UPGRADES = [
   { id: 'mut3', kind: 'all', v: 1.5, name: 'Mutation: Molten Core',  cost: 5e7,   need: s => s.stage >= 3, text: 'All feeders work 50% harder.' },
   { id: 'mut4', kind: 'all', v: 1.5, name: 'Mutation: Own Gravity',  cost: 8e9,   need: s => s.stage >= 4, text: 'All feeders work 50% harder.' },
   { id: 'mut5', kind: 'all', v: 1.5, name: 'Mutation: Inner Galaxy', cost: 7e11,  need: s => s.stage >= 5, text: 'All feeders work 50% harder.' },
+  // the sixth Mutation slot is a Star Dust perk (see prestige.js); econ only reads the flag on the state
+  { id: 'mut6', kind: 'all', v: 1.5, name: 'Mutation: Spare Stomach', cost: 2e6,   need: s => s.stage >= 2 && !!(s.perks && s.perks.mut6), text: 'All feeders work 50% harder. A gift from the stars.' },
 ];
 FEEDERS.forEach((f, i) => {
   UPGRADES.push({ id: f.id + '2', kind: 'feeder', i, v: 2, name: f.name + ' Mk II',  cost: f.cost * 9,   need: s => s.own[i] >= 10, text: 'Each ' + f.name + ' feeds twice as fast.' });
   UPGRADES.push({ id: f.id + '3', kind: 'feeder', i, v: 2, name: f.name + ' Mk III', cost: f.cost * 110, need: s => s.own[i] >= 25, text: 'Each ' + f.name + ' feeds twice as fast again.' });
 });
 
-export const FRENZY_MULT = 7, FRENZY_SECS = 20;      // mutagen vial: everything x7 for a short burst
+export const FRENZY_MULT = 7, FRENZY_SECS = 20;      // the original mutagen vial: everything x7 for a short burst
 export const GEYSER_SECS = 75;                       // or an instant payout worth this many seconds of slop
 export const ASCEND_BONUS = 0.5;                     // each new star system: +50% slop, forever
 
+// Feeds by hand beyond this many per second still animate but pay nothing. Keeps autoclickers (and a
+// future leaderboard) honest. The Quick Fingers perk in prestige.js raises it.
+export const CLICK_CAP = 15;
+
+// One offline rule for a hidden tab and a closed one: a short blink (up to a minute) pays as if you
+// never left; anything longer pays half rate, capped at two hours (a perk raises the cap).
+export const OFFLINE_GRACE = 60, OFFLINE_RATE = 0.5, OFFLINE_CAP = 7200;
+
 export function newState() {
-  return { slop: 0, life: 0, stage: 0, own: FEEDERS.map(() => 0), ups: {}, feeds: 0, asc: 0, frenzy: 0, won: false, played: 0 };
+  return {
+    slop: 0, life: 0, stage: 0, own: FEEDERS.map(() => 0), ups: {}, feeds: 0, asc: 0, won: false, played: 0,
+    frenzy: 0, fmult: FRENZY_MULT,     // a running boost: seconds left and its multiplier
+    freeze: 0,                         // seconds the feeders are frozen (the lab inspector)
+    dust: 0, perks: {},                // Star Dust and perks survive hops, like asc
+  };
 }
 export function feederCost(s, i) { return Math.ceil(FEEDERS[i].cost * Math.pow(COST_GROWTH, s.own[i])); }
 export function allMult(s) {
@@ -58,24 +73,26 @@ export function allMult(s) {
   for (const u of UPGRADES) if (u.kind === 'all' && s.ups[u.id]) m *= u.v;
   return m;
 }
-export function feederRate(s, i) {            // slop per second from ONE copy of feeder i
+export function feederRate(s, i) {     // slop per second from ONE copy of feeder i
   let r = FEEDERS[i].rate;
   for (const u of UPGRADES) if (u.kind === 'feeder' && u.i === i && s.ups[u.id]) r *= u.v;
   return r * allMult(s);
 }
-export function slopPerSec(s) {
+export function baseRate(s) {          // feeders only: no boost, no freeze. Geysers and offline pay are measured in this.
   let t = 0;
   for (let i = 0; i < FEEDERS.length; i++) t += s.own[i] * feederRate(s, i);
-  return t * (s.frenzy > 0 ? FRENZY_MULT : 1);
+  return t;
 }
-export function feedValue(s) {                // slop from one click on the goop
+export function boostMult(s) { return s.frenzy > 0 ? (s.fmult || FRENZY_MULT) : 1; }
+export function slopPerSec(s) { return s.freeze > 0 ? 0 : baseRate(s) * boostMult(s); }
+export function feedValue(s) {         // slop from one paid click on the goop
   let base = 1 + ASCEND_BONUS * s.asc, pct = 0;
   for (const u of UPGRADES) {
     if (!s.ups[u.id]) continue;
     if (u.kind === 'click') base *= 2;
     if (u.kind === 'pct') pct += u.v;
   }
-  return (base + pct * slopPerSec(s)) ;
+  return base + pct * baseRate(s) * boostMult(s);   // a frozen feeder line still lets the catapult throw
 }
 export function stageOf(life) {
   let k = 0;
@@ -83,12 +100,12 @@ export function stageOf(life) {
   return k;
 }
 export function stageSpan(k) { return [STAGES[k], k + 1 < STAGES.length ? STAGES[k + 1] : END]; }
-export function stageProgress(life) {         // 0..1 through the current stage, measured in orders of magnitude
+export function stageProgress(life) {  // 0..1 through the current stage, measured in orders of magnitude
   const k = stageOf(life), [a, b] = stageSpan(k);
   const lo = Math.log10(a.at + 1), hi = Math.log10(b.at + 1);
   return Math.max(0, (Math.log10(life + 1) - lo) / (hi - lo));
 }
-export function massGrams(life) {             // the number on the shop stays small; the goop's mass spans 33 orders of magnitude
+export function massGrams(life) {      // the number on the shop stays small; the goop's mass spans 33 orders of magnitude
   const k = stageOf(life), [a, b] = stageSpan(k), p = stageProgress(life);
   return Math.pow(10, Math.log10(a.grams) + p * (Math.log10(b.grams) - Math.log10(a.grams)));
 }
@@ -102,3 +119,19 @@ export function earn(s, n) {
 }
 export function feederOpen(s, i) { return s.stage >= FEEDERS[i].stage; }
 export function upgradeOpen(s, u) { return !s.ups[u.id] && u.need(s); }
+
+// The click cap as a sliding one-second window. `times` holds the timestamps (ms) of recent paid
+// clicks and is updated in place. Returns true when this click pays.
+export function clickGate(times, now, cap = CLICK_CAP) {
+  while (times.length && now - times[0] >= 1000) times.shift();
+  if (times.length >= cap) return false;
+  times.push(now);
+  return true;
+}
+
+// Slop earned while away for `secs` at feeder rate `rate`. Same rule for a hidden tab and a closed one.
+export function awayEarnings(rate, secs, cap = OFFLINE_CAP) {
+  if (!(secs > 0) || !(rate > 0)) return 0;
+  if (secs <= OFFLINE_GRACE) return rate * secs;
+  return rate * Math.min(secs, cap) * OFFLINE_RATE;
+}
