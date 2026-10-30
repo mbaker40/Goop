@@ -5,6 +5,7 @@ import { FEEDERS, UPGRADES, STAGES } from './econ.js';
 import { EVENTS } from './events.js';
 import { PERKS, perksOwned, perksTotal } from './prestige.js';
 import { SUN, totalCaught } from './stats.js';
+import { MOOD_IDS } from './mood.js';
 
 const own = (s, id) => s.own[FEEDERS.findIndex(f => f.id === id)] || 0;
 const feeders = s => s.own.reduce((a, b) => a + b, 0);
@@ -30,9 +31,29 @@ export const BADGES = [
   { id: 'stage4',     name: 'Continental Breakfast', blurb: 'The city is gone. The Earth looks like a snack.',            test: (s, st) => s.stage >= 3 },
   { id: 'stage5',     name: 'Planet-Sized',          blurb: 'Heavier than the Earth. Gravity is now its problem.',        test: (s, st) => s.stage >= 4 },
   { id: 'stage6',     name: 'Star Eater',            blurb: 'Heavier than Jupiter. The Sun is getting nervous.',          test: (s, st) => s.stage >= 5 },
-  { id: 'sun',        name: 'Total Eclipse',         blurb: 'Eat the Sun. Permanently.',                                   test: (s, st) => st.wins >= 1 },
+  { id: 'sun',        name: 'Total Eclipse',         blurb: 'Eat the Sun and finish Act 1. Permanently.',                                   test: (s, st) => st.wins >= 1 },
   { id: 'fast',       name: 'Fast Food',             blurb: 'Eat the Sun within 30 minutes of starting a run.',           test: (s, st) => st.bestStageAt[SUN] != null && st.bestStageAt[SUN] <= 1800 },
   { id: 'nointerns',  name: 'HR Has Questions',      blurb: 'Reach Jupiter without hiring a single intern.',              test: s => s.stage >= 5 && own(s, 'intern') === 0 },
+  // Act 2: the universe
+  { id: 'stage8',     name: 'Nursery Crimes',        blurb: 'Reach the Nebula Nibbler. The baby stars never stood a chance.', test: s => s.stage >= 7 },
+  { id: 'stage9',     name: 'It Bites Back',         blurb: 'Reach the Black Hole Buffet. The buffet is also eating.',        test: s => s.stage >= 8 },
+  { id: 'stage11',    name: 'Signed For',            blurb: 'Reach Andromeda Delivery. Nobody ordered it.',                    test: s => s.stage >= 10 },
+  { id: 'stage14',    name: 'Immeasurable Heaven',   blurb: 'Reach Laniakea, our home supercluster. Was our home.',          test: s => s.stage >= 13 },
+  { id: 'toaster',    name: 'Judged',                blurb: 'Reach Eating the Nothing. The toaster saw everything.',           test: s => s.stage >= 15 },
+  { id: 'oldfriend',  name: 'Old Friend',            blurb: 'Reach Beyond the Horizon and wave at the scientist.',             test: s => s.stage >= 17 },
+  { id: 'stage20',    name: 'The Fourth Wall',       blurb: 'Reach the last stage. The goop has noticed you.',                 test: s => s.stage >= 19 },
+  { id: 'soundtoggle', name: 'Ate the Sound Toggle', blurb: 'Watch the goop swallow a button. It still works, somehow.',      test: s => !!(s.miles && s.miles['w-sound']) },
+  { id: 'universe',   name: 'Eat the Rest',          blurb: 'Press the last button. There is nothing left.',                  test: (s, st) => st.universes >= 1 },
+  { id: 'watched',    name: 'Watched the Whole Thing', blurb: 'Sit through the ending without skipping a second.',            test: (s, st) => st.cutsceneSeen >= 1 },
+  { id: 'rewatch',    name: 'Second Helping',        blurb: 'Watch the ending again from the trophy shelf.',                   test: (s, st) => st.cutsceneReplays >= 1 },
+  { id: 'bigbang',    name: 'Let There Be Goop',     blurb: 'Become the new universe. Start again, bigger.',                   test: (s, st) => st.bigBangs >= 1 },
+  { id: 'sps1dc',     name: 'Cosmic Plumbing',       blurb: 'Reach a decillion slop a second. The pipes are galaxies.',      test: (s, st) => st.peakSps >= 1e33 },
+  // milestones and moods
+  { id: 'mile1',      name: 'Small Victories',       blurb: 'Pass your first milestone. Coffee machines count.',              test: (s, st) => st.milestones >= 1 },
+  { id: 'mile50',     name: 'Crumb Collector',       blurb: 'Pass fifty milestones, across every run.',                        test: (s, st) => st.milestones >= 50 },
+  { id: 'hungry',     name: 'Feed Me',               blurb: 'Leave the goop hungry for a bit. It noticed.',                    test: (s, st) => (st.moods.hungry || 0) >= 1 },
+  { id: 'smug',       name: 'Insufferable',          blurb: 'See the goop looking smug after a hop.',                          test: (s, st) => (st.moods.smug || 0) >= 1 },
+  { id: 'moodring',   name: 'Mood Ring',             blurb: 'See every one of the goop\'s six moods.',                       test: (s, st) => MOOD_IDS.every(m => (st.moods[m] || 0) >= 1) },
   // events
   { id: 'event1',     name: "Don't Drink That",      blurb: 'Catch your first event.',                                     test: (s, st) => totalCaught(st) >= 1 },
   { id: 'streak10',   name: 'Steady Hands',          blurb: 'Catch ten events in a row without letting one get away.',    test: (s, st) => st.bestStreak >= 10 },

@@ -3,13 +3,17 @@
 
    Version 1 (the single-file game) wrote { state, prefs, at } to 'feed-the-goop-v1'.
    Version 2 writes { v: 2, at, prefs, state, stats, badges, bests, profile } to 'feed-the-goop-v2'.
+   Version 3 (Act 2: twenty stages) has the same shape and the same key; the state gains `miles` and
+   `ate` and grows thirteen feeders. A v2 save is migrated in place on first load: stages are recomputed
+   from lifetime slop, so a goop already past the Sun lands on the right new stage with nothing lost.
    A v1 save is migrated on first load and the v1 key is left untouched as a backup for one release.
    TODO(next release): stop reading LEGACY_KEY's backup and remove it once players have moved over. */
-import { FEEDERS, UPGRADES, END, FRENZY_MULT, newState, stageOf } from './econ.js';
+import { FEEDERS, UPGRADES, SUN_AT, FRENZY_MULT, newState, stageOf } from './econ.js';
 import { PERKS, DUST_AT_SUN } from './prestige.js';
 import { newStats, adoptStats, SUN } from './stats.js';
+import { MILESTONE_BY_ID, seedMilestones } from './milestones.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'feed-the-goop-v2';
 export const LEGACY_KEY = 'feed-the-goop-v1';
 export const EXPORT_PREFIX = 'GOOP2:';
@@ -29,7 +33,11 @@ export function adoptState(o) {
     const lv = Math.floor(+o.perks[p.id] || 0);
     if (lv > 0) s.perks[p.id] = Math.min(lv, p.cost.length);
   }
-  s.winSeen = !!o.winSeen; s.stage = stageOf(s.life); s.won = s.life >= END.at;
+  s.winSeen = !!o.winSeen; s.stage = stageOf(s.life); s.won = s.life >= SUN_AT;
+  s.ate = !!o.ate;
+  if (o.miles && typeof o.miles === 'object') {
+    for (const id of Object.keys(o.miles)) if (MILESTONE_BY_ID[id] && o.miles[id]) s.miles[id] = true;
+  } else seedMilestones(s);          // a save from before milestones: everything behind the goop counts as done, quietly
   return s;
 }
 
@@ -48,6 +56,7 @@ export function migrate(raw) {
   const stats = adoptStats(d.stats);
   return {
     v: SAVE_VERSION,
+    schema: Number.isFinite(raw.v) && raw.v >= 2 ? raw.v : 1,   // the schema this save was written in, before migration (not saved: serialize drops it)
     at: Number.isFinite(d.at) ? d.at : 0,
     prefs: { sound: !(d.prefs && d.prefs.sound === false) },
     state, stats,
@@ -63,7 +72,7 @@ export function fromV1(d) {
   st.feeds = st.clicks = num(o.feeds); st.paidClicks = st.feeds;
   st.playSecs = num(o.played);
   st.lifetimeSlop = num(o.life);
-  st.hops = Math.floor(num(o.asc)); st.wins = st.hops + (num(o.life) >= END.at ? 1 : 0);
+  st.hops = Math.floor(num(o.asc)); st.wins = st.hops + (num(o.life) >= SUN_AT ? 1 : 0);
   st.runStageAt = [0];
   return {
     v: 2, at: d.at, prefs: d.prefs,
@@ -72,9 +81,10 @@ export function fromV1(d) {
   };
 }
 
-export function serialize(d) { return JSON.stringify({ ...d, v: SAVE_VERSION }); }
+export function serialize(d) { const { schema, ...rest } = d; return JSON.stringify({ ...rest, v: SAVE_VERSION }); }
 
-// Read the save through a storage adapter. Returns { data, from } where from is 'v2', 'v1' or null.
+// Read the save through a storage adapter. Returns { data, from } where from names the key it came
+// from ('v2' or 'v1', or null); data.schema says which version that save was written in (1, 2 or 3).
 // TODO(follow-up): a v2 save that exists but is corrupt currently falls back to the v1 backup silently;
 // keep the corrupt string aside and tell the player instead.
 export function loadSave(storage) {

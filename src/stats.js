@@ -2,9 +2,13 @@
    Vocabulary: a click is any press on the scene (goop, vial or visitor), the raw number; a feed is a
    press on the goop under the click cap, which pays slop (paidClicks is kept equal to it); a capped
    click is a press on the goop past the cap, which animates but pays and counts for nothing. */
-import { STAGES } from './econ.js';
+import { STAGES, SUN_STAGE } from './econ.js';
 
-export const SUN = STAGES.length;     // index used for "reached the Sun" in the stage-time arrays
+// Indexes in the stage-time arrays. Stage 7's door is the Sun, so "reached stage 7" and "ate the Sun" are
+// the same moment and share index 6, which is also where the six-stage game kept its Sun times: old
+// saves line up with no conversion. UNIVERSE is the moment Eat the Rest is pressed.
+export const SUN = SUN_STAGE;
+export const UNIVERSE = STAGES.length;
 
 export function newStats() {
   return {
@@ -20,6 +24,9 @@ export function newStats() {
     bestStageAt: [],                              // fastest ever, per stage
     offlineReturns: 0, offlineSlop: 0,
     peeked: {}, exports: 0,
+    // Act 2
+    milestones: 0, moods: {}, universes: 0, bigBangs: 0, cutsceneSeen: 0, cutsceneReplays: 0, cutsceneSkips: 0,
+    runBadges: [],                                // badge ids earned during this run, for the landing
   };
 }
 
@@ -29,7 +36,7 @@ const countMap = o => {
   if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) if (typeof k === 'string' && k.length < 40 && num(v)) m[k] = num(v);
   return m;
 };
-const timeArr = a => (Array.isArray(a) ? a.slice(0, SUN + 1).map(v => (Number.isFinite(v) && v >= 0 ? v : null)) : []);
+const timeArr = a => (Array.isArray(a) ? a.slice(0, UNIVERSE + 1).map(v => (Number.isFinite(v) && v >= 0 ? v : null)) : []);
 
 // Rebuild a stats object from anything (an old save, an import). Unknown fields are dropped.
 export function adoptStats(o) {
@@ -38,7 +45,8 @@ export function adoptStats(o) {
   for (const k of Object.keys(st)) {
     if (typeof st[k] === 'number') st[k] = num(o[k]);
   }
-  for (const k of ['seen', 'caught', 'missed', 'peeked']) st[k] = countMap(o[k]);
+  for (const k of ['seen', 'caught', 'missed', 'peeked', 'moods']) st[k] = countMap(o[k]);
+  st.runBadges = Array.isArray(o.runBadges) ? o.runBadges.filter(id => typeof id === 'string' && id.length < 40).slice(0, 100) : [];
   st.runStageAt = timeArr(o.runStageAt); if (st.runStageAt[0] == null) st.runStageAt[0] = 0;
   st.bestStageAt = timeArr(o.bestStageAt);
   return st;
@@ -55,7 +63,7 @@ export function recordStage(st, k, secs) {
   return false;
 }
 export function newRun(st, stage = 0) {
-  st.runStageAt = [];
+  st.runStageAt = []; st.runBadges = [];
   for (let k = 0; k <= stage; k++) st.runStageAt[k] = 0;
 }
 // One feed by hand. Only a paid feed (under the click cap) counts as a feed, so feeding past the cap

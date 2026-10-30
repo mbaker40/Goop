@@ -1,16 +1,19 @@
 /* Star Dust: the currency a hop leaves behind, and the small permanent tree it buys.
    All the maths lives here. Pure, no DOM. Perks are stored on the state as { id: level } and survive
    hops, like the +50% per hop in econ.js (which stays exactly as it was). */
-import { END, STAGES, CLICK_CAP, OFFLINE_CAP, newState, earn } from './econ.js';
+import { SUN_AT, STAGES, CLICK_CAP, OFFLINE_CAP, newState, earn } from './econ.js';
+import { seedMilestones } from './milestones.js';
 
 // Dust for a run, from how far it got. Measured in orders of magnitude past the Sun so that a plain
 // Sun run pays 6 (one or two perks), lingering to 10x the Sun pays 11, and 100x pays 16. Runs that
 // never reached the Sun pay a little for the stages they did reach, so the formula keeps working when
-// hopping early is allowed or when stages 7 to 20 arrive.
-export const DUST_AT_SUN = 6, DUST_PER_DECADE = 5;
-export function dustForRun(life) {
+// hopping early is allowed. Stages 7 to 20 sit on the same line: each stage is roughly 50x the last, so
+// each pays about 8 more (stage 10 at 5e18 pays 32, stage 15 at 1e27 pays 74, the universe at 1e37
+// pays 123). A hop after Eat the Rest is a Big Bang and adds BIG_BANG_DUST on top.
+export const DUST_AT_SUN = 6, DUST_PER_DECADE = 5, BIG_BANG_DUST = 100;
+export function dustForRun(life, ate = false) {
   if (!(life > 0)) return 0;
-  if (life >= END.at) return Math.floor(DUST_AT_SUN + DUST_PER_DECADE * Math.log10(life / END.at) + 1e-9);
+  if (life >= SUN_AT) return Math.floor(DUST_AT_SUN + DUST_PER_DECADE * Math.log10(life / SUN_AT) + 1e-9) + (ate ? BIG_BANG_DUST : 0);
   let k = 0;
   for (let i = 1; i < STAGES.length; i++) if (life >= STAGES[i].at) k = i;
   return Math.floor(k / 2);           // at most 2 short of the Sun's 6
@@ -59,12 +62,14 @@ export function freshRun(prev) {
   if (prev) { s.asc = prev.asc; s.dust = prev.dust; s.perks = { ...prev.perks }; }
   if (perkLevel(s, 'head')) earn(s, STAGES[1].at);
   s.slop += PANTRY[perkLevel(s, 'pantry')];        // spendable only: the goop does not grow from it
-  return s;
+  return seedMilestones(s);                        // a Head Start skips stage 1's milestones, quietly
 }
 
-// Hop to the next star: award dust for the run, +1 asc, fresh run. Returns { state, dust }.
+// Hop to the next star: award dust for the run, +1 asc, fresh run. Returns { state, dust, bigBang }.
+// After Eat the Rest the same hop is a Big Bang: the goop becomes the new universe, with the bonus.
 export function hop(s) {
-  const dust = dustForRun(s.life);
+  const bigBang = !!s.ate;
+  const dust = dustForRun(s.life, bigBang);
   const next = freshRun({ asc: s.asc + 1, dust: s.dust + dust, perks: s.perks });
-  return { state: next, dust };
+  return { state: next, dust, bigBang };
 }

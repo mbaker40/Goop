@@ -5,8 +5,8 @@ import { newStats, recordStage, recordEvent, recordFeed, newRun } from '../src/s
 import { createLocalAchievements } from '../src/platform/achievements.js';
 
 describe('achievements', () => {
-  it('about thirty, unique ids, each with a name and a blurb', () => {
-    expect(BADGES.length).toBeGreaterThanOrEqual(25); expect(BADGES.length).toBeLessThanOrEqual(40);
+  it('fifty to sixty, unique ids, each with a name and a blurb', () => {
+    expect(BADGES.length).toBeGreaterThanOrEqual(50); expect(BADGES.length).toBeLessThanOrEqual(60);
     expect(new Set(BADGES.map(b => b.id)).size).toBe(BADGES.length);
     for (const b of BADGES) { expect(b.name).toBeTruthy(); expect(b.blurb).toMatch(/\.$/); }
   });
@@ -28,6 +28,17 @@ describe('achievements', () => {
     expect(checkBadges(s, st, () => false)).toContain('nointerns');
     s.own[1] = 1;
     expect(checkBadges(s, st, () => false)).not.toContain('nointerns');
+  });
+  it('Act 2: stages, the sound toggle, the universe, the ending and moods', () => {
+    const s = newState(), st = newStats();
+    s.stage = 19; s.miles = { 'w-sound': true };
+    st.universes = 1; st.cutsceneSeen = 1; st.bigBangs = 1; st.milestones = 50;
+    for (const m of ['frozen', 'delighted', 'stuffed', 'smug', 'sleepy', 'hungry']) st.moods[m] = 1;
+    const got = checkBadges(s, st, () => false);
+    for (const id of ['stage8', 'stage9', 'stage11', 'stage14', 'toaster', 'oldfriend', 'stage20', 'soundtoggle', 'universe', 'watched', 'bigbang', 'mile1', 'mile50', 'hungry', 'smug', 'moodring']) expect(got).toContain(id);
+    expect(got).not.toContain('rewatch');
+    delete st.moods.frozen;
+    expect(checkBadges(s, st, () => false)).not.toContain('moodring');
   });
   it('the local adapter records each badge once', () => {
     const a = createLocalAchievements();

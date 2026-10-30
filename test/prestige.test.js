@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { END, STAGES, newState, UPGRADES, upgradeOpen } from '../src/econ.js';
-import { PERKS, dustForRun, buyPerk, perkLevel, perkCost, freshRun, hop, eventLifeMult, spawnGapMult, gambleOdds } from '../src/prestige.js';
+import { END, SUN_AT, STAGES, newState, UPGRADES, upgradeOpen } from '../src/econ.js';
+import { PERKS, BIG_BANG_DUST, dustForRun, buyPerk, perkLevel, perkCost, freshRun, hop, eventLifeMult, spawnGapMult, gambleOdds } from '../src/prestige.js';
 
 describe('Star Dust', () => {
   it('a Sun run pays 6, and lingering pays more per order of magnitude', () => {
-    expect(dustForRun(END.at)).toBe(6);
-    expect(dustForRun(END.at * 10)).toBe(11);
-    expect(dustForRun(END.at * 100)).toBe(16);
+    expect(dustForRun(SUN_AT)).toBe(6);
+    expect(dustForRun(SUN_AT * 10)).toBe(11);
+    expect(dustForRun(SUN_AT * 100)).toBe(16);
     expect(dustForRun(0)).toBe(0);
     expect(dustForRun(STAGES[3].at)).toBeLessThan(6);
   });
@@ -25,11 +25,27 @@ describe('Star Dust', () => {
     s.dust = 0; expect(buyPerk(s, 'head')).toBe(false);
   });
   it('hopping keeps +50% per hop, adds dust and keeps perks', () => {
-    const s = newState(); s.life = END.at * 10; s.asc = 1; s.dust = 3; s.perks = { head: 1 };
-    const { state, dust } = hop(s);
-    expect(dust).toBe(11); expect(state.dust).toBe(14); expect(state.asc).toBe(2);
+    const s = newState(); s.life = SUN_AT * 10; s.asc = 1; s.dust = 3; s.perks = { head: 1 };
+    const { state, dust, bigBang } = hop(s);
+    expect(dust).toBe(11); expect(bigBang).toBe(false); expect(state.dust).toBe(14); expect(state.asc).toBe(2);
     expect(state.perks.head).toBe(1);
     expect(state.stage).toBe(1);                              // Head Start
+  });
+  it('Act 2 sits on the same line, and a Big Bang after the universe pays a large bonus', () => {
+    // every stage past the Sun pays more than the one before it
+    for (let k = 7; k < STAGES.length; k++) expect(dustForRun(STAGES[k].at)).toBeGreaterThan(dustForRun(STAGES[k - 1].at));
+    expect(dustForRun(END.at)).toBe(123);
+    expect(dustForRun(END.at, true)).toBe(123 + BIG_BANG_DUST);
+    expect(BIG_BANG_DUST).toBeGreaterThanOrEqual(100);
+    const s = newState(); s.life = END.at; s.stage = STAGES.length - 1; s.ate = true; s.asc = 3;
+    const r = hop(s);
+    expect(r.bigBang).toBe(true); expect(r.dust).toBe(223); expect(r.state.asc).toBe(4);
+    expect(r.state.ate).toBe(false); expect(r.state.miles).toEqual({});
+  });
+  it('a Head Start run skips stage 1 milestones without paying for them', () => {
+    const s = freshRun({ asc: 0, dust: 0, perks: { head: 1 } });
+    expect(s.stage).toBe(1); expect(s.life).toBe(STAGES[1].at);
+    expect(Object.keys(s.miles).length).toBe(3);
   });
   it('start-of-run perks: pantry slop is spendable and does not grow the goop', () => {
     const s = freshRun({ asc: 0, dust: 0, perks: { pantry: 2 } });
