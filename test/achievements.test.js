@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { BADGES, checkBadges } from '../src/achievements.js';
 import { newState } from '../src/econ.js';
-import { newStats, recordStage, recordEvent, newRun } from '../src/stats.js';
+import { newStats, recordStage, recordEvent, recordFeed, newRun } from '../src/stats.js';
 import { createLocalAchievements } from '../src/platform/achievements.js';
 
 describe('achievements', () => {
@@ -45,6 +45,13 @@ describe('stats', () => {
     expect(st.bestStageAt[1]).toBe(80);
     newRun(st); recordStage(st, 1, 120);
     expect(st.bestStageAt[1]).toBe(80);
+  });
+  it('feeds past the click cap count for nothing, so they cannot farm the feed badges', () => {
+    const st = newStats();
+    for (let i = 0; i < 2000; i++) recordFeed(st, i < 600);
+    expect(st.feeds).toBe(600); expect(st.paidClicks).toBe(600); expect(st.cappedClicks).toBe(1400);
+    const got = checkBadges(newState(), st, () => false);
+    expect(got).toContain('feed100'); expect(got).toContain('capped'); expect(got).not.toContain('feed1k');
   });
   it('a missed event breaks the streak', () => {
     const st = newStats();

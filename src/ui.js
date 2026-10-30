@@ -139,7 +139,7 @@ export function renderShelf(achievements, scores, identity) {
   const seen = Object.values(st.seen).reduce((a, b) => a + b, 0);
   const sun = scores.best('sun');
   const rows = [
-    ['Feeds by hand', fmt(st.feeds)], ['Paid feeds', fmt(st.paidClicks)], ['Too-fast feeds', fmt(st.cappedClicks)],
+    ['Clicks and taps', fmt(st.clicks)], ['Feeds by hand', fmt(st.feeds)], ['Too-fast feeds', fmt(st.cappedClicks)],
     ['Events caught', fmt(totalCaught(st)) + ' of ' + fmt(seen)], ['Best catch streak', fmt(st.bestStreak)],
     ['Gambles won / lost', st.gambleWins + ' / ' + st.gambleLosses], ['Visitors shooed / not', st.hazardsTapped + ' / ' + st.hazardsMissed],
     ['Hops', fmt(st.hops)], ['Lifetime slop', fmt(st.lifetimeSlop)], ['Peak slop a second', fmt(st.peakSps)],

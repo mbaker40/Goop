@@ -130,6 +130,7 @@ export function clickGate(times, now, cap = CLICK_CAP) {
 }
 
 // Slop earned while away for `secs` at feeder rate `rate`. Same rule for a hidden tab and a closed one.
+// TODO(follow-up): smooth the cliff at 60 s, e.g. 60 * rate + (secs - 60) * OFFLINE_RATE * rate.
 export function awayEarnings(rate, secs, cap = OFFLINE_CAP) {
   if (!(secs > 0) || !(rate > 0)) return 0;
   if (secs <= OFFLINE_GRACE) return rate * secs;

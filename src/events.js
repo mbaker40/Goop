@@ -25,6 +25,8 @@ export const EVENTS = [
   { id: 'drip', bucket: 'boost', name: 'Slow Drip', look: 'drip', label: 'Slow drip',
     w: [10, 10, 10, 10, 10, 10], effect: boost(2, 90, 'Slow drip. Feeders work twice as hard for {secs} seconds.') },
   { id: 'bubbling', bucket: 'gamble', name: 'Bubbling Vial', look: 'bubbling', label: 'Bubbling vial?',
+    // TODO(follow-up): spell the risk out in the spawn label and the screen-reader announcement for the
+    // gambles that can spill the bank (this one and fork's "Spicy"), not just a question mark.
     w: [0, 8, 9, 9, 9, 9],
     effect: { type: 'gamble', p: 0.5, win: boost(12, 20, 'It held! Feeders work {mult} times faster for {secs} seconds.'),
               lose: { type: 'spill', frac: 0.5, msg: 'It boiled over. {n} slop is on the floor.' } } },
@@ -71,6 +73,17 @@ export function nextGap(caught, rand, mult = 1) {
   return (lo + rand() * (hi - lo)) * mult;
 }
 export function isHazard(ev) { return ev.bucket === 'hazard'; }
+
+// One frame of the event clock. `c` holds { ev, evIn } (the game's store). While something covers the
+// canvas (the win card, the trophy shelf, the Star Dust panel) the clock is paused outright: a vial or a
+// visitor cannot age, expire or spawn behind an overlay the player cannot see past. Peeking at another
+// stage only holds back new spawns, as before. Returns 'spawn', 'expire' or null; the caller acts on it.
+export function tickEventClock(c, { real, dt, life, peek = null, covered = false }) {
+  if (covered) return null;
+  if (c.ev) { c.ev.age += dt; return c.ev.age > c.ev.life ? 'expire' : null; }
+  if (life >= EVENTS_FROM_LIFE && peek == null) { c.evIn -= real; if (c.evIn <= 0) return 'spawn'; }
+  return null;
+}
 export function isChoice(ev) { return ev.bucket === 'choice'; }
 
 // Apply one effect to the state. Never calls earn(): slop to add comes back as `gain`, so the game can

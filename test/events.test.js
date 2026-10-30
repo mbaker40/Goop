@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { newState } from '../src/econ.js';
-import { EVENTS, LEGACY_DECK, pickEvent, weightAt, applyEffect, deckEV, incomeBoost, isHazard, isChoice } from '../src/events.js';
+import { EVENTS, LEGACY_DECK, pickEvent, weightAt, applyEffect, deckEV, incomeBoost, isHazard, isChoice, tickEventClock } from '../src/events.js';
 import { compare } from '../src/sim.js';
 import { rng } from '../src/rng.js';
 
@@ -90,4 +90,35 @@ describe('event deck expected value vs the old 50/50 vial', () => {
     }
     console.log('Event deck EV, simulated to the Sun (8 seeds each):\n' + lines.join('\n'));
   }, 60000);
+});
+
+describe('event clock', () => {
+  const frame = { real: 1, dt: 1, life: 1e6 };
+  it('counts down to a spawn, then ages the event until it expires', () => {
+    const c = { ev: null, evIn: 2 };
+    expect(tickEventClock(c, frame)).toBe(null);
+    expect(tickEventClock(c, frame)).toBe('spawn');
+    c.ev = { age: 0, life: 1.5 };
+    expect(tickEventClock(c, frame)).toBe(null);
+    expect(tickEventClock(c, frame)).toBe('expire');
+  });
+  it('pauses outright while the win card or a panel covers the canvas', () => {
+    const c = { ev: { age: 3.9, life: 4 }, evIn: 0.5 };
+    for (let i = 0; i < 100; i++) expect(tickEventClock(c, { ...frame, covered: true })).toBe(null);
+    expect(c.ev.age).toBe(3.9);                              // a visitor cannot steal behind the Star Dust panel
+    c.ev = null;
+    for (let i = 0; i < 100; i++) expect(tickEventClock(c, { ...frame, covered: true })).toBe(null);
+    expect(c.evIn).toBe(0.5);
+  });
+  it('peeking holds back spawns but lets an event on stage keep ageing, as before', () => {
+    const c = { ev: null, evIn: 0.5 };
+    expect(tickEventClock(c, { ...frame, peek: 2 })).toBe(null);
+    expect(c.evIn).toBe(0.5);
+    c.ev = { age: 0, life: 0.5 };
+    expect(tickEventClock(c, { ...frame, peek: 2 })).toBe('expire');
+  });
+  it('no events before the goop has eaten a little', () => {
+    const c = { ev: null, evIn: 0 };
+    expect(tickEventClock(c, { ...frame, life: 10 })).toBe(null);
+  });
 });

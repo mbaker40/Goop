@@ -1,6 +1,7 @@
 /* The stats layer: everything the game counts, persisted in the save. Pure, no DOM.
-   Vocabulary: a click is any press on the scene (goop, vial or visitor); a feed is a click that fed
-   the goop; a paid click is a feed under the click cap that actually paid slop. */
+   Vocabulary: a click is any press on the scene (goop, vial or visitor), the raw number; a feed is a
+   press on the goop under the click cap, which pays slop (paidClicks is kept equal to it); a capped
+   click is a press on the goop past the cap, which animates but pays and counts for nothing. */
 import { STAGES } from './econ.js';
 
 export const SUN = STAGES.length;     // index used for "reached the Sun" in the stage-time arrays
@@ -56,6 +57,11 @@ export function recordStage(st, k, secs) {
 export function newRun(st, stage = 0) {
   st.runStageAt = [];
   for (let k = 0; k <= stage; k++) st.runStageAt[k] = 0;
+}
+// One feed by hand. Only a paid feed (under the click cap) counts as a feed, so feeding past the cap
+// cannot farm the feed badges; the too-fast ones are counted on their own.
+export function recordFeed(st, paid) {
+  if (paid) { st.feeds++; st.paidClicks++; } else st.cappedClicks++;
 }
 export function recordEvent(st, id, caught) {
   if (caught) { bump(st.caught, id); st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }

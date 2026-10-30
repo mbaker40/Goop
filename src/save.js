@@ -75,6 +75,8 @@ export function fromV1(d) {
 export function serialize(d) { return JSON.stringify({ ...d, v: SAVE_VERSION }); }
 
 // Read the save through a storage adapter. Returns { data, from } where from is 'v2', 'v1' or null.
+// TODO(follow-up): a v2 save that exists but is corrupt currently falls back to the v1 backup silently;
+// keep the corrupt string aside and tell the player instead.
 export function loadSave(storage) {
   for (const [key, from] of [[SAVE_KEY, 'v2'], [LEGACY_KEY, 'v1']]) {
     let raw = null;

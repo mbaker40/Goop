@@ -4,9 +4,9 @@ import './style.css';
 import { W, H, reduce, clamp } from './draw.js';
 import { SCENES } from './scenes/index.js';
 import { ASCEND_BONUS, OFFLINE_GRACE, newState, feederCost, slopPerSec, baseRate, feedValue, earn, clickGate, awayEarnings, UPGRADES } from './econ.js';
-import { EVENTS, FIRST_EVENT, VIAL_LIFE, EVENTS_FROM_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice } from './events.js';
+import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock } from './events.js';
 import { hop as hopRun, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, PERKS } from './prestige.js';
-import { recordStage, recordEvent, newRun, bump, SUN } from './stats.js';
+import { recordStage, recordEvent, recordFeed, newRun, bump, SUN } from './stats.js';
 import { checkBadges, BADGE_BY_ID } from './achievements.js';
 import { loadSave, writeSave, exportString, importString } from './save.js';
 import { platform } from './platform/index.js';
@@ -56,16 +56,17 @@ function splash(n, col) {
 }
 function feed(x, y) {
   const s = G.state, st = G.stats;
-  s.feeds++; st.feeds++;
   anim.squashV += 7; anim.fling = 0; anim.mouth = 1;
   launch(false); splash(2);
-  // the click cap: past it a feed still flies and splashes, it just pays nothing
-  if (clickGate(G.clickTimes, performance.now(), clickCap(s))) {
+  // the click cap: past it a feed still flies and splashes, but pays nothing and counts for nothing
+  const paid = clickGate(G.clickTimes, performance.now(), clickCap(s));
+  recordFeed(st, paid);
+  if (paid) {
     const v = feedValue(s);
-    st.paidClicks++;
+    s.feeds++;
     floats.push({ x, y, txt: '+' + fmt(v), life: 1 }); if (floats.length > 24) floats.shift();
     sfx.feed(); gain(v);
-  } else { st.cappedClicks++; sfx.full(); }
+  } else sfx.full();
 }
 function onStage() {
   const s = G.state;
@@ -131,6 +132,7 @@ function expireEvent() {
   G.ev = null; G.evIn = nextGap(false, Math.random, spawnGapMult(s)); ui.announce('');
   ui.refresh(); badges();
 }
+// TODO(follow-up): larger touch targets at phone widths (a 56-unit radius is about 39 px at 390 wide).
 function hitEvent(x, y) {
   if (!G.ev) return -1;
   let best = -1, bd = Infinity;
@@ -140,6 +142,8 @@ function hitEvent(x, y) {
 
 /* ---------- time: one rule for being away, hidden tab or closed (econ.awayEarnings) ---------- */
 const AWAY_GAP = 2;                 // a frame gap longer than this is treated as time away
+// TODO(follow-up): across a short stall (2 to 60 s) pay boosts and freezes for the part of the gap they
+// actually covered, instead of base rate with the timers simply run down.
 function returnFrom(secs) {
   const s = G.state;
   const n = awayEarnings(baseRate(s), secs, offlineCap(s));
@@ -169,8 +173,8 @@ function step(real, dt) {
   for (let i = drops.length - 1; i >= 0; i--) { const d = drops[i]; d.vy += 760 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.life -= dt; if (d.life <= 0) drops.splice(i, 1); }
   for (let i = floats.length - 1; i >= 0; i--) { floats[i].life -= dt * 1.1; if (floats[i].life <= 0) floats.splice(i, 1); }
   if (sps > 0 && !reduce) { autoAcc += dt * Math.min(4.5, .35 + Math.log10(1 + sps) * .42); while (autoAcc >= 1) { autoAcc -= 1; launch(true); if (Math.random() < .35) splash(1); } }
-  if (G.ev) { G.ev.age += dt; if (G.ev.age > G.ev.life) expireEvent(); }
-  else if (s.life >= EVENTS_FROM_LIFE && G.peek == null) { G.evIn -= real; if (G.evIn <= 0) spawnEvent(); }
+  const tick = tickEventClock(G, { real, dt, life: s.life, peek: G.peek, covered: canvasCovered() });
+  if (tick === 'expire') expireEvent(); else if (tick === 'spawn') spawnEvent();
   ui.tickUi(real);
   if (resetArm > 0) { resetArm -= real; if (resetArm <= 0) $('resetBtn').textContent = 'Start over'; }
   uiT += real; if (uiT >= .15) { uiT = 0; ui.refresh(); }
@@ -186,6 +190,7 @@ function frame(now) {
 }
 
 /* ---------- hands on ---------- */
+function canvasCovered() { return !$('win').hidden || ui.sheetOpen(); }
 function scenePoint(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; }
 function feedFromKeys() { feed(SCENES[view().k].goop.x, Math.max(60, anim.cy - anim.r - 20)); }
 cv.addEventListener('pointerdown', e => {
@@ -198,6 +203,17 @@ cv.addEventListener('keydown', e => {
   if ((k === ' ' || k === 'Enter') && !e.repeat) { e.preventDefault(); G.stats.clicks++; if (G.ev) collectEvent(0); else feedFromKeys(); }
   else if (k === ' ') e.preventDefault();
   else if (pick && G.ev && isChoice(G.ev.def) && !e.repeat) { e.preventDefault(); G.stats.clicks++; collectEvent(k === '2' || k === 'ArrowRight' ? 1 : 0); }
+});
+// The event keys also work from anywhere on the page (say, focus on a shop button), so a keyboard
+// player can grab a vial or shoo a visitor without tabbing back to the canvas. Only while an event is
+// on stage and nothing that takes keys has focus; feeding by key stays on the canvas.
+document.addEventListener('keydown', e => {
+  if (e.target === cv || !G.ev || e.repeat || e.ctrlKey || e.metaKey || e.altKey || canvasCovered()) return;
+  const t = e.target, tag = t && t.tagName;
+  if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+  const k = e.key;
+  if (k === ' ' || k === 'Enter') { e.preventDefault(); G.stats.clicks++; collectEvent(0); }
+  else if ((k === '1' || k === '2' || k === 'ArrowLeft' || k === 'ArrowRight') && isChoice(G.ev.def)) { e.preventDefault(); G.stats.clicks++; collectEvent(k === '2' || k === 'ArrowRight' ? 1 : 0); }
 });
 window.addEventListener('pointermove', e => {
   const [x, y] = scenePoint(e); anim.lookX = x; anim.lookY = y;
