@@ -15,6 +15,10 @@ import { MILESTONE_BY_ID, seedMilestones } from './milestones.js';
 
 export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'feed-the-goop-v2';
+// A copy of every save under a key the six-stage build never reads or writes. If an old tab (or an old
+// cached page) saves over SAVE_KEY in the v2 shape, it silently drops the Act 2 feeders and Mutations;
+// loadSave then recovers from this copy. See loadSave.
+export const SHADOW_KEY = 'feed-the-goop-v3';
 export const LEGACY_KEY = 'feed-the-goop-v1';
 export const EXPORT_PREFIX = 'GOOP2:';
 
@@ -87,7 +91,16 @@ export function serialize(d) { const { schema, ...rest } = d; return JSON.string
 // from ('v2' or 'v1', or null); data.schema says which version that save was written in (1, 2 or 3).
 // TODO(follow-up): a v2 save that exists but is corrupt currently falls back to the v1 backup silently;
 // keep the corrupt string aside and tell the player instead.
+const readRaw = (storage, key) => { try { return JSON.parse(storage.get(key) || 'null'); } catch (e) { return null; } };
+const playSecs = raw => (raw && raw.stats && Number.isFinite(raw.stats.playSecs) ? raw.stats.playSecs : 0);
 export function loadSave(storage) {
+  // An older build wrote over the main key (v < 3) after this build saved: if the shadow copy has at
+  // least as much play time, it is the real save. Restore it and put it back under the main key.
+  const main = readRaw(storage, SAVE_KEY), shadow = readRaw(storage, SHADOW_KEY);
+  if (main && Number.isFinite(main.v) && main.v < SAVE_VERSION && shadow && shadow.v >= SAVE_VERSION && playSecs(shadow) >= playSecs(main)) {
+    const data = migrate(shadow);
+    if (data) { writeSave(storage, data); return { data, from: 'shadow' }; }
+  }
   for (const [key, from] of [[SAVE_KEY, 'v2'], [LEGACY_KEY, 'v1']]) {
     let raw = null;
     try { raw = JSON.parse(storage.get(key) || 'null'); } catch (e) { raw = null; }
@@ -96,7 +109,11 @@ export function loadSave(storage) {
   }
   return { data: null, from: null };
 }
-export function writeSave(storage, d) { return storage.set(SAVE_KEY, serialize(d)); }
+export function writeSave(storage, d) {
+  const str = serialize(d);
+  storage.set(SHADOW_KEY, str);
+  return storage.set(SAVE_KEY, str);
+}
 
 /* ---------- export and import: a copyable string ---------- */
 function toBase64(str) {

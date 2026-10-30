@@ -113,15 +113,23 @@ function hop() {
 }
 
 /* ---------- the end: Eat the Rest, the ending, the landing ---------- */
+// Press once to arm, again within four seconds to eat: like Start over, because the first viewing of
+// the ending is 68 seconds that cannot be skipped.
 function eatTheRest() {
   const s = G.state;
   if (!canEatRest(s)) return;
+  if (G.eatArm <= 0) { G.eatArm = 4; $('eatRest').querySelector('.nm').textContent = 'Sure? Press again'; ui.refresh(); return; }
+  G.eatArm = 0; $('eatRest').querySelector('.nm').textContent = 'Eat the Rest';
   eatRest(s);
   G.stats.universes++;
   recordStage(G.stats, UNIVERSE, s.played); scores.submit('universe', s.played);
   sfx.gulp(); save();
   startCutscene(false);
 }
+// TODO(PR 3): closing the tab during the first viewing leaves `ate` saved with cutsceneSeen 0, so the
+// replay from the shelf stays unskippable; count the viewing as seen on load when ate is true.
+// TODO(PR 3): Load save (import) does not clear G.cut; end any playing ending first.
+// TODO(PR 3): the away-earnings toast from returnFrom() can show over the ending; hold it until it ends.
 function startCutscene(replay) {
   G.cut = { t: 0, replay, confirm: 0, beat: -1 };
   G.ev = null; ui.announce(''); clearStage(); ui.closeSheets();
@@ -265,6 +273,7 @@ function step(real, dt) {
   if (G.cut) tickCutscene(real); else tickMood(real);
   ui.tickUi(real);
   if (resetArm > 0) { resetArm -= real; if (resetArm <= 0) $('resetBtn').textContent = 'Start over'; }
+  if (G.eatArm > 0) { G.eatArm -= real; if (G.eatArm <= 0) { $('eatRest').querySelector('.nm').textContent = 'Eat the Rest'; ui.refresh(); } }
   uiT += real; if (uiT >= .15) { uiT = 0; ui.refresh(); }
   badgeT += real; if (badgeT >= 1) { badgeT = 0; scores.submit('peak', st.peakSps); badges(); }
   saveT += real; if (saveT >= 10) { saveT = 0; save(); }
@@ -401,6 +410,9 @@ function start() {
     if (G.state.dust > 0) ui.award([G.state.dust + ' Star Dust for your ' + G.stats.hops + ' past hop' + (G.stats.hops > 1 ? 's' : '') + '. Spend it in the shop.'], 'New in the lab');
   }
   if (data && data.schema === 2) save();   // schema 3, written over the same key, once
+  // TODO(PR 3): a migrated player past the Sun gets runStageAt only up to the Sun, so the next stage they
+  // reach records an inflated "Fastest to" time (measured from the start of the run). Seed the stages
+  // between the Sun and their current stage as unknown so recordStage skips them.
   if (G.state.ate && G.state.won) $('hopSmall').hidden = false;
   badges();
   lastNow = performance.now(); requestAnimationFrame(frame);

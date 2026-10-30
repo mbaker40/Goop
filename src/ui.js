@@ -124,7 +124,7 @@ function paintFinale(s) {
   b.disabled = !ok;
   $('eatRestFx').textContent = ok ? 'Costs all ' + fmt(Math.floor(s.slop)) + ' of your slop. There is nothing after this. Probably.'
     : 'Opens when the goop has eaten ' + fmt(END.at) + ' slop: ' + fmt(Math.max(0, END.at - s.life)) + ' to go.';
-  b.setAttribute('aria-label', 'Eat the Rest. ' + (ok ? 'Costs all of your slop and ends the game.' : 'Not yet. ' + $('eatRestFx').textContent));
+  b.setAttribute('aria-label', (G.eatArm > 0 ? 'Sure? Press Eat the Rest again. ' : 'Eat the Rest. ') + (ok ? 'Costs all of your slop and ends the game.' : 'Not yet. ' + $('eatRestFx').textContent));
 }
 
 /* ---------- winning: Act 1 at the Sun, and the landing after the ending ---------- */

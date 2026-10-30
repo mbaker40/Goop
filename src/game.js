@@ -15,6 +15,7 @@ export const G = {
   evIn: FIRST_EVENT,     // seconds until the next event
   clickTimes: [],        // paid clicks in the last second (the click cap)
   badgeCount: 0,
+  eatArm: 0,             // seconds left to confirm Eat the Rest (it starts a 68 s ending that cannot be skipped the first time)
   cut: null,             // the ending while it plays: { t, replay, confirm (seconds left to confirm a skip) }
   mood: { id: 'content', text: '', life: 0, next: 14, recent: [] },   // the goop's mood and its speech bubble
   clock: { fed: 0, caught: -99, hopped: -99, back: -99 },              // play-seconds when things last happened (mood.js)

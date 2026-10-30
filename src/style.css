@@ -144,7 +144,7 @@ canvas{display:block;width:100%;aspect-ratio:960/600;max-width:100%;border:3px s
 .bitten,.chewed,.banner.chewed{position:relative}
 .shop.bitten::before,.shop.bitten::after,.hud.chewed .tag:first-child::after,.banner.chewed::after,.top h1.bitten::after{
   content:'';position:absolute;pointer-events:none;background:var(--night);border:4px solid var(--ink);border-radius:50%;z-index:1}
-.shop.bitten::before{width:64px;height:64px;right:-14px;top:-14px}
+.shop.bitten::before{width:56px;height:56px;right:-14px;top:-34px}
 .shop.bitten::after{width:52px;height:52px;left:-14px;bottom:-14px}
 .hud.chewed .tag{position:relative}
 .hud.chewed .tag:first-child::after{width:40px;height:40px;right:-18px;top:-16px}
