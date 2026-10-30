@@ -2,8 +2,9 @@
    sprite, the splash drops (here fifty times over, as sparks that cool into stars), the camera zoom,
    the stage 1 diorama with the roles swapped, and the float-number style for "+1 grub". */
 import { P, cut, inked, flat, box, line, label, ctx, reduce, W, H, INK, PAPER, FONT, clamp, lerp, easeOut, rng, mix } from './draw.js';
-import { frameAt, zoomAt, EVOLUTION, EVO_FROM, EVO_EACH } from './cutscene.js';
-import { drawGoop, EYES } from './sprites/goop.js';
+import { frameAt, zoomAt, EVOLUTION, EVO_FROM, EVO_EACH, HANDOFF } from './cutscene.js';
+import { drawGoop, EYES, GOOP } from './sprites/goop.js';
+import { FOOD } from './sprites/food.js';
 import { goopScientist, tinyHuman, toaster } from './sprites/act2.js';
 import { galaxy, faceStar, star5 } from './scenes/props2.js';
 import { space } from './scenes/props.js';
@@ -30,8 +31,8 @@ function card(text, alpha, onBlack) {
   else { ctx.lineWidth = 8; ctx.strokeStyle = INK; ctx.strokeText(text, GX, y); ctx.fillStyle = PAPER; ctx.fillText(text, GX, y); }
   ctx.restore();
 }
-function floatText(txt, x, y, life) {               // the "+12" style
-  ctx.save(); ctx.globalAlpha = clamp(life * 2.2, 0, 1); ctx.font = '400 30px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+function floatText(txt, x, y, life) {               // exactly the game's "+12" (render.js): 28 px, rising 56 units as it fades
+  ctx.save(); ctx.globalAlpha = clamp(life * 2.2, 0, 1); ctx.font = '400 28px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
   ctx.lineWidth = 6; ctx.strokeStyle = INK; ctx.strokeText(txt, x, y); ctx.fillStyle = PAPER; ctx.fillText(txt, x, y); ctx.restore();
 }
 function spiralEye(x, y, r, t, ph) {
@@ -54,8 +55,8 @@ function bite(f, t) {
   }
 }
 /* ---------- beat 2: the Goop Bang ---------- */
-function bang(f, t, reduced) {
-  black(1);
+function bang(f, t, reduced, noBlack) {
+  if (!noBlack) black(1);
   const L = f.local, pull = lerp(1, .5, smooth((L - 2) / 9));                         // the camera pulls back
   ctx.save(); ctx.translate(GX, GY); ctx.scale(pull, pull); ctx.translate(-GX, -GY);
   const belly = smooth((L - 6) / 4);                                                   // the belly turns see-through
@@ -79,42 +80,127 @@ function bang(f, t, reduced) {
   ctx.restore();
 }
 /* ---------- beat 3: zoom in, then evolution ---------- */
+// Every creature is the goop, a few steps on: its lime body with the one flat shadow shape, its eye (a
+// white disc, a big pupil, a glint), its smile and its drips. Each step keeps the last one's body.
+const [GC, GS, GL] = GOOP[0];
+function blob(x, y, rx, ry, t, ph = 0, n = 24) {
+  const pts = [];
+  for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2, w = 1 + .05 * Math.sin(3 * a + (reduce ? 0 : t * 2) + ph) + .03 * Math.sin(5 * a - (reduce ? 0 : t * 2.6)); pts.push([x + Math.cos(a) * rx * w, y + Math.sin(a) * ry * w]); }
+  return P.smooth(pts);
+}
+function goopBody(path, x, y, rx, ry) {             // drawGoop's own recipe: cut, one crescent of shade, two highlights
+  cut(path, GC, { lw: 4.5, d: .8 });
+  ctx.save(); ctx.clip(path);
+  const c = new Path2D(); c.rect(x - rx * 3, y - ry * 3, rx * 6, ry * 6); c.ellipse(x - rx * .16, y - ry * .2, rx * 1.06, ry, 0, 0, 7);
+  ctx.fillStyle = GS; ctx.fill(c, 'evenodd');
+  flat(P.ell(x - rx * .42, y - ry * .5, rx * .26, ry * .13, -.6), GL, .9); flat(P.circ(x - rx * .13, y - ry * .7, Math.min(rx, ry) * .06), GL, .9);
+  ctx.restore(); ctx.lineWidth = 4.5; ctx.strokeStyle = INK; ctx.stroke(path);
+}
+function goopEye(x, y, r, dx = -1, dy = .1) {       // the goop's eye: white, ink rim, a big pupil looking somewhere, a glint
+  inked(P.circ(x, y, r), '#ffffff', clamp(r * .16, 2, 5));
+  const l = Math.hypot(dx, dy) || 1, qx = x + dx / l * r * .4, qy = y + dy / l * r * .4;
+  flat(P.circ(qx, qy, r * .46), INK); flat(P.circ(qx - r * .14, qy - r * .16, r * .13), '#ffffff');
+}
+function goopSmile(x, y, r) { ctx.beginPath(); ctx.arc(x, y - r * .5, r, Math.PI * .22, Math.PI * .78); ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke(); }
+function drips(x, y, xs, t) {                       // the goop's drips: hanging from the underside, slowly stretching
+  for (const [dx, len] of xs) { const l = len * (1 + (reduce ? 0 : .25 * Math.sin(t * 2 + dx))); line([[x + dx, y], [x + dx, y + l]], INK, 10); inked(P.ell(x + dx, y + l + 4, 5.5, 7), GC, 3); line([[x + dx, y - 6], [x + dx, y + l]], GC, 5); }
+}
+function limb(pts, w = 13) { line(pts, INK, w + 6); line(pts, GC, w); }
+function paw(x, y, r = 8) { inked(P.circ(x, y, r), GC, 3.5); }
 const CREATURES = {
-  fish(x, y, t) { cut(P.poly([[x + 40, y], [x + 70, y - 22], [x + 70, y + 22]]), '#8fdc2f', { lw: 4, d: .8 }); cut(P.ell(x, y, 50, 30), '#8fdc2f', { lw: 4, d: .8 }); inked(P.circ(x - 22, y - 6, 14), '#ffffff', 3); flat(P.circ(x - 26, y - 6, 7), INK); },
-  lizard(x, y) { line([[x + 40, y], [x + 90, y + 10]], INK, 14); line([[x + 40, y], [x + 90, y + 10]], '#62ae1c', 8); for (const lx of [-24, 20]) line([[x + lx, y + 10], [x + lx - 8, y + 34]], INK, 8); cut(P.ell(x, y, 54, 20), '#8fdc2f', { lw: 4, d: .8 }); inked(P.circ(x - 34, y - 8, 9), '#ffffff', 3); flat(P.circ(x - 36, y - 8, 4.5), INK); },
-  legs(x, y, t) { for (let i = 0; i < 8; i++) { const lx = x - 42 + i * 12; line([[lx, y + 6], [lx + Math.sin(t * 9 + i) * 6, y + 38]], INK, 6); } cut(P.ell(x, y, 54, 24), '#ffb01f', { lw: 4, d: .8 }); for (const ex of [-30, -14]) { inked(P.circ(x + ex, y - 10, 8), '#ffffff', 3); flat(P.circ(x + ex, y - 10, 4), INK); } },
-  frog(x, y) { cut(P.ell(x, y + 6, 46, 30), '#22c3b0', { lw: 4, d: .8 }); for (const ex of [-18, 18]) { cut(P.circ(x + ex, y - 22, 13), '#22c3b0', { lw: 4, d: .5 }); flat(P.circ(x + ex, y - 22, 6), INK); } line([[x - 20, y + 12], [x + 20, y + 12]], INK, 4); cut(P.ell(x, y - 46, 26, 6), '#3b2a63', { lw: 3, d: .3 }); cut(P.rect(x - 14, y - 66, 28, 22, 4), '#3b2a63', { lw: 3, d: .3 }); },
-  monkey(x, y, t, extra) {
-    line([[x + 30, y + 30], [x + 60, y + 10 + Math.sin(t * 3) * 6]], INK, 9); line([[x + 30, y + 30], [x + 60, y + 10 + Math.sin(t * 3) * 6]], '#a8743a', 4);
-    cut(P.ell(x, y + 30, 32, 38), '#a8743a', { lw: 4, d: .8 });
-    for (const ex of [-30, 30]) cut(P.circ(x + ex, y - 22, 12), '#a8743a', { lw: 3.5, d: .4 });
-    cut(P.circ(x, y - 20, 30), '#a8743a', { lw: 4, d: .6 }); flat(P.ell(x, y - 12, 20, 16), '#f4c9a0');
-    if (extra === 'goggles') { inked(P.rect(x - 32, y - 34, 64, 9, 3), '#3b2a63', 2.5); for (const ex of [-11, 11]) { inked(P.circ(x + ex, y - 26, 10), '#8f9bb8', 3); inked(P.circ(x + ex, y - 26, 6), '#dffcf6', 2); flat(P.circ(x + ex + 2, y - 25, 3), INK); } }
-    else for (const ex of [-10, 10]) flat(P.circ(x + ex, y - 24, 4), INK);
-    if (extra === 'clipboard' || extra === 'goggles') { ctx.save(); ctx.translate(x - 34, y + 30); ctx.rotate(-.2); cut(P.rect(-16, -20, 32, 42, 3), '#b98852', { lw: 3, d: .5 }); inked(P.rect(-12, -14, 24, 30, 2), PAPER, 2); for (const ly of [-6, 0, 6]) line([[-7, ly], [7, ly]], INK, 1.5); ctx.restore(); }
+  // 1. a goop-fish, its tail still in the goop-green sea, crawling out on two stubby fins
+  fish(x, y, t) {
+    const w = reduce ? 0 : Math.sin(t * 6) * .25;
+    ctx.save(); ctx.translate(x + 40, y); ctx.rotate(w); cut(P.poly([[0, 0], [38, -26], [30, 0], [38, 26]]), GC, { lw: 4.5, d: .6 }); ctx.restore();
+    limb([[x - 26, y + 16], [x - 40, y + 30]], 10); limb([[x + 6, y + 18], [x - 4, y + 32]], 10);
+    goopBody(blob(x, y, 50, 30, t), x, y, 50, 30);
+    drips(x, y + 26, [[-8, 14], [20, 9]], t);
+    cut(P.poly([[x - 10, y - 26], [x + 10, y - 40], [x + 22, y - 24]]), GC, { lw: 4, d: .3 });
+    goopEye(x - 20, y - 8, 14); goopSmile(x - 36, y + 12, 9);
+  },
+  // 2. a goop-lizard: the same blob, longer, on four legs, with the goop's second eye coming in
+  lizard(x, y, t) {
+    const T = new Path2D(); T.moveTo(x + 40, y - 6); T.quadraticCurveTo(x + 90, y - 2, x + 110, y + 22); T.quadraticCurveTo(x + 80, y + 12, x + 40, y + 12); T.closePath(); cut(T, GC, { lw: 4.5, d: .5 });
+    for (const lx of [-34, -14, 18, 36]) limb([[x + lx, y + 10], [x + lx - 6, y + 30]], 9);
+    for (const lx of [-34, -14, 18, 36]) paw(x + lx - 8, y + 32, 6);
+    goopBody(blob(x, y, 58, 22, t, 1), x, y, 58, 22);
+    drips(x, y + 19, [[-2, 9], [28, 7]], t);
+    goopEye(x - 36, y - 6, 12); goopEye(x - 16, y - 12, 8); goopSmile(x - 48, y + 10, 7);
+  },
+  // 3. a goop with too many legs: rounder, up on eight of them, three eyes now
+  legs(x, y, t) {
+    for (let i = 0; i < 8; i++) { const lx = x - 46 + i * 13, k = reduce ? 0 : Math.sin(t * 9 + i) * 6; limb([[lx, y + 10], [lx + k * .5 - 3, y + 30], [lx + k, y + 48]], 7); paw(lx + k, y + 50, 5); }
+    goopBody(blob(x, y, 52, 34, t, 2), x, y, 52, 34);
+    drips(x, y + 30, [[-22, 10], [14, 14]], t);
+    goopEye(x - 4, y - 12, 13); goopEye(x + 22, y - 4, 9); goopEye(x - 26, y - 2, 8); goopSmile(x, y + 16, 10);
+  },
+  // 4. a goop-frog: sitting up for the first time, two goop eyes on top, front arms on the sand
+  frog(x, y, t) {
+    for (const d of [-1, 1]) { goopBody(blob(x + d * 32, y + 34, 22, 14, t, d), x + d * 32, y + 34, 22, 14); }
+    goopBody(blob(x, y, 40, 44, t, 3), x, y, 40, 44);
+    drips(x, y + 40, [[-10, 8], [12, 11]], t);
+    limb([[x - 26, y + 14], [x - 30, y + 40]], 10); limb([[x + 26, y + 14], [x + 30, y + 40]], 10); paw(x - 30, y + 42); paw(x + 30, y + 42);
+    for (const d of [-1, 1]) { goopBody(blob(x + d * 18, y - 40, 15, 14, t, d * 2, 16), x + d * 18, y - 40, 15, 14); goopEye(x + d * 18, y - 40, 10, 0, 1); }
+    goopSmile(x, y + 4, 14);
+  },
+  // 5. a goop-ape: upright, long goop arms down to the ground, a brow, two eyes, still dripping.
+  // extra: 'clipboard' (6) or 'goggles' (7, a clipboard too: it is nearly a scientist)
+  ape(x, y, t, extra) {
+    const up = extra === 'goggles' ? 8 : extra === 'clipboard' ? 4 : 0;
+    for (const d of [-1, 1]) { limb([[x + d * 14, y + 26], [x + d * 18, y + 54]], 13); inked(P.ell(x + d * 22, y + 56, 12, 6), GC, 3.5); }
+    const by = y - up;
+    goopBody(blob(x, by, 38, 48, t, 4), x, by, 38, 48);
+    drips(x, by + 44, [[-16, 9], [6, 13]], t);
+    flat(P.ell(x, by - 18, 30, 7), GS);                                                 // the brow
+    const sw = reduce ? 0 : Math.sin(t * 3) * 4;
+    limb([[x - 32, by - 6], [x - 50, by + 22], [x - 52, by + 56 + sw]], 12); paw(x - 52, by + 60 + sw, 9);
+    if (extra) { limb([[x + 32, by - 6], [x + 46, by + 14], [x + 30, by + 26]], 12); }
+    else { limb([[x + 32, by - 6], [x + 50, by + 22], [x + 52, by + 56 - sw]], 12); paw(x + 52, by + 60 - sw, 9); }
+    if (extra === 'goggles') { inked(P.rect(x - 38, by - 18, 76, 10, 4), '#3b2a63', 3); for (const ex of [-14, 14]) { inked(P.circ(x + ex, by - 12, 14), '#8f9bb8', 3.5); goopEye(x + ex, by - 12, 9.5, 0, .3); } }
+    else { goopEye(x - 13, by - 8, 11, .4, .3); goopEye(x + 14, by - 6, 9, .4, .3); }
+    goopSmile(x, by + 16, 12);
+    if (extra) {                                                                        // a clipboard, held to the chest
+      ctx.save(); ctx.translate(x + 26, by + 22); ctx.rotate(-.18); cut(P.rect(-16, -20, 32, 42, 3), '#b98852', { lw: 3, d: .5 }); inked(P.rect(-12, -14, 24, 30, 2), PAPER, 2); for (const ly of [-6, 0, 6]) line([[-7, ly], [7, ly]], INK, 1.5); inked(P.rect(-6, -23, 12, 6, 2), '#c9cfdf', 2); ctx.restore();
+      paw(x + 30, by + 28, 9);
+      line([[x - 30, by - 40], [x - 12, by - 52]], INK, 6); line([[x - 30, by - 40], [x - 12, by - 52]], '#ffd23f', 3);   // a pencil, tucked into the goop
+    }
   },
 };
 function evolutionStill(i, x, y, t) {
   const id = EVOLUTION[i];
   ctx.save(); ctx.translate(x, y);
   cut(P.rect(-140, -120, 280, 240, 10), PAPER, { lw: 5, d: 1.2 });
-  flat(P.rect(-128, -108, 256, 216), '#5fd0f0'); flat(P.rect(-128, 30, 256, 78), '#8fdc2f'); line([[-128, 30], [128, 30]], INK, 3);   // slop-green sea, sky
+  flat(P.rect(-128, -108, 256, 216), '#5fd0f0');
+  flat(P.rect(-128, -6, 256, 30), GC); for (let k = 0; k < 6; k++) flat(P.ell(-110 + k * 46, -6, 18, 5), GL, .8);   // the goop-green sea
+  flat(P.rect(-128, 24, 256, 84), '#f2c27a'); line([[-128, 24], [128, 24]], INK, 3);                                // the shore
   ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.strokeRect(-128, -108, 256, 216);
   label((i + 1) + '/8', 100, -88, 18, INK);
   ctx.restore();
   ctx.save(); ctx.beginPath(); ctx.rect(x - 128, y - 108, 256, 216); ctx.clip();
-  if (id === 'fish') CREATURES.fish(x, y + 34, t);
-  else if (id === 'lizard') CREATURES.lizard(x, y + 14, t);
+  if (id === 'fish') CREATURES.fish(x - 6, y + 22, t);
+  else if (id === 'lizard') CREATURES.lizard(x - 16, y + 26, t);
   else if (id === 'legs') CREATURES.legs(x, y + 6, t);
-  else if (id === 'frog') CREATURES.frog(x, y + 20, t);
-  else if (id === 'monkey') CREATURES.monkey(x, y + 4, t);
-  else if (id === 'clipboard') CREATURES.monkey(x, y + 4, t, 'clipboard');
-  else if (id === 'goggles') CREATURES.monkey(x, y + 4, t, 'goggles');
-  else goopScientist(x, y + 100, .5, t, 0);
+  else if (id === 'frog') CREATURES.frog(x, y + 14, t);
+  else if (id === 'ape') CREATURES.ape(x, y + 8, t);
+  else if (id === 'clipboard') CREATURES.ape(x, y + 8, t, 'clipboard');
+  else if (id === 'goggles') CREATURES.ape(x, y + 8, t, 'goggles');
+  else goopScientist(x, y + 106, .6, t, 0);
   ctx.restore();
+}
+// The hand-off from beat 2: the camera dives from the goop's belly into the first galaxy the sparks made,
+// which opens out into the spiral the zoom flies through.
+function handoff(L, t, reduced) {
+  const steps = reduced ? 3 : 0, raw = clamp(L / HANDOFF, 0, 1), u = steps ? Math.floor(raw * steps) / steps : smooth(raw);
+  const tx = GX + GAL[0][0] * .5, ty = GY + GAL[0][1] * .5 * .55 + 4, z = lerp(1, 9, u * u);
+  ctx.save(); ctx.translate(GX, GY); ctx.scale(z, z); ctx.translate(-lerp(GX, tx, smooth(Math.min(1, raw * 1.5))), -lerp(GY, ty, smooth(Math.min(1, raw * 1.5))));
+  bang({ local: 16 }, t, reduced, true);
+  ctx.restore();
+  const a = smooth((raw - .55) / .45);
+  if (a > 0) { ctx.save(); ctx.globalAlpha = a; space(t, '#0b0716', '#1b1654', [[GX, GY, 360, 'rgba(162,104,255,.2)']]); galaxy(GX, GY, 230, '#2b1b9e', '#fff3d6', t, .55, -.3, .25); ctx.restore(); }
 }
 function zoom(f, t, reduced) {
   black(1);
+  if (f.local < HANDOFF) { handoff(f.local, t, reduced); return; }
   if (f.evo < 0) {
     const u = zoomAt(f.local, reduced);
     space(t, '#0b0716', '#1b1654', [[GX, GY, 360, 'rgba(162,104,255,.2)']]);
@@ -125,50 +211,73 @@ function zoom(f, t, reduced) {
     } else if (u < .72) {                                                              // past a star
       const v = (u - .45) / .27;
       faceStar(lerp(GX + 200, -200, smooth(v)), GY - 40, lerp(40, 220, v), '#ffd23f', '#fff3b0', t, 'calm');
-    } else {                                                                           // to a molten planet, whose oceans form, slop green
-      const v = (u - .72) / .28, r = lerp(60, 230, smooth(v)), ocean = smooth((v - .5) / .5);
-      const C = P.circ(GX, GY, r); cut(C, mix('#ff5f1f', '#2f8fe8', ocean), { lw: 5, d: .6 });
+    } else {                                                                           // to a molten planet, whose oceans form, the goop's own green
+      const v = (u - .72) / .28, r = lerp(60, 230, smooth(v)), ocean = smooth((v - .4) / .5);
+      const C = P.circ(GX, GY, r); cut(C, mix('#ff5f1f', GC, ocean), { lw: 5, d: .6 });
       ctx.save(); ctx.clip(C);
-      for (let i = 0; i < 7; i++) flat(P.ell(GX + Math.cos(i * 1.9) * r * .5, GY + Math.sin(i * 2.3) * r * .5, r * .3, r * .14, i), mix('#ffd23f', '#8fdc2f', ocean), .85);
+      flat(P.ell(GX - r * .3, GY - r * .5, r * .5, r * .2, -.4), mix('#ffb01f', GL, ocean), .8);
+      for (let i = 0; i < 7; i++) flat(P.ell(GX + Math.cos(i * 1.9) * r * .5, GY + Math.sin(i * 2.3) * r * .5, r * .3, r * .14, i), mix('#ffd23f', '#c98f4a', ocean), .9);
       ctx.restore(); ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.stroke(C);
     }
   } else {                                                                             // eight stills, side-scrolling
     ctx.fillStyle = '#1b1654'; ctx.fillRect(-60, -60, W + 120, H + 120);
     const pos = (f.t - EVO_FROM) / EVO_EACH, slide = reduced ? Math.floor(pos) : Math.floor(pos) + smooth((pos % 1 - .75) / .25);
-    for (let i = 0; i < EVOLUTION.length; i++) { const x = GX + (i - slide) * 320; if (x > -200 && x < W + 200) evolutionStill(i, x, GY, t); }
+    const end = reduced ? 0 : smooth((f.local - 19.3) / .7);                           // the last still grows into stage 1's lab
+    ctx.save(); if (end > 0) { const z = lerp(1, 2.6, end); ctx.translate(GX, GY + 40); ctx.scale(z, z); ctx.translate(-GX, -GY - 40); }
+    for (let i = 0; i < EVOLUTION.length; i++) { const x = GX + (i - Math.min(slide, EVOLUTION.length - 1)) * 320; if (x > -200 && x < W + 200) evolutionStill(i, x, GY, t); }
     for (let i = 0; i < 16; i++) { const x = ((i * 64 - (f.t - EVO_FROM) * (reduced ? 0 : 80)) % 1024 + 1024) % 1024 - 32; box(x, GY - 150, 30, 14, 'rgba(255,243,214,.25)'); box(x, GY + 136, 30, 14, 'rgba(255,243,214,.25)'); }
+    ctx.restore();
   }
 }
 /* ---------- beat 4: the lab, roles swapped ---------- */
+// Stage 1's lab, exactly: the scene file itself, with the goop scientist where the scientist stands and
+// the tiny human where the goop sits. Each feed copies the game's: the spoon arm swings, a stage 1 snack
+// arcs over (0.42 s, as a hand feed flies), and on landing the human squashes, opens wide, splashes and
+// burps, and "+1 grub" floats up in the "+12" style.
 const SWAP = { scientist: (x, y, s, t, fling) => goopScientist(x - 10, y - 10, s * 1.4, t, fling) };   // sized like the scientist it replaces
-function feedAnim(L) {             // two feeds: fling at 5 s and 11 s into the beat
-  for (const at of [5, 11]) if (L >= at && L < at + 1.6) return { fling: clamp((L - at) / .3, 0, 1), shot: clamp((L - at - .1) / .5, 0, 1), burp: L > at + .6 && L < at + 1.4 ? 1 : 0, float: L > at + .6 ? 1 - (L - at - .6) / 1.8 : 0 };
-  for (const at of [5, 11]) if (L >= at + 1.6 && L < at + 2.4) return { fling: 1, shot: 1, burp: 0, float: 1 - (L - at - .6) / 1.8 };
-  return { fling: 1, shot: 1, burp: 0, float: 0 };
+export const FEEDS = [5, 11];                      // seconds into the beat (cutscene.js cues them at 47 and 53)
+const HX = 590, HY = 436, HS = .62, FLY = .42;     // the human's feet and size; a hand feed's flight time
+const MOUTH = [HX + 2, HY - 122 * HS];
+function feedAnim(L) {
+  let at = null; for (const a of FEEDS) if (L >= a) at = a;
+  if (at == null || L > at + 2.6) return { fling: 1, shot: -1, hit: -1 };
+  return { fling: clamp((L - at) / .3, 0, 1), shot: (L - at - .1) / FLY, hit: L - at - .1 - FLY };
 }
+const DROPS = (() => { const r = rng(91); return Array.from({ length: 8 }, () => ({ a: -Math.PI / 2 + (r() - .5) * 2.2, v: 90 + r() * 160, r: 3 + r() * 4 })); })();
 function lab(f, t, reduced, zoomTo) {
   const sc = SCENES[0], L = f.local, fa = feedAnim(L);
   const a = { fling: fa.fling, r: 40, cy: 400, swap: SWAP, gone: new Set(), lookX: GX, lookY: GY };
   ctx.save();
-  const z = zoomTo ? zoomTo.z : (reduced ? 1 : 1 + .4 * (1 - smooth(L / 2.5)));              // the camera settles, as after a stage change
-  const zx = zoomTo ? zoomTo.x : 590, zy = zoomTo ? zoomTo.y : 400;
+  // the camera settles from the goop scientist, where the last evolution still left it
+  const settle = reduced ? 1 : smooth(L / 2.5), z = zoomTo ? zoomTo.z : lerp(1.9, 1, settle);
+  const zx = zoomTo ? zoomTo.x : lerp(214, 480, settle), zy = zoomTo ? zoomTo.y : lerp(400, 300, settle);
   ctx.translate(zx, zy); ctx.scale(z, z); ctx.translate(-zx, -zy);
   sc.back(t, .3, a); sc.mid(t, .3, a);
   toaster(806, 430, .62, t, { lookX: -1, lookY: .3 });                                      // on the counter. Judging.
-  tinyHuman(590, 436, .62, t, zoomTo ? zoomTo.turn : 0, fa.burp);
-  if (fa.shot > 0 && fa.shot < 1) {                                                          // a tiny spoonful in flight
-    const u = fa.shot, x = lerp(330, 584, u), y = lerp(300, 372, u) - Math.sin(u * Math.PI) * 70;
-    inked(P.circ(x, y, 6), '#ff8fc0', 2.5);
+  // the feed lands: the game's squash spring (a damped wobble), mouth open, then the burp
+  const h = fa.hit, squash = h >= 0 && h < 1.2 ? Math.sin(h * 14) * Math.exp(-h * 4) * .9 : 0;
+  const open = h >= 0 && h < .5 ? 1 - h / .5 : h >= .55 && h < 1.1 ? 1 : 0;
+  tinyHuman(HX, HY, HS, t, zoomTo ? zoomTo.turn : 0, open, squash);
+  if (fa.shot > 0 && fa.shot < 1) {                                                          // a stage 1 snack, in flight
+    const u = fa.shot, x = lerp(330, MOUTH[0], u), y = lerp(300, MOUTH[1], u) - Math.sin(u * Math.PI) * 90 * .7, sh = .55 * (1 - clamp((u - .78) / .22, 0, 1) * .7);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(reduce ? 0 : u * 4); ctx.scale(sh, sh); FOOD[0][0](); ctx.restore();
   }
-  if (fa.float > 0) floatText('+1 grub', 640, 330 - (1 - fa.float) * 56, fa.float);
+  if (h >= 0 && h < .9) for (const d of DROPS) {                                             // the splash, as the goop's: orange drops, falling
+    const x = MOUTH[0] + Math.cos(d.a) * (16 + d.v * h * .5), y = MOUTH[1] + 6 + Math.sin(d.a) * d.v * h * .6 + 380 * h * h * .5;
+    ctx.globalAlpha = clamp((.9 - h) * 3, 0, 1); inked(P.circ(x, y, d.r * HS * 1.4), '#ffb01f', 2); ctx.globalAlpha = 1;
+  }
+  if (h >= .55 && h < 1.2) { ctx.globalAlpha = clamp((1.2 - h) * 3, 0, 1); label('burp', MOUTH[0] + 40, MOUTH[1] - 20 - (h - .55) * 30, 20, PAPER); ctx.globalAlpha = 1; }
+  if (h >= 0) { const life = 1 - h * 1.1; if (life > 0) floatText('+1 grub', MOUTH[0] + 12, MOUTH[1] - 44 - (1 - life) * 56, life); }
   sc.front(t, .3, a);
   ctx.restore();
 }
 /* ---------- beat 5: the stinger ---------- */
+// The human close up: it turns from its feeder to the camera. Then three cards on black.
+export const STING_TURN = [.7, 1.2], STING_BLACK = 2.2;
 function stinger(f, t, reduced) {
-  if (f.local < 1.5) {
-    const u = smooth(f.local / (reduced ? .2 : .9));
-    lab({ local: 20 }, t, reduced, { z: lerp(1, 3.2, u), x: 590, y: 380, turn: clamp((f.local - .6) / .5, 0, 1) });
+  if (f.local < STING_BLACK) {
+    const u = smooth(f.local / (reduced ? .2 : 1));
+    lab({ local: 20 }, t, reduced, { z: lerp(1, 4.2, u), x: HX, y: HY - 50, turn: clamp((f.local - STING_TURN[0]) / (STING_TURN[1] - STING_TURN[0]), 0, 1) });
   } else black(1);
 }
 /* ---------- beat 6: the landing ---------- */

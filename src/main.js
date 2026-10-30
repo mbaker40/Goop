@@ -177,7 +177,7 @@ function hop() {
 
 /* ---------- the end: Eat the Rest, the ending, the landing ---------- */
 // Press once to arm, again within four seconds to eat: like Start over, because the first viewing of
-// the ending is 68 seconds that cannot be skipped.
+// the ending is 70 seconds that cannot be skipped.
 function eatTheRest() {
   const s = G.state;
   if (!canEatRest(s)) return;

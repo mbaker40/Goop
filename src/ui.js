@@ -161,7 +161,7 @@ export function showLanding() {
   for (const id of ids.slice(-8)) { const sp = document.createElement('span'); sp.textContent = BADGE_BY_ID[id].name; B.appendChild(sp); }
   if (ids.length > 8) { const sp = document.createElement('span'); sp.textContent = 'and ' + (ids.length - 8) + ' more'; B.prepend(sp); }
   B.setAttribute('aria-label', st.runBadges.length + ' trophies earned this run');
-  $('landDust').textContent = 'Becoming the new universe earns ' + dustForRun(s.life, true) + ' Star Dust, ' + BIG_BANG_DUST + ' of it a Big Bang bonus,' + hopLine(s).text.replace(/^ and/, '');
+  $('landDust').textContent = 'Becoming the new universe earns ' + dustForRun(s.life, true) + ' Star Dust (' + BIG_BANG_DUST + ' of it a Big Bang bonus)' + hopLine(s).text;
   $('land').hidden = false;
   $('bangBtn').focus();
 }

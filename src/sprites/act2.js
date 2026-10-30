@@ -49,23 +49,55 @@ export function goopScientist(x, y, s, t, fling = 1, wave = 0, col = ['#8fdc2f',
   ctx.restore();
 }
 
-// A tiny human in a tiny lab coat. turn 0: side-on, looking left at its feeder; 1: straight at you.
-export function tinyHuman(x, y, s, t, turn = 0, burp = 0) {
-  ctx.save(); ctx.translate(x, y + (reduce ? 0 : Math.sin(t * 2) * 1.5 * s)); ctx.scale(s, s);
-  inked(P.rect(-14, -30, 10, 30, 3), '#3b2a63', 3); inked(P.rect(4, -30, 10, 30, 3), '#3b2a63', 3);
-  cut(P.poly([[-22, -82], [22, -82], [28, -26], [-28, -26]]), '#f7f4ff', { lw: 3.5, d: .6 });
-  line([[0, -80], [0, -28]], INK, 2);
-  cut(P.circ(0, -106, 26), '#f4c9a0', { lw: 3.5, d: .5 });
-  cut(P.poly([[-26, -112], [-20, -132], [0, -136], [22, -130], [26, -112], [10, -122], [-8, -120]]), '#5b4636', { lw: 3, d: .3 });
-  const side = 1 - clamp(turn, 0, 1);
-  if (turn >= .5) {                                                       // looking right at you
-    for (const ex of [-10, 10]) { inked(P.circ(ex, -104, 7.5), '#ffffff', 2.5); flat(P.circ(ex, -103, 3.6), INK); }
-    line([[-7, -88], [7, -88]], INK, 3);
-  } else {
-    for (const ex of [-12, 2]) { inked(P.circ(ex - side * 2, -104, 6), '#ffffff', 2.5); flat(P.circ(ex - side * 4, -104, 3), INK); }
-    if (burp > 0) inked(P.ell(-8, -88, 6, 5 * burp), '#4a1030', 2.5);
-    else { ctx.beginPath(); ctx.arc(-6, -94, 8, Math.PI * .2, Math.PI * .8); ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.stroke(); }
+// A tiny human in a tiny lab coat: a person, unmistakably. Hair with a parting, ears, glasses, eyebrows,
+// a nose and a mouth; a neck; a coat with lapels, a shirt and tie, buttons and a pocket with a pen; arms
+// in sleeves with hands; trousers and shoes. Feet at (x, y), about 160 units tall at s = 1.
+// turn 0: three-quarter view, looking left at its feeder; 1: straight at you. open 0..1: mouth open (a
+// feed, a burp). squash: the game's feed wobble (positive squashes, negative stretches).
+export function tinyHuman(x, y, s, t, turn = 0, open = 0, squash = 0) {
+  const SKIN = '#f4c9a0', HAIR = '#5b4636', COAT = '#f7f4ff', PANTS = '#3b2a63';
+  ctx.save(); ctx.translate(x, y + (reduce ? 0 : Math.sin(t * 2) * 1.2 * s)); ctx.scale(s * (1 + squash * .08), s * (1 - squash * .1));
+  const look = 1 - clamp(turn, 0, 1);                                     // 1: looking left, 0: at you
+  // shoes and legs
+  for (const d of [-1, 1]) { inked(P.rect(d * 11 - 6, -44, 12, 40, 4), PANTS, 3); cut(P.ell(d * 11 + (d < 0 ? -4 : 4) - look * 3, -3, 12, 6), '#2a1838', { lw: 3, d: .2 }); }
+  // the coat: body, lapels over a shirt and tie, buttons, a pocket with a pen
+  cut(P.poly([[-22, -102], [22, -102], [27, -40], [-27, -40]]), COAT, { lw: 3.5, d: .6 });
+  flat(P.poly([[-8, -102], [8, -102], [0, -78]]), '#bfe3ff');
+  inked(P.poly([[-2.5, -98], [2.5, -98], [3.5, -82], [0, -76], [-3.5, -82]]), '#e23f3f', 1.6);
+  inked(P.poly([[-12, -102], [-3, -102], [-1, -76], [-9, -86]]), COAT, 2.2); inked(P.poly([[12, -102], [3, -102], [1, -76], [9, -86]]), COAT, 2.2);
+  line([[0, -76], [0, -42]], INK, 2);
+  for (const by of [-68, -56]) flat(P.circ(4, by, 2.4), INK);
+  inked(P.rect(-19, -72, 10, 9, 1.5), COAT, 1.8); line([[-16, -78], [-16, -68]], '#3b6cff', 2.5);
+  // arms over the coat: sleeves, cuffs, hands with thumbs (the left one lifted toward its feeder)
+  const sway = reduce ? 0 : Math.sin(t * 2.2) * .06;
+  for (const d of [-1, 1]) {
+    ctx.save(); ctx.translate(d * 21, -98); ctx.rotate(-d * .2 + (d < 0 ? look * .55 : 0) + sway * d);
+    cut(P.rect(-6.5, 0, 13, 46, 6), COAT, { lw: 3, d: .3 }); line([[-6.5, 40], [6.5, 40]], INK, 2);
+    inked(P.circ(0, 53, 7), SKIN, 2.5); inked(P.ell(-d * 6, 48, 3.2, 5, -d * .5), SKIN, 2);
+    ctx.restore();
   }
+  // neck and head
+  inked(P.rect(-5, -112, 10, 12, 3), SKIN, 2.5);
+  for (const d of [-1, 1]) inked(P.ell(d * 21 + look * 3, -130, 4.5, 6.5), SKIN, 2.5);   // ears
+  cut(P.ell(look * -2, -132, 20, 22), SKIN, { lw: 3.5, d: .4 });
+  // hair: a side parting and a fringe
+  const hx = look * -2;
+  cut(P.poly([[hx - 21, -134], [hx - 19, -150], [hx - 8, -157], [hx + 8, -157], [hx + 18, -151], [hx + 21, -136], [hx + 14, -146], [hx + 2, -144], [hx - 4, -150], [hx - 10, -143]]), HAIR, { lw: 3, d: .2 });
+  // face: eyes look at the feeder, or at you
+  const fx = look * -4, px = look * -2.2;
+  for (const d of [-1, 1]) {
+    const ex = fx + d * 8;
+    inked(P.ell(ex, -132, 5.2, 5.6), '#ffffff', 1.8); flat(P.circ(ex + px, -131.5, 2.7), INK); flat(P.circ(ex + px - .9, -132.6, .9), '#ffffff');
+    line([[ex - 4.5, -140 - (turn > .5 ? 1.5 : 0)], [ex + 4.5, -141 - (turn > .5 ? 1.5 : 0) + d * .6]], HAIR, 2.2);   // eyebrows (up, when it sees you)
+    ctx.beginPath(); ctx.arc(ex, -132, 7.4, 0, Math.PI * 2); ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.stroke();  // glasses
+  }
+  line([[fx - .8, -132], [fx + .8, -132]], INK, 2);                        // the bridge
+  ctx.beginPath(); ctx.moveTo(fx - 1 - look * 2, -128); ctx.quadraticCurveTo(fx - 4 - look * 2, -122, fx - look * 2, -121.5); ctx.strokeStyle = INK; ctx.lineWidth = 1.8; ctx.lineCap = 'round'; ctx.stroke();   // nose
+  const mx = fx - look * 2, my = -116;
+  if (open > .05) { inked(P.ell(mx, my, 4.5 + open * 1.5, 1.5 + open * 4.5), '#4a1030', 1.8); flat(P.ell(mx, my + open * 2, 2.6, open * 1.8), '#ff7aa8'); }
+  else if (turn > .5) line([[mx - 4.5, my], [mx + 4.5, my]], INK, 2.2);   // deadpan, at the camera
+  else { ctx.beginPath(); ctx.arc(mx, my - 3, 5, Math.PI * .2, Math.PI * .8); ctx.strokeStyle = INK; ctx.lineWidth = 2.2; ctx.stroke(); }
+  flat(P.ell(fx - 13, -124, 3.5, 2), '#ff9a9a', .6); flat(P.ell(fx + 13, -124, 3.5, 2), '#ff9a9a', .6);
   ctx.restore();
 }
 
