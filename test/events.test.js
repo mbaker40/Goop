@@ -184,6 +184,8 @@ describe('phase 4 effects', () => {
     expect(applyEffect(mid(), EVENT_BY_ID.comet.effect, Math.random).gain).toBeCloseTo(100 * 6 * 16);
     const s = mid(); s.lastBuy = 9000;
     expect(applyEffect(s, EVENT_BY_ID.blackhole.effect, Math.random).gain).toBeCloseTo(9000);
+    expect(s.lastBuy).toBe(0);                             // one refund per purchase: the next hiccup pays the floor
+    expect(applyEffect(s, EVENT_BY_ID.blackhole.effect, Math.random).gain).toBeCloseTo(100 * 60);
     s.lastBuy = 1; expect(applyEffect(s, EVENT_BY_ID.blackhole.effect, Math.random).gain).toBeCloseTo(100 * 60);
     s.lastBuy = 1e12; expect(applyEffect(s, EVENT_BY_ID.blackhole.effect, Math.random).gain).toBeCloseTo(100 * 180);
   });

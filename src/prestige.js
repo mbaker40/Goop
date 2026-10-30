@@ -11,12 +11,13 @@ export { LATE_FROM, LATE_MULT, BANG_STEP, MUT_COST, lateMult, bangMult };
 // make +60%). Until phase 4 every hop paid a flat +50%, so twenty quick hops at the Sun were worth 11x
 // and farming the Sun was the fastest way through the universe. Now the size depends on the furthest
 // stage the run reached: a hop at the Sun (stage 7's door) pays +10%, one from stage 12 the old +50%,
-// and one from stage 17 or beyond (a Big Bang included) +100%. Indexes are 0-based stages.
+// and one from stage 17 or beyond (a Big Bang included) +80% (tuned down from +100% so a fully maxed
+// run still takes about an hour and a half; see test/sim.test.js). Indexes are 0-based stages.
 export const HOP_BONUS = [0.10, 0.18, 0.26, 0.34, 0.42, 0.50, 0.56, 0.62, 0.68, 0.74, 0.80];   // from SUN_STAGE upward
 // Each depth also has a ceiling: hops from that stage can lift the total bonus that far and no further
-// (a deeper hop always can). Twenty quick hops at the Sun stop paying a bonus at +50%; nothing is ever
+// (a deeper hop always can). Twenty quick hops at the Sun stop paying a bonus at +30%; nothing is ever
 // taken away, so a bonus already above a ceiling (an old save's) stays where it is.
-export const HOP_CEIL = [0.5, 0.8, 1.1, 1.4, 1.7, 2.0, 2.6, 3.2, 3.8, 4.4, Infinity];
+export const HOP_CEIL = [0.3, 0.6, 0.9, 1.2, 1.5, 2.0, 2.6, 3.2, 3.8, 4.4, Infinity];
 export const HOP_MAX = HOP_BONUS[HOP_BONUS.length - 1];
 const hopIdx = stage => Math.max(0, Math.min(HOP_BONUS.length - 1, (stage | 0) - SUN_STAGE));
 export function hopBonusFor(stage) { return HOP_BONUS[hopIdx(stage)]; }
@@ -65,7 +66,7 @@ export const PERKS = [
   { id: 'late',    act: 2, name: 'Late Feeders',      cost: [60, 150], blurb: 'The Vacuum Straw, Light Cone Ladle, Horizon Hopper and Dark Matter Whisk work 50% harder, then twice as hard.' },
   { id: 'head2',   act: 2, name: 'Head Start II',     cost: [80],      blurb: 'Every new run starts in stage 7, at the Sun\'s door, with a Sun\'s worth of slop to spend.', need: s => (s.bangs | 0) >= 1 },
   { id: 'bang',    act: 2, name: 'Cosmic Memory',     cost: [100, 250], blurb: 'Every feeder works 5% harder for each Big Bang so far, and every Big Bang to come. Then 10%.', need: s => (s.bangs | 0) >= 1 },
-  { id: 'fingers2', act: 2, name: 'Quicker Fingers',  cost: [30, 60],  blurb: 'Raise the hand-feeding limit by another 5 a second, then 5 more.', need: s => perkLevel(s, 'fingers') >= 2 },
+  { id: 'fingers2', act: 2, name: 'Quicker Fingers',  cost: [30, 60],  blurb: 'Every feed by hand is worth 5% more, then 10%. (The limit stays at 25 a second: faster than that is a robot.)', need: s => perkLevel(s, 'fingers') >= 2 },
   { id: 'mutdisc', act: 2, name: 'Mutation Discount', cost: [40, 100], blurb: 'Mutations cost 10% less, then 20% less.' },
   { id: 'mercy',   act: 2, name: 'Fourth Wall Mercy', cost: [20],      blurb: 'The goop eats the interface more slowly, and chews one digit at a time.' },
   { id: 'daily2',  act: 2, name: 'Daily Double',      cost: [25],      blurb: 'A new best on the daily goop counts twice its slop toward your weekly total.' },
@@ -93,7 +94,9 @@ export function perksOwnedIn(s, act) { return PERKS.reduce((n, p) => n + (p.act 
 export function dustToMax(act) { return PERKS.reduce((n, p) => n + (!act || p.act === act ? p.cost.reduce((a, b) => a + b, 0) : 0), 0); }
 
 /* ---------- what the perks do. Everything the game asks of a perk goes through one of these. ---------- */
-export function clickCap(s) { return CLICK_CAP + 5 * perkLevel(s, 'fingers') + 5 * perkLevel(s, 'fingers2'); }
+// Quick Fingers lifts the limit to 25 a second, and nothing lifts it further: past that only a bot gains.
+export const CLICK_CAP_MAX = 25;
+export function clickCap(s) { return Math.min(CLICK_CAP_MAX, CLICK_CAP + 5 * perkLevel(s, 'fingers')); }
 export function eventLifeMult(s) { return perkLevel(s, 'linger') ? 1.5 : 1; }
 export function spawnGapMult(s) { return [1, 0.8, 0.65][perkLevel(s, 'leak')]; }
 export function offlineCap(s) { return perkLevel(s, 'nap2') ? 24 * 3600 : perkLevel(s, 'nap') ? 8 * 3600 : OFFLINE_CAP; }
@@ -158,6 +161,15 @@ export function canHop(s) { return !!s.won && (s.startStage < SUN_STAGE || s.sta
 export function hopPreview(s) {
   const have = Number.isFinite(s.hopBonus) ? s.hopBonus : 0, bonus = hopGain(have, s.stage);
   return { dust: dustForRun(s.life, !!s.ate), bonus, total: have + bonus, ceiling: hopCeiling(s.stage), capped: bonus < hopBonusFor(s.stage) };
+}
+
+// Why a hop pays less than its depth's full bonus (a ceiling), and where to hop for more; '' when it pays in full.
+export function hopWhy(s) {
+  const have = Number.isFinite(s.hopBonus) ? s.hopBonus : 0, h = hopPreview(s);
+  if (h.bonus >= hopBonusFor(s.stage) - 1e-9) return '';
+  const where = s.stage <= SUN_STAGE ? 'the Sun' : 'stage ' + (s.stage + 1);
+  let next = -1; for (let k = s.stage + 1; k < STAGES.length; k++) if (hopCeiling(k) > have + 1e-9) { next = k; break; }
+  return 'Hops from ' + where + ' stop adding at +' + pct(h.ceiling) + (next >= 0 ? '; hop from stage ' + (next + 1) + ' or deeper for more.' : '.');
 }
 
 // Hop to the next star: award dust for the run, +1 asc, the hop bonus for the stage reached, fresh run.

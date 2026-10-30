@@ -149,12 +149,12 @@ describe('depth-scaled hops', () => {
     s = hop(s).state; expect(s.hopBonus).toBeCloseTo(0.5 + HOP_MAX);
     expect(allMult(s)).toBeCloseTo(1 + 0.5 + HOP_MAX); expect(feedValue(s)).toBeCloseTo(1 + 0.5 + HOP_MAX);
   });
-  it('Sun farming runs into the Sun\'s ceiling: twenty Sun hops are worth +50%, not +200% (or the old +1000%)', () => {
+  it('Sun farming runs into the Sun\'s ceiling: twenty Sun hops are worth +30%, not +200% (or the old +1000%)', () => {
     let s = freshRun({ asc: 0, hopBonus: 0, dust: 0, perks: {} });
     for (let i = 0; i < 20; i++) { s.life = SUN_AT; s.stage = SUN_STAGE; s.won = true; s = hop(s).state; }
     expect(s.hopBonus).toBeCloseTo(HOP_CEIL[0]); expect(s.asc).toBe(20); expect(s.dust).toBe(120);
     s.life = STAGES[11].at; s.stage = 11; s.won = true;     // a deeper hop still pays in full
-    expect(hopPreview(s).bonus).toBe(0.5); expect(hop(s).state.hopBonus).toBeCloseTo(1.0);
+    expect(hopPreview(s).bonus).toBe(0.5); expect(hop(s).state.hopBonus).toBeCloseTo(HOP_CEIL[0] + 0.5); expect(HOP_CEIL[0]).toBeCloseTo(0.3);
   });
   it('a bonus already above a ceiling is never reduced (an old save keeps its +50% per hop)', () => {
     expect(legacyHopBonus(21)).toBe(10.5); expect(legacyHopBonus(0)).toBe(0); expect(legacyHopBonus(-3)).toBe(0);
@@ -167,15 +167,17 @@ describe('depth-scaled hops', () => {
   it('the preview says what a hop will pay before it is pressed, and when the ceiling caps it', () => {
     const s = newState(); s.life = SUN_AT; s.stage = SUN_STAGE; s.won = true;
     expect(hopPreview(s)).toMatchObject({ dust: 6, bonus: 0.1, total: 0.1, capped: false });
-    s.hopBonus = 0.45; expect(hopPreview(s).bonus).toBeCloseTo(0.05); expect(hopPreview(s).capped).toBe(true);
+    s.hopBonus = 0.25; expect(hopPreview(s).bonus).toBeCloseTo(0.05); expect(hopPreview(s).capped).toBe(true);
     s.ate = true; s.life = END.at; s.stage = 19; expect(hopPreview(s)).toMatchObject({ dust: 223, bonus: HOP_MAX });
   });
 });
 
 describe('phase 4 perks', () => {
-  it('Quicker Fingers stacks on Quick Fingers, and shows up once it is maxed', () => {
+  it('Quicker Fingers makes hand feeds worth more, never the limit past 25 a second; it shows up once Quick Fingers is maxed', () => {
     const s = newState(); s.perks = { fingers: 2 }; expect(clickCap(s)).toBe(25); expect(perkOpen(s, 'fingers2')).toBe(true);
-    s.perks.fingers2 = 2; expect(clickCap(s)).toBe(35);
+    const v = feedValue(s);
+    s.perks.fingers2 = 1; expect(feedValue(s)).toBeCloseTo(v * 1.05); s.perks.fingers2 = 2; expect(feedValue(s)).toBeCloseTo(v * 1.1);
+    expect(clickCap(s)).toBe(25); expect(clickCap({ perks: { fingers: 9, fingers2: 9 } })).toBe(25);
     expect(perkOpen({ perks: { fingers: 1 } }, 'fingers2')).toBe(false);
   });
   it('Event Pity is owed after three misses in a row, only with the perk', () => {
@@ -220,3 +222,15 @@ describe('phase 4 perks', () => {
   });
 });
 const PERK_BY_ID_LEN = id => PERKS.find(p => p.id === id).cost.length;
+
+import { hopWhy } from '../src/prestige.js';
+describe('saying why a hop pays less', () => {
+  it('names the ceiling and the first stage that pays more, and says nothing when a hop pays in full', () => {
+    const s = newState(); s.life = SUN_AT; s.stage = SUN_STAGE; s.won = true;
+    expect(hopWhy(s)).toBe('');
+    s.hopBonus = 0.3; expect(hopWhy(s)).toBe('Hops from the Sun stop adding at +30%; hop from stage 8 or deeper for more.');
+    s.hopBonus = 2.5; s.stage = 11; expect(hopWhy(s)).toBe('Hops from stage 12 stop adding at +200%; hop from stage 13 or deeper for more.');
+    s.hopBonus = 10.5; s.stage = 11; expect(hopWhy(s)).toMatch(/hop from stage 17 or deeper/);
+    s.stage = 19; expect(hopWhy(s)).toBe('');
+  });
+});

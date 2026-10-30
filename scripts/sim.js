@@ -26,10 +26,10 @@ for (const cps of [1, 5]) {
 const nofirst = compare({ deck: EVENTS, clicksPerSec: 1, milestones: false }, SEEDS).minutes;
 console.log(`\n(Without milestone bonuses a first run reaches the Sun in ${nofirst.toFixed(1)} min at 1 click a second.)`);
 
-console.log('\nHop strategies from a fresh save to the end of the universe, 5 clicks a second, 2 seeds:');
+console.log('\nHop strategies from a fresh save to the end of the universe, 5 clicks a second, mean of 3 seeds:');
 console.log('| Strategy | Hopping | Total | Hop bonus at the end | Old flat +50% rule (same deck and perks) |\n|---|---|---|---|---|');
-const flat = Object.fromEntries(strategyTable({ cps: 5, seeds: 2, flat: true }).map(r => [r.id, r]));
-for (const r of strategyTable({ cps: 5, seeds: 2 })) console.log(`| ${r.name} | ${hm(r.hopSecs)} | ${hm(r.total)} | +${Math.round(r.bonus * 100)}% | ${hm(flat[r.id].total)} (+${Math.round(flat[r.id].bonus * 100)}%) |`);
+const flat = Object.fromEntries(strategyTable({ cps: 5, seeds: 3, flat: true }).map(r => [r.id, r]));
+for (const r of strategyTable({ cps: 5, seeds: 3 })) console.log(`| ${r.name} | ${hm(r.hopSecs)} | ${hm(r.total)} | +${Math.round(r.bonus * 100)}% | ${hm(flat[r.id].total)} (+${Math.round(flat[r.id].bonus * 100)}%) |`);
 const at = STRATEGIES.find(s => s.id === 'mixed').hopAt;
 const [plain, stack] = strategyTable({ cps: 5, seeds: 2, list: [{ id: 'm', name: 'm', hopAt: at }, { id: 's', name: 's', hopAt: at, stack: { i: 1, to: 500 } }] });
 console.log(`\nFeeder legends: the mixed strategy ${hm(plain.total)}; the same while stacking interns to 500 ${hm(stack.total)}.`);

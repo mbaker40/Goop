@@ -80,6 +80,8 @@ function bang(f, t, reduced, noBlack) {
   ctx.restore();
 }
 /* ---------- beat 3: zoom in, then evolution ---------- */
+// TODO(follow-up): move blob, goopBody, goopEye and drips into sprites/goop.js beside drawGoop, whose
+// recipe they copy, so the two cannot drift apart.
 // Every creature is the goop, a few steps on: its lime body with the one flat shadow shape, its eye (a
 // white disc, a big pupil, a glint), its smile and its drips. Each step keeps the last one's body.
 const [GC, GS, GL] = GOOP[0];

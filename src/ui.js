@@ -3,7 +3,7 @@
 import { clamp } from './draw.js';
 import { goopColours } from './sprites/goop.js';
 import { STAGES, FEEDERS, UPGRADES, END, LAST, SUN_STAGE, feederCost, feederRate, slopPerSec, stageProgress, massGrams, feederOpen, upgradeOpen, upgradeCost, boostMult, canEatRest } from './econ.js';
-import { PERKS, perkLevel, perkCost, perkMax, perkOpen, dustForRun, clickCap, canHop, BIG_BANG_DUST, hopPreview, hopBonusFor, HOP_MAX, HOP_CEIL, milestonePreview, perksOwnedIn, perksTotal } from './prestige.js';
+import { PERKS, perkLevel, perkCost, perkMax, perkOpen, dustForRun, clickCap, canHop, BIG_BANG_DUST, hopPreview, hopBonusFor, hopWhy, HOP_MAX, milestonePreview, perksOwnedIn, perksTotal } from './prestige.js';
 import { BADGES, BADGE_BY_ID, BADGE_GROUPS, badgesIn } from './achievements.js';
 import { EVENTS } from './events.js';
 import { SUN, UNIVERSE, totalCaught, knownTime, stageRow } from './stats.js';
@@ -96,7 +96,8 @@ export function refresh() {
   $('hint').hidden = s.feeds >= 3 || !$('toast').hidden || !!G.cut || coverOpen();
   $('hopSmall').hidden = !(canHop(s) && !G.daily && $('win').hidden && $('land').hidden && !G.cut);
   $('hopSmall').textContent = s.ate ? 'Become the new universe' : 'Hop to the next star';
-  if (canHop(s)) { const h = hopPreview(s); $('hopSmall').title = 'Pays ' + h.dust + ' Star Dust and +' + Math.round(h.bonus * 100) + '% for good'; }
+  $('hopNote').hidden = $('hopSmall').hidden;                         // what the hop pays, under the button (touch has no hover)
+  if (!$('hopSmall').hidden) $('hopNote').textContent = hopShort(s);
   $('shelfCount').textContent = G.badgeCount + '/' + BADGES.length;
   $('dustCount').textContent = fmt(mainRun().state.dust);
   document.querySelectorAll('#feeders button').forEach(b => {
@@ -141,13 +142,18 @@ export function showWin() {
   paintWinDust();
   $('win').hidden = false;
 }
-// What a hop pays, said before it is pressed: dust and the bonus, and that deeper hops pay more.
+// What a hop pays, said before it is pressed: dust and the bonus, why a ceiling trims it, and that deeper
+// hops pay more. Every number on the hop cards and under the hop button comes from here (hopPreview).
+const pc = x => Math.round(x * 100) + '%';
 export function hopLine(s) {
-  const h = hopPreview(s), pc = x => Math.round(x * 100) + '%';
-  const gain = h.bonus > 0 ? ' and +' + pc(h.bonus) + ' to everything, for good (your hop bonus becomes +' + pc(h.total) + ')'
-    : ' but no more bonus: hops from here stop adding at +' + pc(h.ceiling) + ', and you have +' + pc(s.hopBonus || 0);
-  const deeper = s.stage < 16 ? ' Hop from deeper for more: +' + pc(hopBonusFor(11)) + ' from stage 12, +' + pc(HOP_MAX) + ' from stage 17.' : '';
+  const h = hopPreview(s), why = hopWhy(s);
+  const gain = h.bonus > 0 ? ' and +' + pc(h.bonus) + ' to everything, for good (your hop bonus becomes +' + pc(h.total) + ')' : ' but no more bonus (you have +' + pc(s.hopBonus || 0) + ')';
+  const deeper = why ? ' ' + why : s.stage < 16 ? ' Hop from deeper for more: +' + pc(hopBonusFor(11)) + ' from stage 12, +' + pc(HOP_MAX) + ' from stage 17.' : '';
   return { dust: h.dust, text: gain + '.' + deeper };
+}
+export function hopShort(s) {
+  const h = hopPreview(s), why = hopWhy(s);
+  return 'Pays ' + h.dust + ' Star Dust' + (h.bonus > 0 ? ' and +' + pc(h.bonus) + ' for good.' : ', no bonus.') + (why ? ' ' + why : '');
 }
 export function paintWinDust() {
   const h = hopLine(G.state);

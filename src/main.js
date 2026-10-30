@@ -5,7 +5,7 @@ import { W, H, reduce, clamp, setReduce, systemReduce } from './draw.js';
 import { SCENES } from './scenes/index.js';
 import { OFFLINE_GRACE, SUN_AT, STAGES, END, FEEDERS, newState, feederCost, slopPerSec, feedValue, earn, clickGate, awayPay, UPGRADES, upgradeCost, canEatRest, eatRest, stageSpan } from './econ.js';
 import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickWithPity, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget, riskNote, hitRadius, tickDuel, duelFeed } from './events.js';
-import { hop as hopRun, canHop, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, milestoneMult, PERKS, pityDue, echoDue, dailyWeekMult } from './prestige.js';
+import { hop as hopRun, canHop, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, milestoneMult, PERKS, pityDue, echoDue, dailyWeekMult, hopWhy } from './prestige.js';
 import { recordStage, recordEvent, recordFeed, recordGamble, recordVisitor, cleanRun, flag, markSkipped, newRun, bump, seedUnknownStages, runClaim, SUN, UNIVERSE } from './stats.js';
 import { newLegends, LEGEND_AT } from './legends.js';
 import { passMilestones, seedMilestones } from './milestones.js';
@@ -164,6 +164,7 @@ function hop() {
   if (Math.floor(was.slop) === 0) flag(st0, 'zeroHop');
   if (!was.ate && was.stage >= 16) flag(st0, 'deepHop');
   if (cleanRun(st0)) flag(st0, 'cleanRun');
+  const why = hopWhy(was);                                     // said in the toast when a ceiling trimmed the bonus
   const { state, dust, bigBang, bonus } = hopRun(G.state);
   G.state = state; G.stats.hops++;
   if (bigBang) { G.stats.bigBangs++; scores.submit('bigbangs', G.stats.bigBangs); }
@@ -171,7 +172,7 @@ function hop() {
   $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; clearStage(); ui.closeSheets();
   anim.r = SCENES[state.stage].goop.r0; G.clock.hopped = G.clock.fed = G.stats.playSecs;
   ui.buildFeeders(); ui.refresh(); save();
-  ui.toast((bigBang ? 'Big Bang! The goop is the new universe, and somewhere in it there is a lab. ' : 'A fresh star system. ') + (bonus > 0 ? 'That hop added +' + Math.round(bonus * 100) + '%: e' : 'E') + 'verything now earns ' + Math.round(state.hopBonus * 100) + '% more, and you picked up ' + dust + ' Star Dust.');
+  ui.toast((bigBang ? 'Big Bang! The goop is the new universe, and somewhere in it there is a lab. ' : 'A fresh star system. ') + (bonus > 0 ? 'That hop added +' + Math.round(bonus * 100) + '%: e' : 'E') + 'verything now earns ' + Math.round(state.hopBonus * 100) + '% more, and you picked up ' + dust + ' Star Dust.' + (why ? ' ' + why : ''));
   badges();
 }
 
@@ -415,6 +416,7 @@ function scenePoint(e) { const r = cv.getBoundingClientRect(); return [(e.client
 function feedFromKeys() { feed(SCENES[view().k].goop.x, Math.max(60, anim.cy - anim.r - 20)); }
 cv.addEventListener('pointerdown', e => {
   if (G.cut) { trySkip(); return; }
+  if (G.piece) G.piece = null;                                 // a tap ends a legend's set piece early, and still counts
   const [x, y] = scenePoint(e), hit = hitEvent(x, y);
   G.stats.clicks++;
   if (hit >= 0) collectEvent(hit); else feed(x, y);
@@ -491,6 +493,7 @@ $('perkList').addEventListener('click', e => {
 });
 for (const id of ui.SHEETS) $(id).addEventListener('click', e => { if (e.target.id === id || e.target.closest('[data-close]')) ui.closeSheets(); });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && G.piece) { G.piece = null; }        // Esc ends a legend's set piece early
   if (e.key === 'Escape' && ui.sheetOpen()) { e.preventDefault(); ui.closeSheets(); }
   else if (e.key === 'Escape' && !$('away').hidden) { e.preventDefault(); closeAway(); }
   else if (e.key === 'Escape' && G.cut) { e.preventDefault(); trySkip(); }

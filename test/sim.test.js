@@ -34,15 +34,15 @@ describe('Act 2 pacing (the balance simulator)', () => {
 });
 
 describe('hop strategies at 5 clicks a second (the owner\'s pace)', () => {
-  it('farming the Sun is no longer the fastest way through the universe, and is at most a little faster than pure deep hops', () => {
-    const rows = strategyTable({ cps: 5, seeds: 1, list: STRATEGIES.filter(s => ['farm20', 'deep2', 'deep3', 'mixed'].includes(s.id)) });
+  it('farming the Sun is no longer the fastest way through the universe, and is at most 20% faster than pure deep hops (mean of 3 seeds)', () => {
+    const rows = strategyTable({ cps: 5, seeds: 3, list: STRATEGIES.filter(s => ['farm20', 'deep2', 'deep3', 'mixed'].includes(s.id)) });
     console.log('Hop strategies, 5 clicks a second, to the end of the universe:\n' + rows.map(r => `  ${r.name}: ${hm(r.total)} (hopping ${hm(r.hopSecs)}, bonus +${Math.round(r.bonus * 100)}%)`).join('\n'));
     const by = Object.fromEntries(rows.map(r => [r.id, r]));
     for (const r of rows) expect(r.total).not.toBe(null);
     const deep = Math.min(by.deep2.total, by.deep3.total);
-    expect(by.farm20.total).toBeGreaterThan(deep / 1.25);          // farming wins by less than 25% over hopping only from stage 12 ...
+    expect(by.farm20.total * 1.2).toBeGreaterThan(deep);           // farming is at most 20% faster than hopping only from stage 12 ...
     expect(by.mixed.total).toBeLessThan(by.farm20.total);          // ... and loses to a mix that goes deep once the Act 1 perks are bought
-    expect(by.farm20.bonus).toBeCloseTo(0.5);                      // twenty Sun hops: the Sun's ceiling
+    expect(by.farm20.bonus).toBeCloseTo(0.3);                      // twenty Sun hops: the Sun's ceiling
   }, 120000);
   it('a fully maxed deep-hop run still takes at least about 1.4 hours at a click a second, and about an hour at five', () => {
     const one = stageTimes({ clicksPerSec: 1, maxSecs: 12 * 3600, makeState: () => maxedRun() }, 2).end;

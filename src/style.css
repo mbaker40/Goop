@@ -228,3 +228,4 @@ html.reduce .banner,html.reduce .hint,html.reduce .item.eatrest:not(:disabled){a
 .item.feeder.legend:disabled{background:#ecd9a8}
 .item.feeder.legend .leg{color:#a0520a}
 .hopnote{font-weight:900}
+#hopNote{flex-basis:100%;font-size:12.5px;line-height:1.25}

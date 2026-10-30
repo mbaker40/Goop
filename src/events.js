@@ -76,6 +76,8 @@ export const EVENTS = [
       { w: 3, effect: boost(FRENZY_MULT, FRENZY_SECS, 'It was mutagen, the dark kind. Feeders x{mult} for {secs} seconds.') },
       { w: 2, effect: geyser(200, 'It was a LOT of dark matter: +{n} slop.') },
       { w: 2, effect: { type: 'nothing', msg: 'It was empty. Or it was full of nothing. Hard to say.' } }] } },
+  // TODO(follow-up): 30 feeds in 15 s is out of reach below 2 clicks a second; consider scaling `need` to
+  // the player's recent feed rate, or saying so on the label for slow players.
   { id: 'rivalgoop', bucket: 'gamble', name: 'Rival Goop', look: 'rivalgoop', label: 'A rival goop! Click-off?', late: true,
     w: late(6), effect: { type: 'duel', secs: 15, need: 30, msg: 'Click-off! Feed the goop {need} times in {secs} seconds to win.',
       win: boost(8, 15, 'You won the click-off! Feeders work {mult} times harder for {secs} seconds.'),
@@ -206,7 +208,8 @@ export function applyEffect(s, effect, rand) {
     }
     case 'geyser': out.gain = Math.max(25, base * effect.secs); out.text = say(effect.msg || 'Slop geyser! +{n} slop.', { n: fmt(out.gain) }); return out;
     case 'shower': out.gain = Math.max(25, base * effect.secs * effect.n); out.text = say(effect.msg, { n: fmt(out.gain) }); return out;
-    case 'refund': out.gain = base > 0 ? Math.min(base * effect.hi, Math.max(base * effect.lo, s.lastBuy || 0)) : 25; out.text = say(effect.msg, { n: fmt(out.gain) }); return out;
+    case 'refund': out.gain = base > 0 ? Math.min(base * effect.hi, Math.max(base * effect.lo, s.lastBuy || 0)) : 25; s.lastBuy = 0;   // one refund per purchase
+      out.text = say(effect.msg, { n: fmt(out.gain) }); return out;
     case 'swap': {
       const mult = swapMult(s, effect);
       const inner = applyEffect(s, { type: 'boost', mult, secs: effect.secs, msg: effect.msg }, rand);

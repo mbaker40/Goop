@@ -103,29 +103,31 @@ precaches the previous build's page from the HTTP cache.
 
 - **Hops pay by depth.** Each hop adds a permanent bonus to everything, and the bonuses add up: +10% for a
   hop at the Sun, rising to +50% from stage 12 and +80% from stage 17 on (a Big Bang included). Each depth
-  also has a ceiling: hops from the Sun stop adding at +50%, hops from stage 12 at +200%, and from stage 17
+  also has a ceiling: hops from the Sun stop adding at +30%, hops from stage 12 at +200%, and from stage 17
   there is none. The bonus is stored on the save (`hopBonus`, schema 5); a save from before keeps the
-  +50% per hop it had. The Act 1 card, the landing and the hop button say what a hop will pay first.
+  +50% per hop it had. The Act 1 card, the landing and the line under the hop button say what a hop will
+  pay first, and why a ceiling trims it.
 - **Eighteen kinds of event** in the same four buckets. Seven only turn up from stage 7: a comet shower,
   a black-hole hiccup (refunds your last purchase), a wormhole (your two best feeders swap rates for
   30 s), a dark-matter vial (contents unknown), a rival goop (a 15 s click-off: 30 feeds wins), a
   supernova-or-slow-burn choice and the cosmic tax collector. Early on there is also a lunch bell and a
   lab pigeon. Weights are tuned so always collecting is worth within 25% of the phase 3 deck at every stage.
 - **Eight more perks** (both acts, about 350 Star Dust): Crystal Pipette (next milestone's name), Event
-  Pity, Starter Kit, Quicker Fingers, Mutation Discount, Fourth Wall Mercy, Daily Double, Big Bang Echo.
+  Pity, Starter Kit, Quicker Fingers (hand feeds worth 5%, then 10%, more; the limit stays at 25 a second), Mutation Discount, Fourth Wall Mercy, Daily Double, Big Bang Echo.
 - **Feeder legends.** At 100 of one feeder it earns a title, works twice as hard, gets a badge and a
   crowd in the scene; at 500, a second title, six times in all, and a few-second set piece of its own.
   The shop row hints at both once you pass 50.
 - **Badges**: about eighty, plus two per feeder legend, on a shelf grouped into sections (collapsed on a
   phone). The notebook groups its "Fastest to" times by act; stages a Head Start skips say "skipped".
 
-Hop strategies at 5 clicks a second, from a fresh save to the end of the universe (`npm run sim`):
+Hop strategies at 5 clicks a second, from a fresh save to the end of the universe (`npm run sim`, mean
+of 3 seeds):
 
 | Strategy | Before (flat +50%) | Now |
 |---|---|---|
-| 20 hops at the Sun, then the universe | 1 h 28 min | 6 h 34 min |
-| 2 hops from stage 12, then the universe | 7 h 57 min | 8 h 07 min |
-| 5 hops at the Sun, 2 from stage 12, then the universe | 3 h 15 min | 6 h 14 min |
+| 20 hops at the Sun, then the universe | 1 h 28 min | 7 h 26 min |
+| 2 hops from stage 12, then the universe | 7 h 57 min | 8 h 02 min |
+| 5 hops at the Sun, 2 from stage 12, then the universe | 3 h 15 min | 6 h 54 min |
 
 ## Act 2 pacing
 
@@ -149,7 +151,7 @@ clicking once a second with events on. Current numbers (4 seeds):
 | 10 | Milky Way Mukbang | 5e18 | 1 h 24 min | 12.0 min | 6.4 min |
 | 15 | The Cosmic Web | 1e27 | 11 h 43 min | 1 h 30 min | 50.9 min |
 | 20 | The Fourth Wall | 3e36 | 21 h 22 min | 2 h 49 min | 1 h 20 min |
-| End | Eat the Rest | 1e37 | 25 h 25 min | 3 h 22 min | 1 h 28 min |
+| End | Eat the Rest | 1e37 | 25 h 52 min | 3 h 22 min | 1 h 27 min |
 
 ## Trying things in development
 

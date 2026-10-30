@@ -1,6 +1,6 @@
 /* Pure game rules. No DOM in here, so the same code runs in the browser, in tests, in the balance
    simulator and, later, in the leaderboard Worker. */
-import { lateMult, bangMult, mutCost } from './perkfx.js';
+import { lateMult, bangMult, mutCost, handMult } from './perkfx.js';
 import { legendMult } from './legends.js';
 export const COST_GROWTH = 1.15;            // each copy of a feeder costs 15% more than the last (the Cookie Clicker constant)
 
@@ -169,7 +169,7 @@ export function feedValue(s) {         // slop from one paid click on the goop
     if (u.kind === 'click') base *= 2;
     if (u.kind === 'pct') pct += u.v;
   }
-  return base + pct * baseRate(s) * boostMult(s);   // a frozen feeder line still lets the catapult throw
+  return (base + pct * baseRate(s) * boostMult(s)) * handMult(perk(s, 'fingers2'));   // a frozen feeder line still lets the catapult throw
 }
 export function stageOf(life) {
   let k = 0;
