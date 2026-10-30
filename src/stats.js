@@ -1,0 +1,70 @@
+/* The stats layer: everything the game counts, persisted in the save. Pure, no DOM.
+   Vocabulary: a click is any press on the scene (goop, vial or visitor), the raw number; a feed is a
+   press on the goop under the click cap, which pays slop (paidClicks is kept equal to it); a capped
+   click is a press on the goop past the cap, which animates but pays and counts for nothing. */
+import { STAGES } from './econ.js';
+
+export const SUN = STAGES.length;     // index used for "reached the Sun" in the stage-time arrays
+
+export function newStats() {
+  return {
+    clicks: 0, feeds: 0, paidClicks: 0, cappedClicks: 0,
+    seen: {}, caught: {}, missed: {},             // events, by type id
+    streak: 0, bestStreak: 0,                     // events caught in a row
+    gambleWins: 0, gambleLosses: 0, hazardsTapped: 0, hazardsMissed: 0,
+    playSecs: 0,                                  // time with the game open, across every run
+    hops: 0, wins: 0, peakSps: 0,
+    lifetimeSlop: 0,                              // every bit of slop ever earned, across hops
+    feedersBought: 0, upgradesBought: 0, perksBought: 0,
+    runStageAt: [0],                              // seconds of play when this run reached stage k (SUN = the win)
+    bestStageAt: [],                              // fastest ever, per stage
+    offlineReturns: 0, offlineSlop: 0,
+    peeked: {}, exports: 0,
+  };
+}
+
+const num = v => (Number.isFinite(v) && v >= 0 ? v : 0);
+const countMap = o => {
+  const m = {};
+  if (o && typeof o === 'object') for (const [k, v] of Object.entries(o)) if (typeof k === 'string' && k.length < 40 && num(v)) m[k] = num(v);
+  return m;
+};
+const timeArr = a => (Array.isArray(a) ? a.slice(0, SUN + 1).map(v => (Number.isFinite(v) && v >= 0 ? v : null)) : []);
+
+// Rebuild a stats object from anything (an old save, an import). Unknown fields are dropped.
+export function adoptStats(o) {
+  const st = newStats();
+  if (!o || typeof o !== 'object') return st;
+  for (const k of Object.keys(st)) {
+    if (typeof st[k] === 'number') st[k] = num(o[k]);
+  }
+  for (const k of ['seen', 'caught', 'missed', 'peeked']) st[k] = countMap(o[k]);
+  st.runStageAt = timeArr(o.runStageAt); if (st.runStageAt[0] == null) st.runStageAt[0] = 0;
+  st.bestStageAt = timeArr(o.bestStageAt);
+  return st;
+}
+
+export function bump(map, id, n = 1) { map[id] = (map[id] || 0) + n; }
+
+// A stage (or the Sun, k = SUN) reached `secs` into the run. Records it once per run and keeps the best.
+export function recordStage(st, k, secs) {
+  if (st.runStageAt[k] != null) return false;
+  st.runStageAt[k] = secs;
+  const best = st.bestStageAt[k];
+  if (best == null || secs < best) { st.bestStageAt[k] = secs; return true; }
+  return false;
+}
+export function newRun(st, stage = 0) {
+  st.runStageAt = [];
+  for (let k = 0; k <= stage; k++) st.runStageAt[k] = 0;
+}
+// One feed by hand. Only a paid feed (under the click cap) counts as a feed, so feeding past the cap
+// cannot farm the feed badges; the too-fast ones are counted on their own.
+export function recordFeed(st, paid) {
+  if (paid) { st.feeds++; st.paidClicks++; } else st.cappedClicks++;
+}
+export function recordEvent(st, id, caught) {
+  if (caught) { bump(st.caught, id); st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
+  else { bump(st.missed, id); st.streak = 0; }
+}
+export function totalCaught(st) { return Object.values(st.caught).reduce((a, b) => a + b, 0); }
