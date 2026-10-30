@@ -33,15 +33,18 @@
         <div class="over banner" id="banner" hidden><small id="bannerSmall"></small><b id="bannerBig"></b></div>
         <div class="over hint" id="hint">Click the goop to feed it</div>
         <div class="over toast" id="toast" role="status" aria-live="polite" hidden></div>
+        <div class="sr" id="evlive" aria-live="assertive"></div>
         <div class="win" id="win" hidden>
           <div class="wincard">
             <h2>The solar system is gone.</h2>
             <p id="winText"></p>
+            <p class="sub" id="winDust"></p>
             <div class="row">
               <button class="btn" id="hopBtn" type="button">Hop to the next star</button>
               <button class="btn plain" id="stayBtn" type="button">Keep feeding</button>
+              <button class="btn plain" id="winPerks" type="button">Spend Star Dust</button>
             </div>
-            <p class="sub">Hopping starts you over with 50% more slop from everything, for good.</p>
+            <p class="sub">Hopping starts you over with 50% more slop from everything, for good, plus Star Dust to spend on perks.</p>
           </div>
         </div>
       </div>
@@ -52,6 +55,10 @@
     </section>
 
     <aside class="shop" aria-label="Shop">
+      <div class="shoptools">
+        <button class="btn plain small" id="shelfBtn" type="button" aria-haspopup="dialog">Trophy shelf <span id="shelfCount"></span></button>
+        <button class="btn plain small" id="dustBtn" type="button" aria-haspopup="dialog"><i class="dust"></i><span id="dustCount">0</span> Star Dust</button>
+      </div>
       <h2>Upgrades</h2>
       <div class="list" id="ups"></div>
       <h2>Feeders</h2>
@@ -60,9 +67,30 @@
     </aside>
   </main>
 
+  <div class="sheet" id="shelf" role="dialog" aria-modal="true" aria-labelledby="shelfTitle" hidden>
+    <div class="sheetcard">
+      <div class="sheethead"><h2 id="shelfTitle">Trophy shelf</h2><button class="btn plain small" type="button" data-close>Close</button></div>
+      <p class="sub" id="shelfSub"></p>
+      <div class="badges" id="badges"></div>
+      <h3>Lab notebook</h3>
+      <dl class="records" id="records"></dl>
+    </div>
+  </div>
+  <div class="sheet" id="perks" role="dialog" aria-modal="true" aria-labelledby="perksTitle" hidden>
+    <div class="sheetcard">
+      <div class="sheethead"><h2 id="perksTitle">Star Dust</h2><button class="btn plain small" type="button" data-close>Close</button></div>
+      <p class="sub" id="perksSub"></p>
+      <div class="list" id="perkList"></div>
+    </div>
+  </div>
+
   <footer class="about">
     <div class="peek" id="peek"><span><strong>Peek at a stage</strong> (your goop stays where it is):</span></div>
     <p><strong>About this prototype.</strong> The rules, prices and six-stage arc are the real design. Every picture is drawn by code, cardboard-cutout style. Progress saves in this browser.</p>
+    <div class="peek"><span><strong>Your save</strong> as text, to keep or to move to another device:</span>
+      <button class="ghost" id="exportBtn" type="button">Copy save</button>
+      <button class="ghost" id="importBtn" type="button">Load save</button>
+    </div>
   </footer>
 </div>
 <script type="module" src="/src/main.js"></script>
