@@ -3,7 +3,10 @@
 import { P, inked, cut, flat, ctx, S, setContext, setScale, reduce, W, H, INK, PAPER, FONT, clamp, lerp, rng } from './draw.js';
 import { FOOD } from './sprites/food.js';
 import { drawGoop } from './sprites/goop.js';
-import { drawTarget, tag, stopwatch } from './sprites/events.js';
+import { drawTarget, tag, stopwatch, rivalGoop } from './sprites/events.js';
+import { drawCrowd, drawPiece } from './sprites/legends.js';
+import { FEEDERS } from './econ.js';
+import { legendLevel } from './legends.js';
 import { SCENES } from './scenes/index.js';
 import { isHazard, isChoice } from './events.js';
 import { G, anim, par, shots, drops, floats, view } from './game.js';
@@ -91,12 +94,22 @@ export function render(t) {
     for (const d of drops) { ctx.globalAlpha = clamp(d.life * 3, 0, 1); inked(P.circ(d.x, d.y, d.r), d.col || '#ffb01f', 2.5); } ctx.globalAlpha = 1;
   });
   layer(26, () => sc.front(t, p, a));
+  if (G.peek == null) {                                                   // feeder legends: the crowd at 100 (the three most valuable)
+    const crowd = []; G.state.own.forEach((n, i) => { const lv = legendLevel(n); if (lv) crowd.push({ id: FEEDERS[i].id, lv }); });
+    if (crowd.length) layer(26, () => drawCrowd(crowd, t));
+  }
+  if (G.state.duel && G.peek == null) layer(20, () => {                   // the click-off: the rival goop, and the score
+    const d = G.state.duel, x = g.x > W / 2 ? 150 : W - 150;
+    rivalGoop(x, 210, t, 1.5, d.got >= d.need ? -1 : 1);
+    tag(d.got + ' / ' + d.need, x, 290, 30, 1, '#ffd23f'); tag(Math.max(0, Math.ceil(d.left)) + 's', x, 128, 24, 1);
+  });
   if (G.ev) layer(20, () => drawEvent(G.ev, t));
   layer(16, () => {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
     for (const f of floats) { ctx.globalAlpha = clamp(f.life * 2.2, 0, 1); ctx.font = '400 28px ' + FONT; ctx.lineWidth = 6; ctx.strokeStyle = INK; const y = f.y - (1 - f.life) * 56; ctx.strokeText(f.txt, f.x, y); ctx.fillStyle = PAPER; ctx.fillText(f.txt, f.x, y); }
     ctx.globalAlpha = 1;
   });
+  if (G.piece && G.peek == null) drawPiece(G.piece.id, clamp(G.piece.t / 4.5, 0, 1), t, g.x, a.cy);
   if (G.peek == null && G.mood.text) layer(16, () => bubble(G.mood.text, Math.min(1, G.mood.life * 2.5, (4.6 - G.mood.life) * 4 + 1), g, a));
   grainOver();
 }
