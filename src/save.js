@@ -10,24 +10,29 @@
    taken from stats.bigBangs on migration) and the Act 2 perks; prefs gain haptics, number style and a
    reduced-motion override; bests gain weekly and daily records ('week:…', 'daily:…'). The daily goop
    has a slot of its own (src/daily.js), outside this save.
+   Version 5 (phase 4) has the same shape and key again. The state gains `hopBonus`: the hop bonus is now
+   sized by how deep each hop was (prestige.hopBonusFor), so it is stored instead of derived from asc. A
+   save from before it starts at asc x 0.5, exactly what it was earning, so nobody is nerfed. The state
+   also gains `legends` (feeder legends celebrated this run), `lastBuy`, `echo` and `missRun`.
    A v1 save is migrated on first load and the v1 key is left untouched as a backup for one release.
    TODO(a later release): stop reading LEGACY_KEY's backup once players have moved over. Kept in phase 3
    on purpose: phases 1 to 3 all shipped within days, so a v1 player may not have loaded the game since,
    and dropping the key now would lose their goop. */
 import { FEEDERS, UPGRADES, SUN_AT, FRENZY_MULT, newState, stageOf } from './econ.js';
-import { PERKS, DUST_AT_SUN } from './prestige.js';
+import { PERKS, DUST_AT_SUN, legacyHopBonus } from './prestige.js';
+import { LEGEND_BY_ID } from './legends.js';
 import { newStats, adoptStats, SUN } from './stats.js';
 import { MILESTONE_BY_ID, seedMilestones } from './milestones.js';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 export const SAVE_KEY = 'feed-the-goop-v2';
 // A copy of every save under a key no older build writes. If an old tab (or an old cached page) saves
 // over SAVE_KEY in an older shape, it silently drops what it does not know (the Act 2 feeders for the
 // six-stage build; the Act 2 perks and the Big Bang count for the twenty-stage one); loadSave then
 // recovers from this copy. The shadow is also the fallback when SAVE_KEY is missing or corrupt.
 // Each schema bump moves the shadow to a new key, because the previous build writes the previous one.
-export const SHADOW_KEY = 'feed-the-goop-v4';
-export const OLD_SHADOW_KEYS = ['feed-the-goop-v3'];       // read as a last resort, never written
+export const SHADOW_KEY = 'feed-the-goop-v5';
+export const OLD_SHADOW_KEYS = ['feed-the-goop-v4', 'feed-the-goop-v3'];       // read as a last resort, never written
 export const CORRUPT_KEY = 'feed-the-goop-corrupt';        // a main save that could not be read, kept aside
 export const LEGACY_KEY = 'feed-the-goop-v1';
 export const EXPORT_PREFIX = 'GOOP2:';
@@ -40,6 +45,10 @@ export function adoptState(o) {
   if (!o || typeof o !== 'object') return s;
   for (const k of ['slop', 'life', 'feeds', 'asc', 'played', 'dust', 'frenzy', 'freeze', 'caught']) s[k] = num(o[k]);
   s.caught = Math.floor(s.caught);
+  // The hop bonus: stored since v5. Missing (an older save, or an older build that dropped it): what the
+  // flat +50% per hop paid, so it never goes down. migrate() applies the same rule by schema.
+  s.hopBonus = Number.isFinite(o.hopBonus) && o.hopBonus >= 0 && o.hopBonus <= 1000 ? o.hopBonus : legacyHopBonus(o.asc);
+  s.lastBuy = num(o.lastBuy); s.missRun = Math.floor(num(o.missRun));
   s.asc = Math.floor(s.asc); s.dust = Math.floor(s.dust);
   if (Number.isFinite(o.fmult) && o.fmult >= 1 && o.fmult <= 100) s.fmult = o.fmult; else s.fmult = FRENZY_MULT;
   if (Array.isArray(o.own)) s.own = s.own.map((_, i) => Math.max(0, Math.floor(+o.own[i] || 0)));
@@ -53,6 +62,9 @@ export function adoptState(o) {
   s.bangs = Math.floor(num(o.bangs));
   s.startStage = Math.min(s.stage, Math.floor(num(o.startStage)));
   if (Number.isFinite(o.costMult) && o.costMult >= 1 && o.costMult <= 10) s.costMult = o.costMult;
+  s.echo = Number.isFinite(o.echo) ? Math.min(s.stage, Math.max(0, Math.floor(o.echo))) : s.stage;   // no back pay on load
+  s.legends = {};
+  if (o.legends && typeof o.legends === 'object') { for (const k of Object.keys(o.legends)) { const [id, lv] = k.split(':'); if (LEGEND_BY_ID[id] && (lv === '1' || lv === '2') && o.legends[k]) s.legends[k] = true; } }
   if (o.miles && typeof o.miles === 'object') {
     for (const id of Object.keys(o.miles)) if (MILESTONE_BY_ID[id] && o.miles[id]) s.miles[id] = true;
   } else seedMilestones(s);          // a save from before milestones: everything behind the goop counts as done, quietly
@@ -73,6 +85,7 @@ export function migrate(raw) {
   const state = adoptState(d.state);
   const stats = adoptStats(d.stats);
   if (!(raw.v >= 4)) state.bangs = Math.floor(stats.bigBangs);   // v4 keeps the count on the state, where perks can read it
+  if (!(raw.v >= 5)) state.hopBonus = legacyHopBonus(state.asc);  // v5 stores the hop bonus: an older save keeps its +50% per hop
   return {
     v: SAVE_VERSION,
     schema: Number.isFinite(raw.v) && raw.v >= 2 ? raw.v : 1,   // the schema this save was written in, before migration (not saved: serialize drops it)

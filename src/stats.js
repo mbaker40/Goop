@@ -96,7 +96,7 @@ export function totalCaught(st) { return Object.values(st.caught).reduce((a, b) 
 // its time, paid feeds and caught events this run, and the start it had (hops, perks, Big Bangs; or the
 // daily's mutator). The local boards ignore it; the cloud provider sends it with a new best.
 export function runClaim(s, mutator) {
-  const out = { seconds: s.played, clicks: s.feeds | 0, events: s.caught | 0, asc: s.asc | 0, perks: { ...(s.perks || {}) }, bangs: s.bangs | 0 };
-  if (mutator) { out.mutator = mutator; out.asc = 0; out.perks = {}; out.bangs = 0; }
+  const out = { seconds: s.played, clicks: s.feeds | 0, events: s.caught | 0, asc: s.asc | 0, hopBonus: Number.isFinite(s.hopBonus) ? s.hopBonus : 0, perks: { ...(s.perks || {}) }, bangs: s.bangs | 0 };
+  if (mutator) { out.mutator = mutator; out.asc = 0; out.hopBonus = 0; out.perks = {}; out.bangs = 0; }
   return out;
 }

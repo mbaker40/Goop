@@ -10,7 +10,7 @@
    allows, is flagged. Flagged runs go to the Suspicious Goop board, never deleted (see the design doc).
    This catches impossible runs, not merely fast ones. */
 import { simulate } from '../../src/sim.js';
-import { freshRun, clickCap, spawnGapMult, PERK_BY_ID } from '../../src/prestige.js';
+import { freshRun, clickCap, spawnGapMult, PERK_BY_ID, HOP_MAX } from '../../src/prestige.js';
 import { SUN_AT, END, baseRate, feederCost } from '../../src/econ.js';
 import { EVENTS, GAP_CAUGHT } from '../../src/events.js';
 import { newDailyRun, dailyDeck, rulesOf, MUTATOR_BY_ID, isDateKey } from '../../src/daily.js';
@@ -43,7 +43,11 @@ export function summaryProblem(run) {
 // The start the submitted run claims: a fresh run after its hops with its perks, or the daily's dish.
 export function startState(run) {
   if (run.kind === 'daily') return newDailyRun({ date: run.key || '2000-01-01', seed: 0, mutator: run.mutator }).state;
-  return freshRun({ asc: Math.max(0, Math.floor(run.asc || 0)), dust: 0, perks: run.perks || {}, bangs: Math.max(0, Math.floor(run.bangs || 0)) });
+  // The hop bonus the run claims, never more than its hops could pay at the deepest (and, from a client
+  // that does not send it, the most they could pay: the check stays lenient).
+  const asc = Math.max(0, Math.floor(run.asc || 0)), most = asc * HOP_MAX;
+  const hopBonus = Number.isFinite(run.hopBonus) && run.hopBonus >= 0 ? Math.min(run.hopBonus, most) : most;
+  return freshRun({ asc, hopBonus, dust: 0, perks: run.perks || {}, bangs: Math.max(0, Math.floor(run.bangs || 0)) });
 }
 const caughtOf = events => (events && typeof events === 'object' ? Object.values(events).reduce((a, b) => a + (num(b) ? b : 0), 0) : num(events) ? events : 0);
 

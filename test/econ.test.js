@@ -12,7 +12,7 @@ describe('economy', () => {
   it('mutations, Mk upgrades and hops multiply feeder income', () => {
     const s = newState(); s.own[1] = 4;
     expect(baseRate(s)).toBeCloseTo(14);
-    s.ups.mut1 = true; s.ups.intern2 = true; s.asc = 1;
+    s.ups.mut1 = true; s.ups.intern2 = true; s.asc = 1; s.hopBonus = 0.5;
     expect(baseRate(s)).toBeCloseTo(14 * 1.5 * 2 * 1.5);
   });
   it('boosts multiply and a freeze stops the feeders', () => {
@@ -23,11 +23,11 @@ describe('economy', () => {
     expect(slopPerSec(s)).toBe(0);
   });
   it('Bigger Spoon and Ladle double the base helping only, as their text now says', () => {
-    const s = newState(); s.own[0] = 100;               // 50 slop/s
-    s.ups.cata = true;                                   // +3% of slop/s per feed = 1.5
-    expect(feedValue(s)).toBeCloseTo(1 + 1.5);
+    const s = newState(); s.own[0] = 99;                // 49.5 slop/s (99 pipettes: one short of their legend)
+    s.ups.cata = true;                                   // +3% of slop/s per feed = 1.485
+    expect(feedValue(s)).toBeCloseTo(1 + 1.485);
     s.ups.spoon = true; s.ups.ladle = true;
-    expect(feedValue(s)).toBeCloseTo(4 + 1.5);          // the 1.5 share is not doubled
+    expect(feedValue(s)).toBeCloseTo(4 + 1.485);        // the 1.485 share is not doubled
     const spoon = UPGRADES.find(u => u.id === 'spoon'), ladle = UPGRADES.find(u => u.id === 'ladle');
     expect(spoon.text).not.toMatch(/twice as much/);
     expect(spoon.text + ladle.text).toMatch(/base helping/);
@@ -102,7 +102,7 @@ describe('offline: one rule for a hidden tab and a closed one', () => {
 });
 
 describe('away pay with a boost or a freeze running (short stalls)', () => {
-  const withFeeders = () => { const s = newState(); s.own[0] = 200; return s; };   // 100 slop a second
+  const withFeeders = () => { const s = newState(); s.own[0] = 100; return s; };   // 100 slop a second (100 pipettes, doubled by their legend)
   it('with nothing running it is the plain rule', () => {
     const s = withFeeders();
     expect(awayPay(s, 30)).toBeCloseTo(awayEarnings(baseRate(s), 30));

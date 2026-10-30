@@ -3,7 +3,7 @@
 import './style.css';
 import { W, H, reduce, clamp, setReduce, systemReduce } from './draw.js';
 import { SCENES } from './scenes/index.js';
-import { ASCEND_BONUS, OFFLINE_GRACE, SUN_AT, STAGES, END, newState, feederCost, slopPerSec, feedValue, earn, clickGate, awayPay, UPGRADES, canEatRest, eatRest, stageSpan } from './econ.js';
+import { OFFLINE_GRACE, SUN_AT, STAGES, END, newState, feederCost, slopPerSec, feedValue, earn, clickGate, awayPay, UPGRADES, canEatRest, eatRest, stageSpan } from './econ.js';
 import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget, riskNote, hitRadius } from './events.js';
 import { hop as hopRun, canHop, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, milestoneMult, PERKS } from './prestige.js';
 import { recordStage, recordEvent, recordFeed, newRun, bump, seedUnknownStages, runClaim, SUN, UNIVERSE } from './stats.js';
@@ -132,14 +132,14 @@ function win() {
 }
 function hop() {
   if (G.daily || !canHop(G.state)) return;
-  const { state, dust, bigBang } = hopRun(G.state);
+  const { state, dust, bigBang, bonus } = hopRun(G.state);
   G.state = state; G.stats.hops++;
   if (bigBang) { G.stats.bigBangs++; scores.submit('bigbangs', G.stats.bigBangs); }
   newRun(G.stats, state.stage); scores.submit('hops', G.stats.hops);
   $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; clearStage(); ui.closeSheets();
   anim.r = SCENES[state.stage].goop.r0; G.clock.hopped = G.clock.fed = G.stats.playSecs;
   ui.buildFeeders(); ui.refresh(); save();
-  ui.toast((bigBang ? 'Big Bang! The goop is the new universe, and somewhere in it there is a lab. ' : 'A fresh star system. ') + 'Everything now earns ' + Math.round(state.asc * ASCEND_BONUS * 100) + '% more, and you picked up ' + dust + ' Star Dust.');
+  ui.toast((bigBang ? 'Big Bang! The goop is the new universe, and somewhere in it there is a lab. ' : 'A fresh star system. ') + (bonus > 0 ? 'That hop added +' + Math.round(bonus * 100) + '%: e' : 'E') + 'verything now earns ' + Math.round(state.hopBonus * 100) + '% more, and you picked up ' + dust + ' Star Dust.');
   badges();
 }
 
