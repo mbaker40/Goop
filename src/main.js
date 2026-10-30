@@ -4,7 +4,7 @@ import './style.css';
 import { W, H, reduce, clamp } from './draw.js';
 import { SCENES } from './scenes/index.js';
 import { ASCEND_BONUS, OFFLINE_GRACE, newState, feederCost, slopPerSec, baseRate, feedValue, earn, clickGate, awayEarnings, UPGRADES } from './econ.js';
-import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock } from './events.js';
+import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget } from './events.js';
 import { hop as hopRun, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, PERKS } from './prestige.js';
 import { recordStage, recordEvent, recordFeed, newRun, bump, SUN } from './stats.js';
 import { checkBadges, BADGE_BY_ID } from './achievements.js';
@@ -99,13 +99,13 @@ function spawnEvent(forced) {
   if (isChoice(def)) {
     const cx = 230 + Math.random() * 500, y = 130 + Math.random() * 50;
     targets = def.options.map((o, i) => ({ look: o.look, label: o.label, x: cx + (i ? 80 : -80), y, opt: i, px: -99, py: -99 }));
-  } else targets = [{ look: def.look, x: 120 + Math.random() * 720, y: isHazard(def) ? 170 + Math.random() * 40 : 120 + Math.random() * 60, opt: 0, px: -99, py: -99 }];
+  } else targets = [{ look: def.look, x: isHazard(def) ? 150 + Math.random() * 660 : 120 + Math.random() * 720, y: isHazard(def) ? 170 + Math.random() * 40 : 120 + Math.random() * 60, opt: 0, px: -99, py: -99 }];
   G.ev = { def, age: 0, life, seed: Math.random() * 6, targets };
   bump(G.stats.seen, def.id);
   if (isHazard(def)) sfx.visitor();
-  ui.announce(isChoice(def) ? 'Two vials: ' + def.options.map((o, i) => (i + 1) + ', ' + o.label).join('; ') + '. Press 1 or 2 to pick one.'
-    : isHazard(def) ? def.name + ' is here. Press Space or tap him to shoo him away.'
-    : def.name + ' appeared. Press Space or tap it to grab it.');
+  ui.announce(isChoice(def) ? 'Two vials: ' + def.options.map((o, i) => (i + 1) + ', ' + o.label).join('; ') + '. Tap one, or press 1 or 2 (E takes the first).'
+    : isHazard(def) ? def.name + ' is here. Tap him or press E to shoo him away.'
+    : def.name + ' appeared. Tap it or press E to grab it.');
 }
 function collectEvent(i) {
   const ev = G.ev; if (!ev) return;
@@ -198,22 +198,23 @@ cv.addEventListener('pointerdown', e => {
   G.stats.clicks++;
   if (hit >= 0) collectEvent(hit); else feed(x, y);
 });
+// Space and Enter on the canvas feed the goop, or grab the event on stage.
 cv.addEventListener('keydown', e => {
-  const k = e.key, pick = k === '1' || k === '2' || k === 'ArrowLeft' || k === 'ArrowRight';
+  const k = e.key;
   if ((k === ' ' || k === 'Enter') && !e.repeat) { e.preventDefault(); G.stats.clicks++; if (G.ev) collectEvent(0); else feedFromKeys(); }
   else if (k === ' ') e.preventDefault();
-  else if (pick && G.ev && isChoice(G.ev.def) && !e.repeat) { e.preventDefault(); G.stats.clicks++; collectEvent(k === '2' || k === 'ArrowRight' ? 1 : 0); }
 });
-// The event keys also work from anywhere on the page (say, focus on a shop button), so a keyboard
-// player can grab a vial or shoo a visitor without tabbing back to the canvas. Only while an event is
-// on stage and nothing that takes keys has focus; feeding by key stays on the canvas.
+// Event keys from anywhere on the page, so a keyboard player never has to tab back to the canvas:
+// E (or G), 1/2 and the arrows work everywhere except text fields, a focused shop button included.
+// Space and Enter also work from the page body, but not on a button, which they press.
 document.addEventListener('keydown', e => {
-  if (e.target === cv || !G.ev || e.repeat || e.ctrlKey || e.metaKey || e.altKey || canvasCovered()) return;
+  if (!G.ev || e.repeat || e.ctrlKey || e.metaKey || e.altKey || canvasCovered()) return;
   const t = e.target, tag = t && t.tagName;
-  if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
-  const k = e.key;
-  if (k === ' ' || k === 'Enter') { e.preventDefault(); G.stats.clicks++; collectEvent(0); }
-  else if ((k === '1' || k === '2' || k === 'ArrowLeft' || k === 'ArrowRight') && isChoice(G.ev.def)) { e.preventDefault(); G.stats.clicks++; collectEvent(k === '2' || k === 'ArrowRight' ? 1 : 0); }
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+  let i = grabTarget(e.key, isChoice(G.ev.def));
+  if (i < 0 && (e.key === ' ' || e.key === 'Enter') && t !== cv && tag !== 'BUTTON') i = 0;
+  if (i < 0) return;
+  e.preventDefault(); G.stats.clicks++; collectEvent(i);
 });
 window.addEventListener('pointermove', e => {
   const [x, y] = scenePoint(e); anim.lookX = x; anim.lookY = y;

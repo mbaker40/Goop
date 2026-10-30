@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { newState } from '../src/econ.js';
-import { EVENTS, LEGACY_DECK, pickEvent, weightAt, applyEffect, deckEV, incomeBoost, isHazard, isChoice, tickEventClock } from '../src/events.js';
+import { EVENTS, LEGACY_DECK, pickEvent, weightAt, applyEffect, deckEV, incomeBoost, isHazard, isChoice, tickEventClock, grabTarget } from '../src/events.js';
 import { compare } from '../src/sim.js';
 import { rng } from '../src/rng.js';
 
@@ -90,6 +90,12 @@ describe('event deck expected value vs the old 50/50 vial', () => {
     }
     console.log('Event deck EV, simulated to the Sun (8 seeds each):\n' + lines.join('\n'));
   }, 60000);
+});
+
+describe('event keys', () => {
+  it('E and G grab from anywhere; 1/2 and the arrows pick only in a choice; Space is left to the page', () => {
+    expect([grabTarget('e'), grabTarget('E'), grabTarget('g'), grabTarget('2', true), grabTarget('ArrowLeft', true), grabTarget('2', false), grabTarget(' ', true)]).toEqual([0, 0, 0, 1, 0, -1, -1]);
+  });
 });
 
 describe('event clock', () => {

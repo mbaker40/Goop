@@ -43,11 +43,11 @@ export const EVENTS = [
     options: [{ look: 'drip', label: 'Safe', effect: boost(2, 90, 'The sensible choice. Feeders work twice as hard for {secs} seconds.') },
               { look: 'bubbling', label: 'Spicy', effect: { type: 'gamble', p: 0.5, win: boost(12, 20, 'Spicy paid off! Feeders x{mult} for {secs} seconds.'),
                                                             lose: { type: 'spill', frac: 0.5, msg: 'Too spicy. {n} slop boiled away.' } } }] },
-  { id: 'inspector', bucket: 'hazard', name: 'Lab Inspector', look: 'inspector', label: 'Inspector! Tap him!',
+  { id: 'inspector', bucket: 'hazard', name: 'Lab Inspector', look: 'inspector', label: 'Inspector! Tap or press E',
     w: [0, 6, 8, 8, 8, 8], window: 4,
     tap: geyser(30, 'Inspector shooed. He left his lunch money: +{n} slop.'),
     miss: { type: 'freeze', secs: 10, msg: 'Inspection! Feeders frozen for {secs} seconds while he fills in a form.' } },
-  { id: 'rival', bucket: 'hazard', name: 'Rival Scientist', look: 'rival', label: 'Thief! Tap him!',
+  { id: 'rival', bucket: 'hazard', name: 'Rival Scientist', look: 'rival', label: 'Thief! Tap or press E',
     w: [0, 0, 6, 6, 6, 6], window: 4,
     tap: geyser(30, 'Not today, Gary. He dropped {n} slop running off.'),
     miss: { type: 'steal', frac: 0.15, msg: 'The rival scientist made off with {n} slop.' } },
@@ -73,6 +73,18 @@ export function nextGap(caught, rand, mult = 1) {
   return (lo + rand() * (hi - lo)) * mult;
 }
 export function isHazard(ev) { return ev.bucket === 'hazard'; }
+
+// Which target a key grabs, or -1. E (and G) grab the first target, or shoo a visitor, from anywhere on
+// the page, a focused button included. 1/2 and the arrows pick in a choice. Space and Enter are not
+// here: they belong to whatever has focus, so main.js only takes them on the canvas or the page body.
+export const GRAB_KEYS = ['e', 'g'];
+export function grabTarget(key, choice) {
+  const k = String(key).toLowerCase();
+  if (GRAB_KEYS.includes(k)) return 0;
+  if (choice && (k === '1' || k === 'arrowleft')) return 0;
+  if (choice && (k === '2' || k === 'arrowright')) return 1;
+  return -1;
+}
 
 // One frame of the event clock. `c` holds { ev, evIn } (the game's store). While something covers the
 // canvas (the win card, the trophy shelf, the Star Dust panel) the clock is paused outright: a vial or a
