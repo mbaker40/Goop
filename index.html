@@ -23,19 +23,23 @@
   <main class="layout">
     <section class="stagecol" aria-label="The lab">
       <div class="hud">
-        <div class="tag"><span class="lab">Slop</span><span class="big"><i class="drop"></i><span id="slop">0</span></span><span class="sub" id="sps">0 per second</span></div>
-        <div class="tag"><span class="lab">Goop mass</span><span class="big" id="mass">1.00 g</span><span class="sub" id="heavier">About as heavy as a paperclip</span></div>
+        <div class="tag"><span class="lab">Slop</span><span class="big"><i class="drop"></i><span id="slop">0</span><span class="sr" id="slopSr"></span></span><span class="sub" id="sps">0 per second</span></div>
+        <div class="tag"><span class="lab">Goop mass</span><span class="big"><span id="mass">1.00 g</span><span class="sr" id="massSr"></span></span><span class="sub" id="heavier">About as heavy as a paperclip</span></div>
       </div>
       <div class="stagebox">
         <canvas id="scene" tabindex="0" role="button" aria-label="Feed the goop"></canvas>
         <div class="over buff" id="buff" hidden></div>
         <div class="over peekchip" id="peekchip" hidden></div>
         <div class="over banner" id="banner" hidden><small id="bannerSmall"></small><b id="bannerBig"></b></div>
+        <div class="over skipchip" id="skipchip" hidden></div>
+        <button class="btn plain small skipbtn" id="skipBtn" type="button" hidden>Skip the ending</button>
+        <div class="sr" id="cutlive" aria-live="polite"></div>
         <div class="over hint" id="hint">Click the goop to feed it</div>
         <div class="over toast" id="toast" role="status" aria-live="polite" hidden></div>
         <div class="sr" id="evlive" aria-live="assertive"></div>
         <div class="win" id="win" hidden>
           <div class="wincard">
+            <small class="act">End of Act 1</small>
             <h2>The solar system is gone.</h2>
             <p id="winText"></p>
             <p class="sub" id="winDust"></p>
@@ -44,12 +48,27 @@
               <button class="btn plain" id="stayBtn" type="button">Keep feeding</button>
               <button class="btn plain" id="winPerks" type="button">Spend Star Dust</button>
             </div>
-            <p class="sub">Hopping starts you over with 50% more slop from everything, for good, plus Star Dust to spend on perks.</p>
+            <p class="sub">Hopping starts you over with 50% more slop from everything, for good, plus Star Dust to spend on perks. Or keep feeding: fourteen more stages lie between here and the edge of the universe.</p>
+          </div>
+        </div>
+        <div class="win land" id="land" role="dialog" aria-labelledby="landTitle" hidden>
+          <div class="wincard">
+            <small class="act">The end. For now.</small>
+            <h2 id="landTitle">You ate the universe.</h2>
+            <p id="landText"></p>
+            <div class="strip" id="landBadges"></div>
+            <p class="sub" id="landDust"></p>
+            <div class="row">
+              <button class="btn" id="bangBtn" type="button">Become the new universe</button>
+              <button class="btn plain" id="landStay" type="button">Keep feeding</button>
+              <button class="btn plain" id="landPerks" type="button">Spend Star Dust</button>
+            </div>
+            <p class="sub">Becoming the new universe is a hop with a Big Bang: everything earns 50% more, for good, and the Star Dust comes with a bonus.</p>
           </div>
         </div>
       </div>
       <div class="meter">
-        <div class="row"><b id="stageName">Stage 1 of 6: On the Table</b><span id="stageNext"></span><button class="btn" id="hopSmall" type="button" hidden>Hop to the next star</button></div>
+        <div class="row"><b id="stageName">Stage 1 of 20: On the Table</b><span class="sr" id="stageNameSr"></span><span id="stageNext"></span><button class="btn" id="hopSmall" type="button" hidden>Hop to the next star</button></div>
         <div class="bar" role="progressbar" aria-label="Progress to the next stage" aria-valuemin="0" aria-valuemax="100" id="barBox"><i id="bar"></i></div>
       </div>
     </section>
@@ -58,6 +77,9 @@
       <div class="shoptools">
         <button class="btn plain small" id="shelfBtn" type="button" aria-haspopup="dialog">Trophy shelf <span id="shelfCount"></span></button>
         <button class="btn plain small" id="dustBtn" type="button" aria-haspopup="dialog"><i class="dust"></i><span id="dustCount">0</span> Star Dust</button>
+      </div>
+      <div class="finale" id="finale" hidden>
+        <button class="item eatrest" id="eatRest" type="button" disabled><span class="nm">Eat the Rest</span><span class="cost">everything</span><span class="fx" id="eatRestFx"></span></button>
       </div>
       <h2>Upgrades</h2>
       <div class="list" id="ups"></div>
@@ -71,6 +93,7 @@
     <div class="sheetcard">
       <div class="sheethead"><h2 id="shelfTitle">Trophy shelf</h2><button class="btn plain small" type="button" data-close>Close</button></div>
       <p class="sub" id="shelfSub"></p>
+      <button class="btn plain small" id="replayBtn" type="button" hidden>Watch the ending again</button>
       <div class="badges" id="badges"></div>
       <h3>Lab notebook</h3>
       <dl class="records" id="records"></dl>
@@ -86,7 +109,7 @@
 
   <footer class="about">
     <div class="peek" id="peek"><span><strong>Peek at a stage</strong> (your goop stays where it is):</span></div>
-    <p><strong>About this prototype.</strong> The rules, prices and six-stage arc are the real design. Every picture is drawn by code, cardboard-cutout style. Progress saves in this browser.</p>
+    <p><strong>About this prototype.</strong> The rules, prices and twenty-stage arc are the real design. Every picture is drawn by code, cardboard-cutout style. Progress saves in this browser.</p>
     <div class="peek"><span><strong>Your save</strong> as text, to keep or to move to another device:</span>
       <button class="ghost" id="exportBtn" type="button">Copy save</button>
       <button class="ghost" id="importBtn" type="button">Load save</button>

@@ -4,6 +4,8 @@ import { sciHead, scientist, bobY, pilot, heli, rocket, saucer } from '../sprite
 import { FOOD } from '../sprites/food.js';
 import { goopColours } from '../sprites/goop.js';
 
+const gone = (a, id) => !!(a && a.gone && a.gone.has(id));   // props eaten by a milestone (milestones.js)
+
 export default { // 2: downtown
   goop: { x: 540, base: 570, grounded: true, r0: 74, r1: 228 }, hand: [240, 150],
   back(t) {
@@ -27,13 +29,15 @@ export default { // 2: downtown
       ctx.restore();
     }
   },
-  front(t) {
+  front(t, p, a) {
     for (let i = 0; i < 2; i++) {                        // traffic, leaving
       const dir = i ? 1 : -1, u = reduce ? .3 + i * .3 : ((t * .09 + i * .5) % 1), cx = dir > 0 ? 620 + u * 420 : 460 - u * 520;
       ctx.save(); ctx.translate(cx, 578); ctx.scale(dir * .9, .9); FOOD[2][i](); ctx.restore();
     }
-    line([[70, 606], [70, 524]], INK, 12); line([[70, 606], [70, 524]], '#b98852', 6);
-    cut(P.circ(70, 500, 40), '#3fbf6a', { lw: 4, d: 1.8 }); cut(P.circ(40, 524, 26), '#3fbf6a', { lw: 4, d: 1.8 }); cut(P.circ(100, 526, 24), '#3fbf6a', { lw: 4, d: 1.8 });
+    if (!gone(a, 'tree')) {
+      line([[70, 606], [70, 524]], INK, 12); line([[70, 606], [70, 524]], '#b98852', 6);
+      cut(P.circ(70, 500, 40), '#3fbf6a', { lw: 4, d: 1.8 }); cut(P.circ(40, 524, 26), '#3fbf6a', { lw: 4, d: 1.8 }); cut(P.circ(100, 526, 24), '#3fbf6a', { lw: 4, d: 1.8 });
+    }
     line([[900, 606], [900, 480]], INK, 9); line([[900, 606], [900, 480]], '#8f9bb8', 4); cut(P.ell(900, 474, 20, 11), '#fff3b0', { lw: 3.5, d: 1.6 });
   },
 };

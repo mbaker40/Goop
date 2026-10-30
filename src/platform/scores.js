@@ -9,6 +9,7 @@ export const BOARDS = {
   sun: { name: 'Fastest to the Sun', lower: true },     // seconds of play in one run
   hops: { name: 'Most hops', lower: false },
   peak: { name: 'Peak slop per second', lower: false },
+  universe: { name: 'Fastest to the universe', lower: true },   // seconds of play in one run, to Eat the Rest
 };
 export function createLocalScores() {
   let bests = {};

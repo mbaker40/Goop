@@ -21,4 +21,11 @@ export const sfx = {
   visitor: () => { blip(620, .12, 'square', .03, 1); blip(470, .16, 'square', .03, 1, .14); },
   stage: () => [0, 1, 2, 3, 4].forEach(i => blip(262 * Math.pow(1.335, i), .2, 'triangle', .06, 1, i * .1)),
   badge: () => [0, 2, 4].forEach(i => blip(660 * Math.pow(1.122, i), .16, 'triangle', .045, 1, i * .06)),
+  mile: () => { blip(520, .1, 'triangle', .045, 1.3); blip(700, .14, 'triangle', .045, 1.2, .08); },
+  gulp: () => { blip(260, .16, 'sine', .09, .35); blip(120, .22, 'sine', .07, .5, .14); },
+  // the ending's cues (cutscene.js CUES)
+  burp: () => blip(140, .35, 'sine', .07, .55),                                // one soft blip, pitched down
+  bang: () => [0, 1, 2, 3, 4, 5].forEach(i => blip(180 * Math.pow(1.5, i), .5, 'triangle', .04, 1.6, i * .12)),
+  tinyburp: () => blip(520, .12, 'sine', .05, .6),
+  sting: () => [0, 1, 2].forEach(i => blip(330 / Math.pow(1.26, i), .3, 'square', .03, .9, i * .18)),
 };

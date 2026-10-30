@@ -4,12 +4,14 @@ import { sciHead, scientist, bobY, pilot, heli, rocket, saucer } from '../sprite
 import { FOOD } from '../sprites/food.js';
 import { goopColours } from '../sprites/goop.js';
 
+const gone = (a, id) => !!(a && a.gone && a.gone.has(id));   // props eaten by a milestone (milestones.js)
+
 export default { // 3: seen from orbit
   goop: { x: 486, base: 450, grounded: true, r0: 62, r1: 218 }, hand: [206, 150],
   back(t) { space(t, '#1b1654', '#3b1f78', [[160, 120, 260, 'rgba(34,195,176,.22)'], [820, 220, 300, 'rgba(255,95,143,.2)']]); },
   mid(t, p, a) {
     planet(862, 118, 36, '#d9dbe8', () => { flat(P.circ(852, 108, 9), '#b3b7cc'); flat(P.circ(874, 128, 7), '#b3b7cc'); flat(P.circ(868, 100, 4), '#b3b7cc'); });
-    hang(700, 84); cut(P.rect(650, 86, 34, 22, 2), '#49bff5', { lw: 3, d: .9 }); cut(P.rect(716, 86, 34, 22, 2), '#49bff5', { lw: 3, d: .9 }); cut(P.rect(684, 80, 32, 34, 5), '#c9cfdf', { lw: 3, d: .9 });
+    if (!gone(a, 'station')) { hang(700, 84); cut(P.rect(650, 86, 34, 22, 2), '#49bff5', { lw: 3, d: .9 }); cut(P.rect(716, 86, 34, 22, 2), '#49bff5', { lw: 3, d: .9 }); cut(P.rect(684, 80, 32, 34, 5), '#c9cfdf', { lw: 3, d: .9 }); }
     rocket(150, 196, .4, t);
     const ex = 486, ey = 1596, er = 1150, E = P.circ(ex, ey, er);
     flat(P.circ(ex, ey, er + 18), 'rgba(120,214,255,.26)');

@@ -3,10 +3,13 @@
 import './style.css';
 import { W, H, reduce, clamp } from './draw.js';
 import { SCENES } from './scenes/index.js';
-import { ASCEND_BONUS, OFFLINE_GRACE, newState, feederCost, slopPerSec, baseRate, feedValue, earn, clickGate, awayEarnings, UPGRADES } from './econ.js';
+import { ASCEND_BONUS, OFFLINE_GRACE, SUN_AT, STAGES, END, newState, feederCost, slopPerSec, baseRate, feedValue, earn, clickGate, awayEarnings, UPGRADES, canEatRest, eatRest, stageSpan } from './econ.js';
 import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget } from './events.js';
 import { hop as hopRun, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, PERKS } from './prestige.js';
-import { recordStage, recordEvent, recordFeed, newRun, bump, SUN } from './stats.js';
+import { recordStage, recordEvent, recordFeed, newRun, bump, SUN, UNIVERSE } from './stats.js';
+import { passMilestones, seedMilestones } from './milestones.js';
+import { moodOf, pickThought, remember } from './mood.js';
+import { BEATS, LENGTH, cuesBetween, canSkip, frameAt } from './cutscene.js';
 import { checkBadges, BADGE_BY_ID } from './achievements.js';
 import { loadSave, writeSave, exportString, importString } from './save.js';
 import { platform } from './platform/index.js';
@@ -23,7 +26,7 @@ initCanvas(cv);
 
 /* ---------- saving: one versioned blob through the storage adapter (see save.js) ---------- */
 function snapshot() {
-  return { v: 2, at: Date.now(), prefs: { ...G.prefs }, state: G.state, stats: G.stats, badges: achievements.earned(), bests: scores.all(), profile: identity.snapshot() };
+  return { v: 3, at: Date.now(), prefs: { ...G.prefs }, state: G.state, stats: G.stats, badges: achievements.earned(), bests: scores.all(), profile: identity.snapshot() };
 }
 function save() { writeSave(storage, snapshot()); }
 function adopt(d) {
@@ -33,7 +36,7 @@ function adopt(d) {
 }
 function badges() {
   const names = [];
-  for (const id of checkBadges(G.state, G.stats, id => achievements.has(id))) if (achievements.unlock(id)) names.push(BADGE_BY_ID[id].name);
+  for (const id of checkBadges(G.state, G.stats, id => achievements.has(id))) if (achievements.unlock(id)) { names.push(BADGE_BY_ID[id].name); G.stats.runBadges.push(id); }
   if (names.length) { G.badgeCount = achievements.count(); ui.award(names); sfx.badge(); save(); }
 }
 
@@ -43,6 +46,22 @@ function gain(n) {
   G.stats.lifetimeSlop += n;
   if (earn(G.state, n)) onStage();
   if (G.state.won && !G.state.winSeen) win();
+  milestones();
+}
+// Mid-stage milestones (milestones.js): a toast, a small bonus, and sometimes a prop goes missing.
+function milestones() {
+  const passed = passMilestones(G.state);
+  if (!passed.length) return;
+  for (const { m, bonus } of passed) {
+    G.stats.milestones++;
+    ui.award([m.name + '. +' + fmt(bonus) + ' slop.'], 'Milestone', 'mile');
+    if (m.id === 'w-sound') sfx.gulp(); else sfx.mile();
+    G.stats.lifetimeSlop += bonus;
+    if (earn(G.state, bonus)) onStage();
+  }
+  if (G.state.won && !G.state.winSeen) win();
+  ui.refresh();
+  milestones();                      // a bonus can carry the goop over the next one
 }
 function launch(auto) {
   if (shots.length > 36) return;
@@ -56,6 +75,7 @@ function splash(n, col) {
 }
 function feed(x, y) {
   const s = G.state, st = G.stats;
+  G.clock.fed = st.playSecs;
   anim.squashV += 7; anim.fling = 0; anim.mouth = 1;
   launch(false); splash(2);
   // the click cap: past it a feed still flies and splashes, but pays nothing and counts for nothing
@@ -81,14 +101,79 @@ function win() {
   ui.showWin(); save(); badges();
 }
 function hop() {
-  const { state, dust } = hopRun(G.state);
+  const { state, dust, bigBang } = hopRun(G.state);
   G.state = state; G.stats.hops++;
+  if (bigBang) G.stats.bigBangs++;
   newRun(G.stats, state.stage); scores.submit('hops', G.stats.hops);
-  $('win').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; clearStage(); ui.closeSheets();
-  anim.r = SCENES[state.stage].goop.r0;
+  $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; clearStage(); ui.closeSheets();
+  anim.r = SCENES[state.stage].goop.r0; G.clock.hopped = G.clock.fed = G.stats.playSecs;
   ui.buildFeeders(); ui.refresh(); save();
-  ui.toast('A fresh star system. Everything now earns ' + Math.round(state.asc * ASCEND_BONUS * 100) + '% more, and you picked up ' + dust + ' Star Dust.');
+  ui.toast((bigBang ? 'Big Bang! The goop is the new universe, and somewhere in it there is a lab. ' : 'A fresh star system. ') + 'Everything now earns ' + Math.round(state.asc * ASCEND_BONUS * 100) + '% more, and you picked up ' + dust + ' Star Dust.');
   badges();
+}
+
+/* ---------- the end: Eat the Rest, the ending, the landing ---------- */
+function eatTheRest() {
+  const s = G.state;
+  if (!canEatRest(s)) return;
+  eatRest(s);
+  G.stats.universes++;
+  recordStage(G.stats, UNIVERSE, s.played); scores.submit('universe', s.played);
+  sfx.gulp(); save();
+  startCutscene(false);
+}
+function startCutscene(replay) {
+  G.cut = { t: 0, replay, confirm: 0, beat: -1 };
+  G.ev = null; ui.announce(''); clearStage(); ui.closeSheets();
+  $('win').hidden = true; $('land').hidden = true; $('toast').hidden = true; $('hint').hidden = true;
+  $('skipBtn').hidden = !canSkip(G.stats); $('skipBtn').textContent = 'Skip the ending';
+  cv.setAttribute('aria-label', 'The ending is playing. ' + (canSkip(G.stats) ? 'Press Escape twice, or tap twice, to skip.' : 'It plays through once.'));
+  ui.refresh();
+}
+function endCutscene(watched) {
+  const c = G.cut; if (!c) return;
+  G.cut = null; $('skipchip').hidden = true; $('skipBtn').hidden = true; $('cutlive').textContent = '';
+  cv.setAttribute('aria-label', 'Feed the goop');
+  if (watched && !c.replay) G.stats.cutsceneSeen++;
+  if (!watched) G.stats.cutsceneSkips++;
+  if (c.replay) { G.stats.cutsceneReplays++; ui.toast('Back to the lab. The goop is right where you left it.'); }
+  else ui.showLanding();
+  save(); badges(); ui.refresh();
+}
+function tickCutscene(real) {
+  const c = G.cut;
+  if (!c.frozen) {
+    const t0 = c.t; c.t += real;
+    for (const cue of cuesBetween(t0, c.t)) if (sfx[cue.id]) sfx[cue.id]();
+  }
+  const f = frameAt(c.t, reduce);
+  if (f.index !== c.beat) { c.beat = f.index; $('cutlive').textContent = BEATS[f.index].caption; }
+  if (f.card && c.card !== f.card.text) { c.card = f.card.text; $('cutlive').textContent = f.card.text; }
+  if (c.confirm > 0) { c.confirm -= real; if (c.confirm <= 0) { $('skipchip').hidden = true; $('skipBtn').textContent = 'Skip the ending'; } }
+  if (!c.frozen && c.t >= LENGTH) endCutscene(true);
+}
+// Tap (or press) once to ask, again within three seconds to skip. Only after one full viewing.
+function trySkip() {
+  const c = G.cut; if (!c) return;
+  if (!canSkip(G.stats)) { $('skipchip').textContent = 'The first time, you watch the whole thing.'; $('skipchip').hidden = false; c.confirm = 2.5; return; }
+  if (c.confirm > 0) { endCutscene(false); return; }
+  c.confirm = 3; $('skipchip').textContent = 'Tap again to skip'; $('skipchip').hidden = false; $('skipBtn').textContent = 'Press again to skip';
+}
+
+/* ---------- the goop's moods and one-liners (mood.js) ---------- */
+function tickMood(real) {
+  const s = G.state, st = G.stats, now = st.playSecs, m = G.mood;
+  const id = m.force || moodOf({ freeze: s.freeze, frenzy: s.frenzy, idle: now - G.clock.fed, sinceCatch: now - G.clock.caught, sinceHop: now - G.clock.hopped, sinceAway: now - G.clock.back });
+  if (m.life > 0) { m.life -= real; if (m.life <= 0) m.text = ''; }
+  const changed = id !== m.id;
+  m.id = id;
+  if (changed && id !== 'content') bump(st.moods, id);
+  m.next -= real;
+  if ((changed && id !== 'content') || (m.next <= 0 && m.life <= 0)) {
+    if (G.peek != null || canvasCovered() || s.feeds < 3) { m.next = 4; return; }
+    const line = pickThought(id, s.stage, m.recent, Math.random);
+    remember(m.recent, line.id); m.text = line.text; m.life = 4.6; m.next = 16 + Math.random() * 10;
+  }
 }
 
 /* ---------- events: the deck lives in events.js; this is where they appear, get caught or get away ---------- */
@@ -116,6 +201,7 @@ function collectEvent(i) {
   if (isHazard(def)) st.hazardsTapped++;
   if (res.won === true) st.gambleWins++; else if (res.won === false) st.gambleLosses++;
   G.ev = null; G.evIn = nextGap(true, Math.random, spawnGapMult(s));
+  G.clock.caught = st.playSecs;
   if (res.text) ui.toast(res.text);
   if (res.lost > 0) { sfx.spill(); splash(8, '#8fdc2f'); } else { sfx.vial(); splash(res.gain > 0 ? 16 : 6); }
   anim.squashV += 9; ui.announce('');
@@ -149,6 +235,7 @@ function returnFrom(secs) {
   const n = awayEarnings(baseRate(s), secs, offlineCap(s));
   s.frenzy = Math.max(0, s.frenzy - secs); s.freeze = Math.max(0, s.freeze - secs);
   if (n > 0) gain(n);
+  if (secs > OFFLINE_GRACE) G.clock.back = G.clock.fed = G.stats.playSecs;
   if (secs > OFFLINE_GRACE && n > 0) {
     G.stats.offlineReturns++; G.stats.offlineSlop += n;
     ui.toast('While you were out, the goop ate ' + fmt(n) + ' slop on its own.');
@@ -161,7 +248,7 @@ function step(real, dt) {
   if (sps > 0) gain(sps * real);
   if (s.frenzy > 0) s.frenzy = Math.max(0, s.frenzy - real);
   if (s.freeze > 0) s.freeze = Math.max(0, s.freeze - real);
-  if (!s.won) s.played += real;
+  if (!s.ate) s.played += real;
   st.playSecs += real;
   if (sps > st.peakSps) st.peakSps = sps;
   anim.squashV += (-190 * anim.squash - 13 * anim.squashV) * dt; anim.squash += anim.squashV * dt;
@@ -175,6 +262,7 @@ function step(real, dt) {
   if (sps > 0 && !reduce) { autoAcc += dt * Math.min(4.5, .35 + Math.log10(1 + sps) * .42); while (autoAcc >= 1) { autoAcc -= 1; launch(true); if (Math.random() < .35) splash(1); } }
   const tick = tickEventClock(G, { real, dt, life: s.life, peek: G.peek, covered: canvasCovered() });
   if (tick === 'expire') expireEvent(); else if (tick === 'spawn') spawnEvent();
+  if (G.cut) tickCutscene(real); else tickMood(real);
   ui.tickUi(real);
   if (resetArm > 0) { resetArm -= real; if (resetArm <= 0) $('resetBtn').textContent = 'Start over'; }
   uiT += real; if (uiT >= .15) { uiT = 0; ui.refresh(); }
@@ -190,10 +278,11 @@ function frame(now) {
 }
 
 /* ---------- hands on ---------- */
-function canvasCovered() { return !$('win').hidden || ui.sheetOpen(); }
+function canvasCovered() { return !$('win').hidden || !$('land').hidden || !!G.cut || ui.sheetOpen(); }
 function scenePoint(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; }
 function feedFromKeys() { feed(SCENES[view().k].goop.x, Math.max(60, anim.cy - anim.r - 20)); }
 cv.addEventListener('pointerdown', e => {
+  if (G.cut) { trySkip(); return; }
   const [x, y] = scenePoint(e), hit = hitEvent(x, y);
   G.stats.clicks++;
   if (hit >= 0) collectEvent(hit); else feed(x, y);
@@ -201,6 +290,7 @@ cv.addEventListener('pointerdown', e => {
 // Space and Enter on the canvas feed the goop, or grab the event on stage.
 cv.addEventListener('keydown', e => {
   const k = e.key;
+  if (G.cut) { if ((k === ' ' || k === 'Enter') && !e.repeat) { e.preventDefault(); trySkip(); } return; }
   if ((k === ' ' || k === 'Enter') && !e.repeat) { e.preventDefault(); G.stats.clicks++; if (G.ev) collectEvent(0); else feedFromKeys(); }
   else if (k === ' ') e.preventDefault();
 });
@@ -233,13 +323,19 @@ function buy(el) {
 }
 $('feeders').addEventListener('click', e => { const b = e.target.closest('button[data-f]'); if (b) buy(b); });
 $('ups').addEventListener('click', e => { const b = e.target.closest('button[data-u]'); if (b) buy(b); });
-$('hopBtn').addEventListener('click', hop); $('hopSmall').addEventListener('click', hop);
+$('hopBtn').addEventListener('click', hop); $('hopSmall').addEventListener('click', hop); $('bangBtn').addEventListener('click', hop);
+$('landStay').addEventListener('click', () => { $('land').hidden = true; ui.refresh(); cv.focus(); });
+$('landPerks').addEventListener('click', () => openPerks());
+$('eatRest').addEventListener('click', eatTheRest);
+$('skipBtn').addEventListener('click', trySkip);
+$('replayBtn').addEventListener('click', () => { ui.closeSheets(); startCutscene(true); });
 $('stayBtn').addEventListener('click', () => { $('win').hidden = true; ui.refresh(); });
 $('soundBtn').addEventListener('click', () => { G.prefs.sound = !G.prefs.sound; ui.paintSound(); save(); if (G.prefs.sound) sfx.buy(); });
 $('resetBtn').addEventListener('click', () => {
   if (resetArm <= 0) { resetArm = 4; $('resetBtn').textContent = 'Wipe everything? Click again'; return; }
   resetArm = 0; $('resetBtn').textContent = 'Start over';
-  G.state = newState(); G.peek = null; ui.paintPeek(); $('win').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; ui.announce('');
+  G.state = newState(); G.peek = null; ui.paintPeek(); $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; ui.announce('');
+  if (G.cut) { G.cut = null; $('skipchip').hidden = true; $('skipBtn').hidden = true; }
   newRun(G.stats); clearStage(); anim.r = SCENES[0].goop.r0; ui.buildFeeders(); ui.refresh(); save();
   ui.toast('Fresh petri dish. One gram of goop. Your trophies stay on the shelf.');
 });
@@ -258,7 +354,10 @@ $('perkList').addEventListener('click', e => {
   ui.renderPerks(); ui.refresh(); save(); badges();
 });
 for (const id of ['shelf', 'perks']) $(id).addEventListener('click', e => { if (e.target.id === id || e.target.closest('[data-close]')) ui.closeSheets(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && ui.sheetOpen()) { e.preventDefault(); ui.closeSheets(); } });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && ui.sheetOpen()) { e.preventDefault(); ui.closeSheets(); }
+  else if (e.key === 'Escape' && G.cut) { e.preventDefault(); trySkip(); }
+});
 
 // export and import
 $('exportBtn').addEventListener('click', async () => {
@@ -273,7 +372,7 @@ $('importBtn').addEventListener('click', () => {
   if (!str) return;
   try {
     adopt(importString(str));
-    G.peek = null; G.ev = null; G.evIn = FIRST_EVENT; G.clickTimes.length = 0; clearStage(); $('win').hidden = true; ui.closeSheets();
+    G.peek = null; G.ev = null; G.evIn = FIRST_EVENT; G.clickTimes.length = 0; clearStage(); $('win').hidden = true; $('land').hidden = true; ui.closeSheets();
     anim.r = SCENES[G.state.stage].goop.r0;
     ui.paintSound(); ui.paintPeek(); ui.buildFeeders(); ui.refresh(); save();
     ui.toast('Save loaded. The goop remembers you.'); badges();
@@ -292,16 +391,38 @@ function start() {
   if (data) adopt(data);
   fit(); ui.paintSound(); ui.buildFeeders(); ui.refresh();
   anim.r = SCENES[G.state.stage].goop.r0;
+  G.clock.fed = G.stats.playSecs;
+  if (data && data.schema === 2 && G.state.life >= SUN_AT)          // said first, before any trophies or away news
+    ui.award(['The universe turned out to be bigger. Your goop is now on stage ' + (G.state.stage + 1) + ' of ' + STAGES.length + ': ' + STAGES[G.state.stage].name + '. Nothing was lost.'], 'Fourteen new stages');
   const away = data && data.at ? Math.max(0, (Date.now() - data.at) / 1000) : 0;
   if (away > 0) returnFrom(away);
   if (from === 'v1') {
     save();                          // writes the v2 key; the v1 key stays untouched as a backup
     if (G.state.dust > 0) ui.award([G.state.dust + ' Star Dust for your ' + G.stats.hops + ' past hop' + (G.stats.hops > 1 ? 's' : '') + '. Spend it in the shop.'], 'New in the lab');
   }
+  if (data && data.schema === 2) save();   // schema 3, written over the same key, once
+  if (G.state.ate && G.state.won) $('hopSmall').hidden = false;
   badges();
   lastNow = performance.now(); requestAnimationFrame(frame);
 }
 start();
 
 // Development only (stripped from the production build): poke the game from the console or a test.
-if (import.meta.env.DEV) window.__goop = { G, EVENTS, spawn: id => spawnEvent(EVENTS.find(e => e.id === id)), save, badges };
+if (import.meta.env.DEV) window.__goop = {
+  G, EVENTS, spawn: id => spawnEvent(EVENTS.find(e => e.id === id)), save, badges,
+  // jump to stage k (0-based) at progress f (0..1), with milestones behind it passed quietly
+  jump(k, f = .3, slop) {
+    const s = G.state, [a, b] = stageSpan(k), lo = Math.log10(a.at + 1), hi = Math.log10(b.at + 1);
+    const life = Math.pow(10, lo + f * (hi - lo)) - 1;
+    G.peek = null; ui.paintPeek(); $('win').hidden = true; $('land').hidden = true;
+    s.life = 0; s.stage = 0; s.won = false; s.winSeen = life >= SUN_AT; s.ate = false; s.miles = {};
+    earn(s, life); s.slop = slop == null ? life * .2 : slop; seedMilestones(s);
+    anim.r = SCENES[s.stage].goop.r0; clearStage(); ui.buildFeeders(); ui.refresh(); ui.banner(s.stage);
+  },
+  // play the ending from time t; frozen holds it there (for screenshots)
+  cut(t = 0, frozen = false) { startCutscene(false); G.cut.t = t; G.cut.frozen = frozen; },
+  endCut: () => endCutscene(true),
+  mood(id, text) { G.mood.force = id || null; G.mood.text = text || ''; G.mood.life = text ? 99 : 0; G.mood.next = 99; },
+  eatTheRest, END, STAGES,
+  scene: k => ({ x: SCENES[k].goop.x, y: anim.cy }),
+};
