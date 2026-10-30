@@ -29,6 +29,12 @@ export function newStats() {
     runBadges: [],                                // badge ids earned during this run, for the landing
     // Phase 3
     burps: 0, dailyDone: 0, shares: 0,            // offline burps watched, daily goops finished, share cards made
+    // Phase 4
+    bestStageFrom: [],                            // the stage the run that set each best started in (>0: a Head Start)
+    gambleStreak: 0, bestGambleStreak: 0,         // gambles won in a row
+    lastSecond: 0,                                // events caught with under a second left
+    runHazards: 0, runHazardsMissed: 0,           // visitors this run, and how many got their way
+    flags: {},                                    // one-off things the niche badges look for (see achievements.js)
   };
 }
 
@@ -42,7 +48,10 @@ const countMap = o => {
 // time is lost. UNKNOWN only ever appears in runStageAt, where it stops recordStage from writing an
 // inflated time for a stage reached long ago (see seedUnknownStages).
 export const UNKNOWN = -1;
-const timeArr = (a, unknown) => (Array.isArray(a) ? a.slice(0, UNIVERSE + 1).map(v => (Number.isFinite(v) && v >= 0 ? v : unknown && v === UNKNOWN ? UNKNOWN : null)) : []);
+// SKIPPED: a stage this run never had to reach, because a Head Start began past it. Also only in runStageAt,
+// and also never a time: the notebook says "skipped".
+export const SKIPPED = -2;
+const timeArr = (a, run) => (Array.isArray(a) ? a.slice(0, UNIVERSE + 1).map(v => (Number.isFinite(v) && v >= 0 ? v : run && (v === UNKNOWN || v === SKIPPED) ? v : null)) : []);
 
 // Rebuild a stats object from anything (an old save, an import). Unknown fields are dropped.
 export function adoptStats(o) {
@@ -51,22 +60,30 @@ export function adoptStats(o) {
   for (const k of Object.keys(st)) {
     if (typeof st[k] === 'number') st[k] = num(o[k]);
   }
-  for (const k of ['seen', 'caught', 'missed', 'peeked', 'moods']) st[k] = countMap(o[k]);
+  for (const k of ['seen', 'caught', 'missed', 'peeked', 'moods', 'flags']) st[k] = countMap(o[k]);
   st.runBadges = Array.isArray(o.runBadges) ? o.runBadges.filter(id => typeof id === 'string' && id.length < 40).slice(0, 100) : [];
   st.runStageAt = timeArr(o.runStageAt, true); if (st.runStageAt[0] == null) st.runStageAt[0] = 0;
   st.bestStageAt = timeArr(o.bestStageAt);
+  st.bestStageFrom = Array.isArray(o.bestStageFrom) ? o.bestStageFrom.slice(0, UNIVERSE + 1).map(v => (Number.isInteger(v) && v >= 0 && v < UNIVERSE ? v : 0)) : [];
   return st;
 }
 
 export function bump(map, id, n = 1) { map[id] = (map[id] || 0) + n; }
 
 // A stage (or the Sun, k = SUN) reached `secs` into the run. Records it once per run and keeps the best.
-export function recordStage(st, k, secs) {
+// from: the stage the run started in; a best set by a Head Start run says so in the notebook. A stage the
+// run skipped (SKIPPED) or reached before times were kept (UNKNOWN) never records anything.
+export function recordStage(st, k, secs, from = 0) {
   if (st.runStageAt[k] != null) return false;
   st.runStageAt[k] = secs;
   const best = st.bestStageAt[k];
-  if (best == null || secs < best) { st.bestStageAt[k] = secs; return true; }
+  if (best == null || secs < best) { st.bestStageAt[k] = secs; st.bestStageFrom[k] = from | 0; return true; }
   return false;
+}
+// What the notebook shows for stage k: { best, from, run } where run is 'skipped', a time, or null.
+export function stageRow(st, k) {
+  const r = st.runStageAt[k];
+  return { best: knownTime(st.bestStageAt[k]) ? st.bestStageAt[k] : null, from: st.bestStageFrom[k] | 0, run: r === SKIPPED ? 'skipped' : knownTime(r) ? r : null };
 }
 // A save that reached its stage before stage times were kept (a migrated player past the Sun has times
 // only up to the Sun, a v1 player none at all): mark the stages behind the goop that have no time as
@@ -75,11 +92,18 @@ export function seedUnknownStages(st, stage) {
   for (let k = 1; k <= stage; k++) if (st.runStageAt[k] == null) st.runStageAt[k] = UNKNOWN;
   return st;
 }
+// A run that began past stage 1 (a Head Start): its stages behind the start were skipped. Older saves wrote
+// 0 seconds for them; this marks them SKIPPED, so the notebook says so.
+export function markSkipped(st, startStage) {
+  for (let k = 1; k <= Math.min(startStage | 0, UNIVERSE); k++) if (st.runStageAt[k] == null || st.runStageAt[k] === 0) st.runStageAt[k] = SKIPPED;
+  return st;
+}
 // A run time worth showing: a real number of seconds, not null and not UNKNOWN.
 export const knownTime = v => Number.isFinite(v) && v >= 0;
+// A new run starting in `stage`: the stages a Head Start jumped over are SKIPPED, never 0 seconds.
 export function newRun(st, stage = 0) {
-  st.runStageAt = []; st.runBadges = [];
-  for (let k = 0; k <= stage; k++) st.runStageAt[k] = 0;
+  st.runStageAt = [0]; st.runBadges = []; st.runHazards = 0; st.runHazardsMissed = 0;
+  for (let k = 1; k <= stage; k++) st.runStageAt[k] = SKIPPED;
 }
 // One feed by hand. Only a paid feed (under the click cap) counts as a feed, so feeding past the cap
 // cannot farm the feed badges; the too-fast ones are counted on their own.
@@ -90,6 +114,15 @@ export function recordEvent(st, id, caught) {
   if (caught) { bump(st.caught, id); st.streak++; st.bestStreak = Math.max(st.bestStreak, st.streak); }
   else { bump(st.missed, id); st.streak = 0; }
 }
+// A gamble's result (true won, false lost): the win streak the Hot Streak badge reads.
+export function recordGamble(st, won) {
+  if (won) { st.gambleWins++; st.gambleStreak++; st.bestGambleStreak = Math.max(st.bestGambleStreak, st.gambleStreak); }
+  else { st.gambleLosses++; st.gambleStreak = 0; }
+}
+// A visitor this run: shooed (true) or not. A whole run with three or more and none missed earns a flag at the hop.
+export function recordVisitor(st, shooed) { st.runHazards++; if (shooed) st.hazardsTapped++; else { st.runHazardsMissed++; st.hazardsMissed++; } }
+export function cleanRun(st) { return st.runHazards >= 3 && st.runHazardsMissed === 0; }
+export function flag(st, id) { st.flags[id] = (st.flags[id] || 0) + 1; }
 export function totalCaught(st) { return Object.values(st.caught).reduce((a, b) => a + b, 0); }
 
 // What a finished run claims, for a leaderboard's plausibility check (worker/src/plausible.js reads it):

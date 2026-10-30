@@ -78,9 +78,9 @@ export function refresh() {
   else if (openUps().map(u => u.id).join(',') !== upSig) buildUps();
   const sps = slopPerSec(s), g = massGrams(s.life), k = s.stage, p = clamp(stageProgress(s.life), 0, 1), w = wallOf(s);
   const full = s.ate || (k === LAST && s.life >= END.at);
-  shown('slop', 'slopSr', readout(fmt(Math.floor(s.slop)), w && w.on.hud));
+  shown('slop', 'slopSr', readout(fmt(Math.floor(s.slop)), w && w.on.hud, w && w.mercy));
   $('sps').textContent = fmt(sps) + ' per second';
-  shown('mass', 'massSr', readout(fmtMass(g), w && w.on.hud));
+  shown('mass', 'massSr', readout(fmtMass(g), w && w.on.hud, w && w.mercy));
   $('heavier').textContent = heavierThan(g);
   shown('stageName', 'stageNameSr', stageLine(k, STAGES.length, STAGES[k].name, w));
   $('stageNext').textContent = s.ate ? 'There is nothing left. Anywhere. It is still chewing.'

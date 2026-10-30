@@ -5,8 +5,9 @@ import { newStats, recordStage, recordEvent, recordFeed, newRun } from '../src/s
 import { createLocalAchievements } from '../src/platform/achievements.js';
 
 describe('achievements', () => {
-  it('fifty to sixty, unique ids, each with a name and a blurb', () => {
-    expect(BADGES.length).toBeGreaterThanOrEqual(50); expect(BADGES.length).toBeLessThanOrEqual(60);
+  it('about eighty, plus the feeder legends; unique ids, each with a name and a blurb', () => {
+    expect(BADGES.filter(b => b.group !== 'legends').length).toBeGreaterThanOrEqual(78); expect(BADGES.filter(b => b.group !== 'legends').length).toBeLessThanOrEqual(90);
+    expect(BADGES.length).toBeLessThanOrEqual(140);
     expect(new Set(BADGES.map(b => b.id)).size).toBe(BADGES.length);
     for (const b of BADGES) { expect(b.name).toBeTruthy(); expect(b.blurb).toMatch(/\.$/); }
   });
@@ -69,5 +70,51 @@ describe('stats', () => {
     recordEvent(st, 'frenzy', true); recordEvent(st, 'frenzy', true); recordEvent(st, 'drip', false); recordEvent(st, 'frenzy', true);
     expect(st.streak).toBe(1); expect(st.bestStreak).toBe(2);
     expect(st.caught.frenzy).toBe(3); expect(st.missed.drip).toBe(1);
+  });
+});
+
+import { BADGE_GROUPS, badgesIn } from '../src/achievements.js';
+import { FEEDERS } from '../src/econ.js';
+import { flag, recordGamble, recordVisitor, cleanRun } from '../src/stats.js';
+
+describe('phase 4 badges', () => {
+  const got = (s, st) => checkBadges(s, st, () => false);
+  it('every badge sits in exactly one shelf group, and no group is empty', () => {
+    for (const b of BADGES) expect(BADGE_GROUPS.map(g => g.id)).toContain(b.group);
+    for (const g of BADGE_GROUPS) expect(badgesIn(g.id).length).toBeGreaterThan(0);
+    expect(BADGE_GROUPS.reduce((n, g) => n + badgesIn(g.id).length, 0)).toBe(BADGES.length);
+  });
+  it('the flags the game sets each earn their badge', () => {
+    const st = newStats();
+    for (const [f, id] of [['cleanRun', 'nomiss'], ['muteEat', 'mutesound'], ['dailyHands', 'handsdaily'], ['zeroHop', 'zerohop'], ['duelWin', 'duelwin'], ['duelLose', 'duellose'], ['deepHop', 'deephop'], ['pity', 'pity'], ['night', 'nightowl']]) {
+      expect(got(newState(), st)).not.toContain(id); flag(st, f); expect(got(newState(), st)).toContain(id);
+    }
+  });
+  it('five gambles in a row; a loss resets the streak', () => {
+    const st = newStats();
+    for (let i = 0; i < 4; i++) recordGamble(st, true); recordGamble(st, false); recordGamble(st, true);
+    expect(got(newState(), st)).not.toContain('gamble5');
+    for (let i = 0; i < 4; i++) recordGamble(st, true);
+    expect(st.bestGambleStreak).toBe(5); expect(got(newState(), st)).toContain('gamble5');
+  });
+  it('a clean run needs three visitors or more, all shooed', () => {
+    const st = newStats(); recordVisitor(st, true); recordVisitor(st, true); expect(cleanRun(st)).toBe(false);
+    recordVisitor(st, true); expect(cleanRun(st)).toBe(true); recordVisitor(st, false); expect(cleanRun(st)).toBe(false);
+    newRun(st); expect(st.runHazards).toBe(0);
+  });
+  it('the Sun without a Mutation, Downtown without a hand, and a +100% hop bonus', () => {
+    const s = newState(), st = newStats(); s.stage = 6;
+    expect(got(s, st)).toContain('nomut'); s.ups.mut1 = true; expect(got(s, st)).not.toContain('nomut');
+    const t = newState(); t.stage = 2; expect(got(t, st)).toContain('nofeed'); t.feeds = 1; expect(got(t, st)).not.toContain('nofeed');
+    const u = newState(); u.hopBonus = 1; expect(got(u, st)).toContain('bonus100');
+  });
+  it('feeder legends: a badge at 100 and at 500 for each feeder, any 500, and 100 of every feeder in an act', () => {
+    const s = newState(), st = newStats(); s.own[1] = 100;
+    expect(got(s, st)).toContain('leg1-intern'); expect(got(s, st)).not.toContain('leg2-intern');
+    s.own[1] = 500; expect(got(s, st)).toEqual(expect.arrayContaining(['leg2-intern', 'leg500any']));
+    expect(got(s, st)).not.toContain('leg100act');
+    FEEDERS.forEach((f, i) => { if (f.stage < 6) s.own[i] = Math.max(s.own[i], 100); });
+    expect(got(s, st)).toContain('leg100act');
+    expect(BADGES.filter(b => b.id.startsWith('leg1-')).length).toBe(FEEDERS.length);
   });
 });

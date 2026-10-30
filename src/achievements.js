@@ -1,11 +1,12 @@
 /* Badge definitions and checks. Pure, no DOM: each test reads the state and stats only. The game asks
    checkBadges() what is newly earned and hands those to the achievements adapter (src/platform), which
    keeps the local shelf today and will mirror to Steam later. Ids are permanent: never rename one. */
-import { FEEDERS, UPGRADES, STAGES } from './econ.js';
+import { FEEDERS, UPGRADES, STAGES, SUN_STAGE } from './econ.js';
 import { EVENTS } from './events.js';
 import { PERKS, perksOwned, perksOwnedIn, perksTotal } from './prestige.js';
 import { SUN, totalCaught } from './stats.js';
 import { MOOD_IDS } from './mood.js';
+import { LEGENDS, LEGEND_AT } from './legends.js';
 
 const own = (s, id) => s.own[FEEDERS.findIndex(f => f.id === id)] || 0;
 const feeders = s => s.own.reduce((a, b) => a + b, 0);
@@ -78,7 +79,56 @@ export const BADGES = [
   { id: 'daily1',     name: 'Daily Special',         blurb: 'Finish a daily goop: eat the Sun with today\'s twist.',     test: (s, st) => st.dailyDone >= 1 },
   { id: 'share1',     name: 'Show and Tell',         blurb: 'Make a share card of your goop.',                              test: (s, st) => st.shares >= 1 },
   { id: 'backup',     name: 'Backup Plan',           blurb: 'Copy your save somewhere safe. Very responsible.',           test: (s, st) => st.exports >= 1 },
+  // phase 4: odd jobs. Specific, discoverable things; the flags are set by the game (main.js) when they happen.
+  { id: 'nomiss',     name: 'Nobody Gets Past',      blurb: 'Hop after a whole run in which every visitor (three or more) was shooed.', test: (s, st) => !!st.flags.cleanRun },
+  { id: 'gamble5',    name: 'Hot Streak',            blurb: 'Win five gambles in a row. The goop is starting to believe.',            test: (s, st) => st.bestGambleStreak >= 5 },
+  { id: 'buzzer',     name: 'Buzzer Beater',         blurb: 'Catch an event with less than a second to spare.',                         test: (s, st) => st.lastSecond >= 1 },
+  { id: 'nomut',      name: 'Au Naturel',            blurb: 'Eat the Sun from a fresh dish without buying a single Mutation.',        test: s => s.stage >= SUN_STAGE && (s.startStage | 0) < SUN_STAGE && mutations(s) === 0 },
+  { id: 'replay3',    name: 'Director\'s Cut',       blurb: 'Watch the ending three more times from the trophy shelf.',              test: (s, st) => st.cutsceneReplays >= 3 },
+  { id: 'mutesound',  name: 'Silent Snack',          blurb: 'Let the goop eat the sound toggle while the sound is off. It did not notice.', test: (s, st) => !!st.flags.muteEat },
+  { id: 'handsdaily', name: 'Hands-On Experience',   blurb: 'Finish a daily goop on a Hands On day. Your wrist filed a complaint.', test: (s, st) => !!st.flags.dailyHands },
+  { id: 'zerohop',    name: 'Pocket Lint',           blurb: 'Hop to the next star with exactly zero slop to spend.',                   test: (s, st) => !!st.flags.zeroHop },
+  { id: 'nofeed',     name: 'Look, No Hands',        blurb: 'Reach Downtown from a fresh dish without feeding the goop by hand.',     test: s => s.stage >= 2 && (s.startStage | 0) === 0 && (s.feeds | 0) === 0 },
+  { id: 'refund',     name: 'Buyer\'s Remorse',      blurb: 'Catch a black-hole hiccup and get your money back.',                      test: (s, st) => (st.caught.blackhole || 0) >= 1 },
+  { id: 'wormhole',   name: 'Shortcut',              blurb: 'Catch a wormhole. Your feeders are very confused.',                         test: (s, st) => (st.caught.wormhole || 0) >= 1 },
+  { id: 'duelwin',    name: 'Click-Off Champion',    blurb: 'Out-click the rival goop. It wants a rematch.',                             test: (s, st) => !!st.flags.duelWin },
+  { id: 'duellose',   name: 'Out-Clicked',           blurb: 'Lose a click-off to the rival goop. It will not stop talking about it.', test: (s, st) => !!st.flags.duelLose },
+  { id: 'darkvial',   name: 'Dark Horse',            blurb: 'Drink a dark-matter vial without knowing what was in it.',               test: (s, st) => (st.caught.darkvial || 0) >= 1 },
+  { id: 'comet',      name: 'Make a Wish',           blurb: 'Catch a comet shower. Wish for more slop.',                                 test: (s, st) => (st.caught.comet || 0) >= 1 },
+  { id: 'taxman',     name: 'Tax Dodger',            blurb: 'Shoo the cosmic tax collector before he gets his cut.',                   test: (s, st) => (st.caught.taxman || 0) >= 1 },
+  { id: 'pigeon',     name: 'Bird Brained',          blurb: 'Let the lab pigeon get away with your slop.',                              test: (s, st) => (st.missed.pigeon || 0) >= 1 },
+  { id: 'deephop',    name: 'Deep Diver',            blurb: 'Hop from stage 17 or deeper, without eating the rest first.',            test: (s, st) => !!st.flags.deepHop },
+  { id: 'bonus100',   name: 'Twice the Goop',        blurb: 'Build your hop bonus up to +100%.',                                          test: s => (s.hopBonus || 0) >= 1 },
+  { id: 'pity',       name: 'Pity Party',            blurb: 'Let three events in a row get away, and get a free boost out of it.',   test: (s, st) => !!st.flags.pity },
+  { id: 'nightowl',   name: 'Night Shift',           blurb: 'Feed the goop between two and five in the morning. It is always awake.',  test: (s, st) => !!st.flags.night },
+  { id: 'capped100',  name: 'Calm Down',             blurb: 'Feed faster than the goop can swallow a hundred times.',                   test: (s, st) => st.cappedClicks >= 100 },
+  { id: 'burp10',     name: 'Connoisseur of Burps',  blurb: 'Come back and watch the goop burp ten times.',                              test: (s, st) => st.burps >= 10 },
+  { id: 'daily7',     name: 'Regular',               blurb: 'Finish seven daily goops. The goop saves you a seat.',                     test: (s, st) => st.dailyDone >= 7 },
+  { id: 'speedsun',   name: 'Drive-Thru',            blurb: 'Eat the Sun within five minutes of starting a run.',                       test: (s, st) => st.bestStageAt[SUN] != null && st.bestStageAt[SUN] <= 300 },
 ];
+// Feeder legends (legends.js): a badge for each feeder at 100 and at 500, one for any 500, one for 100 of
+// every feeder in an act. Ids are permanent, like the rest.
+const ownOf = (s, id) => s.own[FEEDERS.findIndex(f => f.id === id)] || 0;
+const nameOf = id => FEEDERS.find(f => f.id === id).name;
+const ACTS = [FEEDERS.filter(f => f.stage < SUN_STAGE).map(f => f.id), FEEDERS.filter(f => f.stage >= SUN_STAGE).map(f => f.id)];
+for (const l of LEGENDS) {
+  BADGES.push({ id: 'leg1-' + l.id, group: 'legends', name: l.t1, blurb: 'Own ' + LEGEND_AT[0] + ' of the ' + nameOf(l.id) + ' at once.', test: s => ownOf(s, l.id) >= LEGEND_AT[0] });
+  BADGES.push({ id: 'leg2-' + l.id, group: 'legends', name: l.t2, blurb: 'Own ' + LEGEND_AT[1] + ' of the ' + nameOf(l.id) + ' at once. Legendary.', test: s => ownOf(s, l.id) >= LEGEND_AT[1] });
+}
+BADGES.push({ id: 'leg500any', group: 'legends', name: 'Living Legend', blurb: 'Own ' + LEGEND_AT[1] + ' of any one feeder. Somebody has to count them.', test: s => LEGENDS.some(l => ownOf(s, l.id) >= LEGEND_AT[1]) });
+BADGES.push({ id: 'leg100act', group: 'legends', name: 'Full House', blurb: 'Own ' + LEGEND_AT[0] + ' of every feeder in one act, all at once.', test: s => ACTS.some(ids => ids.every(id => ownOf(s, id) >= LEGEND_AT[0])) });
+
+// Shelf groups, so a phone can show 130 badges a section at a time. A badge's own `group` wins.
+export const BADGE_GROUPS = [
+  { id: 'feeding', name: 'Feeding and the shop', ids: ['feed1', 'feed100', 'feed1k', 'feed10k', 'capped', 'feeder1', 'interns10', 'feeders100', 'spoon', 'mut5', 'sps1m', 'sps1dc', 'capped100', 'nofeed'] },
+  { id: 'stages', name: 'Stages', ids: ['stage2', 'stage3', 'stage4', 'stage5', 'stage6', 'sun', 'fast', 'nointerns', 'stage8', 'stage9', 'stage11', 'stage14', 'toaster', 'oldfriend', 'stage20', 'soundtoggle', 'universe', 'watched', 'rewatch', 'bigbang', 'speedsun', 'nomut', 'replay3', 'mutesound'] },
+  { id: 'events', name: 'Events', ids: ['event1', 'streak10', 'event100', 'alltypes', 'gamblewin', 'gamblelose', 'inspector', 'frozen', 'rival', 'gamble5', 'buzzer', 'refund', 'wormhole', 'duelwin', 'duellose', 'darkvial', 'comet', 'taxman', 'pigeon', 'pity', 'nomiss'] },
+  { id: 'hops', name: 'Hops and Star Dust', ids: ['hop1', 'hop5', 'perk1', 'perkall', 'perkall2', 'zerohop', 'deephop', 'bonus100'] },
+  { id: 'lab', name: 'Around the lab', ids: ['mile1', 'mile50', 'hungry', 'smug', 'moodring', 'offline', 'tourist', 'burp', 'daily1', 'share1', 'backup', 'handsdaily', 'nightowl', 'burp10', 'daily7'] },
+  { id: 'legends', name: 'Feeder legends', ids: [] },
+];
+for (const b of BADGES) if (!b.group) b.group = (BADGE_GROUPS.find(g => g.ids.includes(b.id)) || BADGE_GROUPS[4]).id;
+export function badgesIn(group) { return BADGES.filter(b => b.group === group); }
 export const BADGE_BY_ID = Object.fromEntries(BADGES.map(b => [b.id, b]));
 
 // Ids of badges whose test passes and that `has(id)` says are not earned yet.
