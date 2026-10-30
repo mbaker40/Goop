@@ -48,6 +48,12 @@ export function dueMilestones(s) {
   for (let i = 0; i < MILESTONES.length; i++) { if (AT[i] > s.life) break; if (!miles[MILESTONES[i].id]) out.push(MILESTONES[i]); }
   return out;
 }
+// The next milestone this run will pass (the first one not passed whose threshold is still ahead), or null.
+export function nextMilestone(s) {
+  const miles = s.miles || {};
+  for (let i = 0; i < MILESTONES.length; i++) if (!miles[MILESTONES[i].id] && AT[i] > s.life) return MILESTONES[i];
+  return null;
+}
 export function milestoneBonus(m) { return Math.max(MILE_MIN, AT[MILESTONES.indexOf(m)] * MILE_SHARE); }
 // Fire everything due: marks each once and returns [{ m, bonus }]. The caller adds the bonus with earn().
 // mult: the Crumb Hoarder perk (prestige.milestoneMult), passed in so this file stays below prestige.js.

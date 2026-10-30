@@ -34,3 +34,25 @@ describe('stage times for players who got there before times were kept', () => {
     expect([st.burps, st.dailyDone, st.shares]).toEqual([2, 0, 0]);
   });
 });
+
+import { newRun, stageRow, markSkipped, SKIPPED } from '../src/stats.js';
+describe('stage times after a Head Start', () => {
+  it('stages a Head Start jumps over are skipped, never recorded, and the notebook says so', () => {
+    const st = newStats(); newRun(st, 1);
+    expect(st.runStageAt).toEqual([0, SKIPPED]);
+    expect(recordStage(st, 1, 0)).toBe(false); expect(st.bestStageAt[1]).toBe(undefined);
+    expect(stageRow(st, 1)).toEqual({ best: null, from: 0, run: 'skipped' });
+    expect(recordStage(st, 2, 9, 1)).toBe(true);
+    expect(stageRow(st, 2)).toEqual({ best: 9, from: 1, run: 9 });
+    newRun(st, 0); recordStage(st, 1, 65); recordStage(st, 2, 120);
+    expect(stageRow(st, 1)).toEqual({ best: 65, from: 0, run: 65 }); expect(stageRow(st, 2).best).toBe(9);
+  });
+  it('an older save\'s zero-second times for skipped stages become skipped; SKIPPED survives a round trip', () => {
+    const st = newStats(); st.runStageAt = [0, 0, 30]; markSkipped(st, 1);
+    expect(st.runStageAt).toEqual([0, SKIPPED, 30]);
+    st.bestStageFrom = [0, 0, 1];
+    const back = adoptStats(JSON.parse(JSON.stringify(st)));
+    expect(back.runStageAt).toEqual([0, SKIPPED, 30]); expect(back.bestStageFrom).toEqual([0, 0, 1]);
+    expect(knownTime(SKIPPED)).toBe(false);
+  });
+});

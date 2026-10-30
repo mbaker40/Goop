@@ -23,6 +23,8 @@ export const sfx = {
   badge: () => [0, 2, 4].forEach(i => blip(660 * Math.pow(1.122, i), .16, 'triangle', .045, 1, i * .06)),
   mile: () => { blip(520, .1, 'triangle', .045, 1.3); blip(700, .14, 'triangle', .045, 1.2, .08); },
   gulp: () => { blip(260, .16, 'sine', .09, .35); blip(120, .22, 'sine', .07, .5, .14); },
+  // a feeder legend at 500: a fanfare that climbs, then a drum-ish thump
+  legend: () => { [0, 2, 4, 7, 9, 12].forEach((n, i) => blip(392 * Math.pow(2, n / 12), .22, 'triangle', .05, 1, i * .09)); blip(110, .35, 'sine', .09, .5, .6); },
   // the ending's cues (cutscene.js CUES)
   burp: () => blip(140, .35, 'sine', .07, .55),                                // one soft blip, pitched down
   bang: () => [0, 1, 2, 3, 4, 5].forEach(i => blip(180 * Math.pow(1.5, i), .5, 'triangle', .04, 1.6, i * .12)),

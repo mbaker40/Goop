@@ -51,3 +51,16 @@ describe('The Fourth Wall', () => {
     expect(s.ate).toBe(true); expect(wallOf(s).level).toBe(1);
   });
 });
+
+describe('Fourth Wall Mercy', () => {
+  it('each bite waits a little longer, and a chewed number loses one digit, not two', () => {
+    const at = f => { const s = newState(); earn(s, STAGES[LAST].at); s.life = Math.pow(10, Math.log10(STAGES[LAST].at + 1) + f * (Math.log10(END.at + 1) - Math.log10(STAGES[LAST].at + 1))) - 1; passMilestones(s); return s; };
+    const s = at(0.25);
+    expect(wallOf(s).on.shop).toBe(true);
+    s.perks = { mercy: 1 }; expect(wallOf(s).on.shop).toBe(false); expect(wallOf(s).on.banner).toBe(true);
+    const t = at(0.4); t.perks = { mercy: 1 }; expect(wallOf(t).on.shop).toBe(true); expect(wallOf(t).mercy).toBe(true);
+    expect(chew('123,456,789').split('?').length - 1).toBe(2);
+    expect(chew('123,456,789', true).split('?').length - 1).toBe(1);
+    expect(readout('123,456', true, true).spoken).toBe('123,456');
+  });
+});

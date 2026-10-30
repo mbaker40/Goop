@@ -57,14 +57,14 @@
             <small class="act">End of Act 1</small>
             <h2>The solar system is gone.</h2>
             <p id="winText"></p>
-            <p class="sub" id="winDust"></p>
             <div class="row">
               <button class="btn" id="hopBtn" type="button">Hop to the next star</button>
               <button class="btn plain" id="stayBtn" type="button">Keep feeding</button>
               <button class="btn plain" id="winPerks" type="button">Spend Star Dust</button>
               <button class="btn plain" id="winShare" type="button" aria-haspopup="dialog">Share</button>
             </div>
-            <p class="sub">Hopping starts you over with 50% more slop from everything, for good, plus Star Dust to spend on perks. Or keep feeding: fourteen more stages lie between here and the edge of the universe.</p>
+            <p class="sub hopnote" id="winDust"></p>
+            <p class="sub">Hopping starts you over at a new star, with a permanent bonus and Star Dust to spend on perks. Or keep feeding: fourteen more stages lie between here and the edge of the universe.</p>
           </div>
         </div>
         <div class="win land" id="land" role="dialog" aria-labelledby="landTitle" hidden>
@@ -73,14 +73,14 @@
             <h2 id="landTitle">You ate the universe.</h2>
             <p id="landText"></p>
             <div class="strip" id="landBadges"></div>
-            <p class="sub" id="landDust"></p>
             <div class="row">
               <button class="btn" id="bangBtn" type="button">Become the new universe</button>
               <button class="btn plain" id="landStay" type="button">Keep feeding</button>
               <button class="btn plain" id="landPerks" type="button">Spend Star Dust</button>
               <button class="btn plain" id="landShare" type="button" aria-haspopup="dialog">Share</button>
             </div>
-            <p class="sub">Becoming the new universe is a hop with a Big Bang: everything earns 50% more, for good, and the Star Dust comes with a bonus.</p>
+            <p class="sub hopnote" id="landDust"></p>
+            <p class="sub">Becoming the new universe is a hop with a Big Bang, and the Star Dust comes with a bonus.</p>
           </div>
         </div>
         <div class="win away" id="away" role="dialog" aria-labelledby="awayTitle" hidden>
@@ -110,7 +110,7 @@
         </div>
       </div>
       <div class="meter">
-        <div class="row"><b id="stageName">Stage 1 of 20: On the Table</b><span class="sr" id="stageNameSr"></span><span id="stageNext"></span><button class="btn" id="hopSmall" type="button" hidden>Hop to the next star</button></div>
+        <div class="row"><b id="stageName">Stage 1 of 20: On the Table</b><span class="sr" id="stageNameSr"></span><span id="stageNext"></span><button class="btn" id="hopSmall" type="button" aria-describedby="hopNote" hidden>Hop to the next star</button><span class="hopnote" id="hopNote" hidden></span></div>
         <div class="bar" role="progressbar" aria-label="Progress to the next stage" aria-valuemin="0" aria-valuemax="100" id="barBox"><i id="bar"></i></div>
       </div>
     </section>
@@ -141,9 +141,9 @@
         <button class="btn plain small" id="shelfShare" type="button" aria-haspopup="dialog">Share card</button>
         <button class="btn plain small" id="shelfName" type="button" aria-haspopup="dialog">Change name</button>
       </div>
-      <div class="badges" id="badges"></div>
+      <div class="groups" id="badges"></div>
       <h3>Lab notebook</h3>
-      <dl class="records" id="records"></dl>
+      <div class="groups" id="records"></div>
     </div>
   </div>
   <div class="sheet" id="perks" role="dialog" aria-modal="true" aria-labelledby="perksTitle" hidden>

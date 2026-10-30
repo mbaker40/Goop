@@ -1,6 +1,7 @@
 /* Pure game rules. No DOM in here, so the same code runs in the browser, in tests, in the balance
    simulator and, later, in the leaderboard Worker. */
-import { lateMult, bangMult } from './perkfx.js';
+import { lateMult, bangMult, mutCost, handMult } from './perkfx.js';
+import { legendMult } from './legends.js';
 export const COST_GROWTH = 1.15;            // each copy of a feeder costs 15% more than the last (the Cookie Clicker constant)
 
 // lifetime slop needed to enter each stage, and the goop's real-world mass at that moment (grams).
@@ -109,7 +110,7 @@ const HAND_UPS = UPGRADES.filter(u => u.kind === 'click' || u.kind === 'pct');
 
 export const FRENZY_MULT = 7, FRENZY_SECS = 20;      // the original mutagen vial: everything x7 for a short burst
 export const GEYSER_SECS = 75;                       // or an instant payout worth this many seconds of slop
-export const ASCEND_BONUS = 0.5;                     // each new star system: +50% slop, forever
+export const ASCEND_BONUS = 0.5;                     // the old flat bonus per hop (+50%); old saves start their hopBonus at asc x this
 
 // Feeds by hand beyond this many per second still animate but pay nothing. Keeps autoclickers (and a
 // future leaderboard) honest. The Quick Fingers perk in prestige.js raises it.
@@ -131,17 +132,25 @@ export function newState() {
     startStage: 0,                     // the stage this run began in (a Head Start); prestige.canHop reads it
     costMult: 1,                       // feeder prices x this. 1 in the main game; the daily goop's mutators change it
     caught: 0,                         // events caught this run (the run summary a leaderboard checks; stats.caught is lifetime)
+    hopBonus: 0,                       // every hop's bonus so far, added up (+0.5 = +50%): survives hops. prestige.hopBonusFor sets the size
+    lastBuy: 0,                        // the price of the last thing bought this run (the black-hole hiccup refunds it)
+    echo: 0,                           // the last stage the Big Bang Echo perk has paid for this run
+    missRun: 0,                        // events let go in a row this run (the Event Pity perk)
+    duel: null,                        // a click-off with the rival goop in progress: { left, need, got } (events.js)
+    legends: {},                       // feeder legends celebrated this run, as 'feederId:level' (legends.js)
   };
 }
+// The hops' permanent bonus as a share (0.5 = +50%). Stored on the state since phase 4 (depth-scaled hops).
+export function hopMult(s) { return Number.isFinite(s.hopBonus) && s.hopBonus > 0 ? s.hopBonus : 0; }
 export function feederCost(s, i) { return Math.ceil(FEEDERS[i].cost * Math.pow(COST_GROWTH, s.own[i]) * (s.costMult || 1)); }
 const perk = (s, id) => (s.perks && s.perks[id]) | 0;
 export function allMult(s) {
-  let m = (1 + ASCEND_BONUS * s.asc) * bangMult(perk(s, 'bang'), s.bangs);
+  let m = (1 + hopMult(s)) * bangMult(perk(s, 'bang'), s.bangs);
   for (const u of ALL_UPS) if (s.ups[u.id]) m *= u.v;
   return m;
 }
-function ownRate(s, i) {               // feeder i's base rate with its own Mk II and Mk III (and the Late Feeders perk)
-  let r = FEEDERS[i].rate * lateMult(perk(s, 'late'), FEEDERS[i].stage);
+function ownRate(s, i) {               // feeder i's base rate with its own Mk II and Mk III (the Late Feeders perk, its legend)
+  let r = FEEDERS[i].rate * lateMult(perk(s, 'late'), FEEDERS[i].stage) * legendMult(s.own[i]);
   for (const u of FEEDER_UPS[i]) if (s.ups[u.id]) r *= u.v;
   return r;
 }
@@ -154,13 +163,13 @@ export function baseRate(s) {          // feeders only: no boost, no freeze. Gey
 export function boostMult(s) { return s.frenzy > 0 ? (s.fmult || FRENZY_MULT) : 1; }
 export function slopPerSec(s) { return s.freeze > 0 ? 0 : baseRate(s) * boostMult(s); }
 export function feedValue(s) {         // slop from one paid click on the goop
-  let base = 1 + ASCEND_BONUS * s.asc, pct = 0;
+  let base = 1 + hopMult(s), pct = 0;
   for (const u of HAND_UPS) {
     if (!s.ups[u.id]) continue;
     if (u.kind === 'click') base *= 2;
     if (u.kind === 'pct') pct += u.v;
   }
-  return base + pct * baseRate(s) * boostMult(s);   // a frozen feeder line still lets the catapult throw
+  return (base + pct * baseRate(s) * boostMult(s)) * handMult(perk(s, 'fingers2'));   // a frozen feeder line still lets the catapult throw
 }
 export function stageOf(life) {
   let k = 0;
@@ -195,6 +204,8 @@ export function eatRest(s) {
   s.slop = 0; s.ate = true;
   return spent;
 }
+// What an upgrade costs this run: its price, less the Mutation Discount perk on Mutations.
+export function upgradeCost(s, u) { return u.kind === 'all' ? Math.ceil(u.cost * mutCost(perk(s, 'mutdisc'))) : u.cost; }
 export function feederOpen(s, i) { return s.stage >= FEEDERS[i].stage; }
 export function upgradeOpen(s, u) { return !s.ups[u.id] && u.need(s); }
 

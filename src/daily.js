@@ -23,7 +23,7 @@ export const MUTATORS = [
   { id: 'busy',      name: 'Rush Hour',           blurb: 'Events turn up twice as often.', gapMult: 0.5 },
   { id: 'inspector', name: 'Inspector Hour',      blurb: 'Every other event is the lab inspector, from the very first one.',
     deck: evs => { const others = evs.filter(e => e.id !== 'inspector'); const sum = k => others.reduce((n, e) => n + (e.w[Math.min(k, e.w.length - 1)] || 0), 0);
-      return [...others, { ...evs.find(e => e.id === 'inspector'), w: [0, 1, 2, 3, 4, 5].map(sum) }]; } },
+      return [...others, { ...evs.find(e => e.id === 'inspector'), w: Array.from({ length: Math.max(...others.map(e => e.w.length)) }, (_, k) => sum(k)) }]; } },
   { id: 'sleepy',    name: 'Light Sleeper',       blurb: 'The goop eats half as much while you are away.', offline: 0.5 },
   { id: 'lucky',     name: 'Gambler\'s Night',    blurb: 'Only gambles and choices turn up. Pick well.', deck: evs => evs.filter(e => e.bucket === 'gamble' || e.bucket === 'choice') },
 ];
@@ -76,7 +76,7 @@ export function readDaily(raw, daily) {
   if (!raw || typeof raw !== 'object' || raw.date !== daily.date || !MUTATOR_BY_ID[raw.mutator]) return newDailyRun(daily);
   const run = newDailyRun(daily);
   run.state = adoptState(raw.state); run.state.costMult = rulesOf(daily.mutator).costMult;   // the mutator owns the prices
-  run.state.asc = 0; run.state.dust = 0; run.state.perks = {}; run.state.bangs = 0;          // no perks or hops in a daily
+  run.state.asc = 0; run.state.hopBonus = 0; run.state.dust = 0; run.state.perks = {}; run.state.bangs = 0;          // no perks or hops in a daily
   run.stats = adoptStats(raw.stats);
   run.at = Number.isFinite(raw.at) ? raw.at : 0;
   run.done = Number.isFinite(raw.done) && raw.done >= 0 ? raw.done : null;

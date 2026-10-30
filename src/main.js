@@ -3,10 +3,11 @@
 import './style.css';
 import { W, H, reduce, clamp, setReduce, systemReduce } from './draw.js';
 import { SCENES } from './scenes/index.js';
-import { ASCEND_BONUS, OFFLINE_GRACE, SUN_AT, STAGES, END, newState, feederCost, slopPerSec, feedValue, earn, clickGate, awayPay, UPGRADES, canEatRest, eatRest, stageSpan } from './econ.js';
-import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickEvent, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget, riskNote, hitRadius } from './events.js';
-import { hop as hopRun, canHop, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, milestoneMult, PERKS } from './prestige.js';
-import { recordStage, recordEvent, recordFeed, newRun, bump, seedUnknownStages, runClaim, SUN, UNIVERSE } from './stats.js';
+import { OFFLINE_GRACE, SUN_AT, STAGES, END, FEEDERS, newState, feederCost, slopPerSec, feedValue, earn, clickGate, awayPay, UPGRADES, upgradeCost, canEatRest, eatRest, stageSpan } from './econ.js';
+import { EVENTS, FIRST_EVENT, VIAL_LIFE, pickWithPity, nextGap, applyEffect, isHazard, isChoice, tickEventClock, grabTarget, riskNote, hitRadius, tickDuel, duelFeed } from './events.js';
+import { hop as hopRun, canHop, buyPerk, clickCap, eventLifeMult, spawnGapMult, offlineCap, milestoneMult, PERKS, pityDue, echoDue, dailyWeekMult, hopWhy } from './prestige.js';
+import { recordStage, recordEvent, recordFeed, recordGamble, recordVisitor, cleanRun, flag, markSkipped, newRun, bump, seedUnknownStages, runClaim, SUN, UNIVERSE } from './stats.js';
+import { newLegends, LEGEND_AT } from './legends.js';
 import { passMilestones, seedMilestones } from './milestones.js';
 import { moodOf, pickThought, remember } from './mood.js';
 import { BEATS, LENGTH, cuesBetween, canSkip, frameAt, interruptedEnding } from './cutscene.js';
@@ -48,8 +49,33 @@ function adopt(d) {
   G.state = d.state; G.stats = d.stats; G.prefs = { ...d.prefs };
   achievements.load(d.badges); scores.load(d.bests); identity.load(d.profile);
   G.badgeCount = achievements.count();
-  seedUnknownStages(G.stats, G.state.stage);
+  seedUnknownStages(G.stats, G.state.stage); markSkipped(G.stats, G.state.startStage);
   applyPrefs();
+  quietLegends();
+}
+/* ---------- feeder legends (legends.js): 100 and 500 of one feeder ---------- */
+const FEEDER_IDS = FEEDERS.map(f => f.id);
+// A save that already has them (loaded, imported, or a daily swapped in): titles and multipliers apply at
+// once, the badges come with the next check, and one quiet note says so. No set piece replays.
+function quietLegends() {
+  const s = G.state, fresh = newLegends(FEEDER_IDS, s.own, s.legends);
+  if (!fresh.length) return;
+  for (const n of fresh) s.legends = { ...s.legends, [n.id + ':' + n.level]: true };
+  const top = fresh.filter((n, i) => !fresh.some((m, j) => j > i && m.id === n.id));
+  ui.award([top.map(n => (n.level === 2 ? n.legend.t2 : n.legend.t1)).join(', ') + (top.length > 1 ? ' are' : ' is') + ' already on the books.'], 'Feeder legends');
+}
+// Reaching one in play: the title, a toast, the goop's one-liner; at 500, the set piece and its sound.
+function legends() {
+  const s = G.state, fresh = newLegends(FEEDER_IDS, s.own, s.legends);
+  for (const n of fresh) {
+    s.legends = { ...s.legends, [n.id + ':' + n.level]: true };
+    const l = n.legend, name = n.level === 2 ? l.t2 : l.t1;
+    ui.award([name + '. ' + FEEDERS[FEEDER_IDS.indexOf(n.id)].name + ' x' + LEGEND_AT[n.level - 1] + ': they now work ' + (n.level === 2 ? 'six' : 'twice') + ' times as hard.'], n.level === 2 ? 'Legendary' : 'Feeder legend');
+    G.mood.text = n.level === 2 ? l.say2 : l.say1; G.mood.life = 4.6; G.mood.next = 18;
+    if (n.level === 2) { G.piece = { id: n.id, t: 0 }; ui.announce(l.line); sfx.legend(); buzz(BUZZ.stage); }
+    else sfx.badge();
+  }
+  if (fresh.length) ui.refresh();
 }
 // Badges read the main run only: nothing in the daily goop counts towards them except finishing it.
 function badges() {
@@ -85,7 +111,7 @@ function milestones() {
   for (const { m, bonus } of passed) {
     G.stats.milestones++;
     ui.award([m.name + '. +' + fmt(bonus) + ' slop.'], 'Milestone', 'mile');
-    if (m.id === 'w-sound') sfx.gulp(); else sfx.mile();
+    if (m.id === 'w-sound') { sfx.gulp(); if (!G.prefs.sound) flag(mainRun().stats, 'muteEat'); } else sfx.mile();
     G.stats.lifetimeSlop += bonus;
     if (earn(G.state, bonus)) onStage();
   }
@@ -113,7 +139,8 @@ function feed(x, y) {
   recordFeed(st, paid);
   if (paid) {
     const v = feedValue(s);
-    s.feeds++;
+    s.feeds++; duelFeed(s);
+    const h = new Date().getHours(); if (h >= 2 && h < 5 && !mainRun().stats.flags.night) flag(mainRun().stats, 'night');
     floats.push({ x, y, txt: '+' + fmt(v), life: 1 }); if (floats.length > 24) floats.shift();
     sfx.feed(); gain(v);
   } else sfx.full();
@@ -121,31 +148,37 @@ function feed(x, y) {
 function onStage() {
   const s = G.state;
   anim.zoom = reduce ? 1 : 1.6; shots.length = 0;
-  for (let k = 1; k <= s.stage; k++) recordStage(G.stats, k, s.played);
+  for (let k = 1; k <= s.stage; k++) recordStage(G.stats, k, s.played, s.startStage);
   ui.banner(s.stage); sfx.stage(); buzz(BUZZ.stage); ui.buildFeeders(); ui.refresh();
+  for (const { m, bonus } of echoDue(s)) { ui.award(['A Big Bang echo: ' + m.name.toLowerCase() + ', again. +' + fmt(bonus) + ' slop.'], 'Echo', 'mile'); G.stats.lifetimeSlop += bonus; earn(s, bonus); }
 }
 function win() {
   const s = G.state;
   s.winSeen = true; G.stats.wins++;
-  recordStage(G.stats, SUN, s.played); scores.submit('sun', s.played, undefined, runClaim(s));
+  recordStage(G.stats, SUN, s.played, s.startStage); scores.submit('sun', s.played, undefined, runClaim(s));
   ui.showWin(); save(); badges();
 }
 function hop() {
   if (G.daily || !canHop(G.state)) return;
-  const { state, dust, bigBang } = hopRun(G.state);
+  const was = G.state, st0 = G.stats;
+  if (Math.floor(was.slop) === 0) flag(st0, 'zeroHop');
+  if (!was.ate && was.stage >= 16) flag(st0, 'deepHop');
+  if (cleanRun(st0)) flag(st0, 'cleanRun');
+  const why = hopWhy(was);                                     // said in the toast when a ceiling trimmed the bonus
+  const { state, dust, bigBang, bonus } = hopRun(G.state);
   G.state = state; G.stats.hops++;
   if (bigBang) { G.stats.bigBangs++; scores.submit('bigbangs', G.stats.bigBangs); }
   newRun(G.stats, state.stage); scores.submit('hops', G.stats.hops);
   $('win').hidden = true; $('land').hidden = true; G.ev = null; G.evIn = FIRST_EVENT; clearStage(); ui.closeSheets();
   anim.r = SCENES[state.stage].goop.r0; G.clock.hopped = G.clock.fed = G.stats.playSecs;
   ui.buildFeeders(); ui.refresh(); save();
-  ui.toast((bigBang ? 'Big Bang! The goop is the new universe, and somewhere in it there is a lab. ' : 'A fresh star system. ') + 'Everything now earns ' + Math.round(state.asc * ASCEND_BONUS * 100) + '% more, and you picked up ' + dust + ' Star Dust.');
+  ui.toast((bigBang ? 'Big Bang! The goop is the new universe, and somewhere in it there is a lab. ' : 'A fresh star system. ') + (bonus > 0 ? 'That hop added +' + Math.round(bonus * 100) + '%: e' : 'E') + 'verything now earns ' + Math.round(state.hopBonus * 100) + '% more, and you picked up ' + dust + ' Star Dust.' + (why ? ' ' + why : ''));
   badges();
 }
 
 /* ---------- the end: Eat the Rest, the ending, the landing ---------- */
 // Press once to arm, again within four seconds to eat: like Start over, because the first viewing of
-// the ending is 68 seconds that cannot be skipped.
+// the ending is 70 seconds that cannot be skipped.
 function eatTheRest() {
   const s = G.state;
   if (!canEatRest(s)) return;
@@ -153,7 +186,7 @@ function eatTheRest() {
   G.eatArm = 0; $('eatRest').querySelector('.nm').textContent = 'Eat the Rest';
   eatRest(s);
   G.stats.universes++;
-  recordStage(G.stats, UNIVERSE, s.played); scores.submit('universe', s.played, undefined, runClaim(s));
+  recordStage(G.stats, UNIVERSE, s.played, s.startStage); scores.submit('universe', s.played, undefined, runClaim(s));
   sfx.gulp(); save();
   startCutscene(false);
 }
@@ -224,7 +257,8 @@ function tickMood(real) {
 function gapAfter(caught) { return G.rules.gapMult === 0 ? Infinity : nextGap(caught, G.rand, spawnGapMult(G.state) * G.rules.gapMult); }
 function firstGap() { return G.rules.gapMult === 0 ? Infinity : FIRST_EVENT * G.rules.gapMult; }
 function spawnEvent(forced) {
-  const s = G.state, def = forced || pickEvent(G.deck, s.stage, G.rand);
+  const s = G.state, pity = !forced && pityDue(s), def = forced || pickWithPity(G.deck, s.stage, G.rand, pity);
+  if (pity) { s.missRun = 0; flag(mainRun().stats, 'pity'); ui.toast('Event Pity: three got away, so this one is a sure thing.'); }
   const life = (isHazard(def) ? def.window : VIAL_LIFE) * eventLifeMult(s);
   let targets;
   if (isChoice(def)) {
@@ -243,12 +277,15 @@ function collectEvent(i) {
   const ev = G.ev; if (!ev) return;
   const s = G.state, st = G.stats, def = ev.def, tg = ev.targets[i] || ev.targets[0];
   const effect = isHazard(def) ? def.tap : isChoice(def) ? def.options[tg.opt].effect : def.effect;
+  if (ev.life - ev.age < 1) st.lastSecond++;
   const res = applyEffect(s, effect, G.rand);
-  recordEvent(st, def.id, true); s.caught = (s.caught | 0) + 1;
-  if (isHazard(def)) st.hazardsTapped++;
-  if (res.won === true) st.gambleWins++; else if (res.won === false) st.gambleLosses++;
+  recordEvent(st, def.id, true); s.caught = (s.caught | 0) + 1; s.missRun = 0;
+  if (isHazard(def)) recordVisitor(st, true);
+  if (res.won === true || res.won === false) recordGamble(st, res.won);
+  if (s.duel) ui.announce('Click-off: feed the goop ' + s.duel.need + ' times in ' + Math.round(s.duel.left) + ' seconds.');
   G.ev = null; G.evIn = gapAfter(true);
   G.clock.caught = st.playSecs;
+  if (res.lottery != null) G.mood.text = ['A little dark matter. Crunchy.', 'Dark mutagen! Wheee.', 'SO much dark matter.', 'It was empty. I am empty.'][res.lottery], G.mood.life = 3.5;
   buzz(BUZZ.catch);
   if (res.text) ui.toast(res.text);
   if (res.lost > 0) { sfx.spill(); splash(8, '#8fdc2f'); } else { sfx.vial(); splash(res.gain > 0 ? 16 : 6); }
@@ -258,10 +295,10 @@ function collectEvent(i) {
 }
 function expireEvent() {
   const s = G.state, def = G.ev.def;
-  recordEvent(G.stats, def.id, false);
+  recordEvent(G.stats, def.id, false); s.missRun = (s.missRun | 0) + 1;
   if (isHazard(def)) {
     const res = applyEffect(s, def.miss, G.rand);
-    G.stats.hazardsMissed++; if (res.text) ui.toast(res.text); sfx.spill();
+    recordVisitor(G.stats, false); if (res.text) ui.toast(res.text); sfx.spill();
   }
   G.ev = null; G.evIn = gapAfter(false); ui.announce('');
   ui.refresh(); badges();
@@ -327,6 +364,7 @@ function watchBurp() {
   ui.refresh(); badges(); save(); cv.focus();
 }
 let uiT = 0, saveT = 0, badgeT = 0, resetArm = 0, autoAcc = 0;
+const PIECE_SECS = 4.5;                // a feeder legend's set piece (sprites/legends.js draws it)
 function step(real, dt) {
   const s = G.state, st = G.stats;
   G.handsIdle = G.rules.handsOn && st.playSecs - G.clock.fed > HANDS_IDLE;     // the daily's Hands On twist
@@ -346,6 +384,11 @@ function step(real, dt) {
   for (let i = drops.length - 1; i >= 0; i--) { const d = drops[i]; d.vy += 760 * dt; d.x += d.vx * dt; d.y += d.vy * dt; d.life -= dt; if (d.life <= 0) drops.splice(i, 1); }
   for (let i = floats.length - 1; i >= 0; i--) { floats[i].life -= dt * 1.1; if (floats[i].life <= 0) floats.splice(i, 1); }
   if (sps > 0 && !reduce) { autoAcc += dt * Math.min(4.5, .35 + Math.log10(1 + sps) * .42); while (autoAcc >= 1) { autoAcc -= 1; launch(true); if (Math.random() < .35) splash(1); } }
+  if (s.duel && !canvasCovered()) {                    // a click-off with the rival goop (events.js)
+    const r = tickDuel(s, real, G.rand);
+    if (r) { flag(mainRun().stats, r.won ? 'duelWin' : 'duelLose'); ui.toast(r.text); if (r.won) { sfx.vial(); splash(16); } else sfx.spill(); gain(r.gain); ui.refresh(); badges(); }
+  }
+  if (G.piece && !G.piece.frozen) { G.piece.t += real; if (G.piece.t > PIECE_SECS) G.piece = null; }
   const tick = tickEventClock(G, { real, dt, life: s.life, peek: G.peek, covered: canvasCovered() });
   if (tick === 'expire') expireEvent(); else if (tick === 'spawn') spawnEvent();
   if (G.cut) tickCutscene(real); else tickMood(real);
@@ -355,7 +398,7 @@ function step(real, dt) {
   if (resetArm > 0) { resetArm -= real; if (resetArm <= 0) $('resetBtn').textContent = 'Start over'; }
   if (G.eatArm > 0) { G.eatArm -= real; if (G.eatArm <= 0) { $('eatRest').querySelector('.nm').textContent = 'Eat the Rest'; ui.refresh(); } }
   uiT += real; if (uiT >= .15) { uiT = 0; ui.refresh(); }
-  badgeT += real; if (badgeT >= 1) { badgeT = 0; if (!G.daily) scores.submit('peak', st.peakSps); badges(); }
+  badgeT += real; if (badgeT >= 1) { badgeT = 0; if (!G.daily) scores.submit('peak', st.peakSps); legends(); badges(); }
   weekT += real; if (weekT >= 30) { weekT = 0; week = weekKey(); }
   saveT += real; if (saveT >= 10) { saveT = 0; save(); }
 }
@@ -373,6 +416,7 @@ function scenePoint(e) { const r = cv.getBoundingClientRect(); return [(e.client
 function feedFromKeys() { feed(SCENES[view().k].goop.x, Math.max(60, anim.cy - anim.r - 20)); }
 cv.addEventListener('pointerdown', e => {
   if (G.cut) { trySkip(); return; }
+  if (G.piece) G.piece = null;                                 // a tap ends a legend's set piece early, and still counts
   const [x, y] = scenePoint(e), hit = hitEvent(x, y);
   G.stats.clicks++;
   if (hit >= 0) collectEvent(hit); else feed(x, y);
@@ -404,12 +448,12 @@ function buy(el) {
   const s = G.state;
   if (el.dataset.f != null) {
     const i = +el.dataset.f, c = feederCost(s, i);
-    if (s.slop < c) return; s.slop -= c; s.own[i]++; G.stats.feedersBought++;
+    if (s.slop < c) return; s.slop -= c; s.own[i]++; s.lastBuy = c; G.stats.feedersBought++;
   } else {
-    const u = UPGRADES.find(q => q.id === el.dataset.u);
-    if (!u || s.slop < u.cost || s.ups[u.id]) return; s.slop -= u.cost; s.ups[u.id] = true; G.stats.upgradesBought++;
+    const u = UPGRADES.find(q => q.id === el.dataset.u), c = u && upgradeCost(s, u);
+    if (!u || s.slop < c || s.ups[u.id]) return; s.slop -= c; s.ups[u.id] = true; s.lastBuy = c; G.stats.upgradesBought++;
   }
-  sfx.buy(); anim.squashV += 3; ui.refresh(); badges();
+  sfx.buy(); anim.squashV += 3; legends(); ui.refresh(); badges();
 }
 $('feeders').addEventListener('click', e => { const b = e.target.closest('button[data-f]'); if (b) buy(b); });
 $('ups').addEventListener('click', e => { const b = e.target.closest('button[data-u]'); if (b) buy(b); });
@@ -449,6 +493,7 @@ $('perkList').addEventListener('click', e => {
 });
 for (const id of ui.SHEETS) $(id).addEventListener('click', e => { if (e.target.id === id || e.target.closest('[data-close]')) ui.closeSheets(); });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && G.piece) { G.piece = null; }        // Esc ends a legend's set piece early
   if (e.key === 'Escape' && ui.sheetOpen()) { e.preventDefault(); ui.closeSheets(); }
   else if (e.key === 'Escape' && !$('away').hidden) { e.preventDefault(); closeAway(); }
   else if (e.key === 'Escape' && G.cut) { e.preventDefault(); trySkip(); }
@@ -545,6 +590,9 @@ function finishDaily() {
   run.done = secs;
   const r = scores.submit('daily', secs, run.date, runClaim(G.state, run.mutator));
   G.main.stats.dailyDone++;
+  if (run.mutator === 'hands') flag(G.main.stats, 'dailyHands');
+  const dd = dailyWeekMult(G.main.state);                     // Daily Double: a new best counts toward the week
+  if (r.improved && dd > 0) { scores.add('week', G.state.life * dd, week); ui.award(['Daily Double: ' + fmt(G.state.life * dd) + ' slop on your weekly total.'], 'Daily Double', 'mile'); }
   G.ev = null; ui.announce('');
   sfx.stage(); buzz(BUZZ.stage);
   save(); paintDailyBtn(); badges();
@@ -675,6 +723,9 @@ start();
 // Development only (stripped from the production build): poke the game from the console or a test.
 if (import.meta.env.DEV) window.__goop = {
   G, EVENTS, spawn: id => spawnEvent(EVENTS.find(e => e.id === id)), save, badges,
+  // own n of feeder id (celebrated as in play), or play a legend's set piece frozen at t seconds
+  own(id, n) { G.state.own[FEEDER_IDS.indexOf(id)] = n; legends(); ui.buildFeeders(); ui.refresh(); },
+  piece(id, t = 1.5, frozen = true) { G.piece = { id, t, frozen }; },
   // jump to stage k (0-based) at progress f (0..1), with milestones behind it passed quietly
   jump(k, f = .3, slop) {
     const s = G.state, [a, b] = stageSpan(k), lo = Math.log10(a.at + 1), hi = Math.log10(b.at + 1);

@@ -2,11 +2,12 @@
    Dust panel. Reads the shared store; actions (buying, hopping) are wired up in main.js. */
 import { clamp } from './draw.js';
 import { goopColours } from './sprites/goop.js';
-import { STAGES, FEEDERS, UPGRADES, END, LAST, feederCost, feederRate, slopPerSec, stageProgress, massGrams, feederOpen, upgradeOpen, boostMult, canEatRest } from './econ.js';
-import { PERKS, perkLevel, perkCost, perkMax, perkOpen, dustForRun, clickCap, canHop, BIG_BANG_DUST } from './prestige.js';
-import { BADGES, BADGE_BY_ID } from './achievements.js';
+import { STAGES, FEEDERS, UPGRADES, END, LAST, SUN_STAGE, feederCost, feederRate, slopPerSec, stageProgress, massGrams, feederOpen, upgradeOpen, upgradeCost, boostMult, canEatRest } from './econ.js';
+import { PERKS, perkLevel, perkCost, perkMax, perkOpen, dustForRun, clickCap, canHop, BIG_BANG_DUST, hopPreview, hopBonusFor, hopWhy, HOP_MAX, milestonePreview, perksOwnedIn, perksTotal } from './prestige.js';
+import { BADGES, BADGE_BY_ID, BADGE_GROUPS, badgesIn } from './achievements.js';
 import { EVENTS } from './events.js';
-import { SUN, UNIVERSE, totalCaught, knownTime } from './stats.js';
+import { SUN, UNIVERSE, totalCaught, knownTime, stageRow } from './stats.js';
+import { legendTitle, legendHint, legendLevel } from './legends.js';
 import { fmt, fmtMass, heavierThan, clock } from './fmt.js';
 import { wallOf, wallClasses, readout, stageLine, WALL_CLASSES } from './fourthwall.js';
 import { G, mainRun } from './game.js';
@@ -47,7 +48,7 @@ export function buildFeeders() {
   FEEDERS.forEach((f, i) => {
     if (feederOpen(s, i)) {
       const b = document.createElement('button'); b.type = 'button'; b.className = 'item feeder'; b.dataset.f = i; b.id = 'feeder-' + f.id;
-      b.innerHTML = '<span class="nm"></span><span class="cost"><i class="drop"></i><span class="c"></span></span><span class="own"></span><span class="fx"></span>';
+      b.innerHTML = '<span class="nm"></span><span class="cost"><i class="drop"></i><span class="c"></span></span><span class="own"></span><span class="fx"></span><span class="leg"></span>';
       b.querySelector('.nm').textContent = f.name; b.title = f.blurb; F.appendChild(b);
     } else if (!teased) {
       teased = true; const d = document.createElement('div'); d.className = 'item locked';
@@ -58,14 +59,14 @@ export function buildFeeders() {
   if (keep && $(keep)) $(keep).focus();
   buildUps();
 }
-const openUps = () => UPGRADES.filter(u => upgradeOpen(G.state, u)).sort((a, b) => a.cost - b.cost);
+const openUps = () => UPGRADES.filter(u => upgradeOpen(G.state, u)).sort((a, b) => upgradeCost(G.state, a) - upgradeCost(G.state, b));
 function buildUps() {
   const U = $('ups'), open = openUps();
   U.textContent = '';
   open.slice(0, 4).forEach(u => {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'item up'; b.dataset.u = u.id; b.id = 'up-' + u.id;
     b.innerHTML = '<span class="nm"></span><span class="cost"><i class="drop"></i><span class="c"></span></span><span class="fx"></span>';
-    b.querySelector('.nm').textContent = u.name; b.querySelector('.c').textContent = fmt(u.cost); b.querySelector('.fx').textContent = u.text; U.appendChild(b);
+    b.querySelector('.nm').textContent = u.name; b.querySelector('.c').textContent = fmt(upgradeCost(G.state, u)); b.querySelector('.fx').textContent = u.text; U.appendChild(b);
   });
   const n = document.createElement('p'); n.className = 'note';
   n.textContent = !open.length ? 'The shelf is bare. New upgrades turn up as the goop grows and your feeders multiply.' : open.length > 4 ? (open.length - 4) + ' more waiting behind these.' : '';
@@ -78,30 +79,36 @@ export function refresh() {
   else if (openUps().map(u => u.id).join(',') !== upSig) buildUps();
   const sps = slopPerSec(s), g = massGrams(s.life), k = s.stage, p = clamp(stageProgress(s.life), 0, 1), w = wallOf(s);
   const full = s.ate || (k === LAST && s.life >= END.at);
-  shown('slop', 'slopSr', readout(fmt(Math.floor(s.slop)), w && w.on.hud));
+  shown('slop', 'slopSr', readout(fmt(Math.floor(s.slop)), w && w.on.hud, w && w.mercy));
   $('sps').textContent = fmt(sps) + ' per second';
-  shown('mass', 'massSr', readout(fmtMass(g), w && w.on.hud));
+  shown('mass', 'massSr', readout(fmtMass(g), w && w.on.hud, w && w.mercy));
   $('heavier').textContent = heavierThan(g);
   shown('stageName', 'stageNameSr', stageLine(k, STAGES.length, STAGES[k].name, w));
-  $('stageNext').textContent = s.ate ? 'There is nothing left. Anywhere. It is still chewing.'
-    : full ? 'Nothing left to eat but the rest. Press Eat the Rest.' : k === LAST ? 'Next: Eat the Rest opens at ' + fmt(END.at) + ' slop' : 'Next: ' + STAGES[k].goal + STAGES[k].when;
+  const peek = milestonePreview(s);
+  $('stageNext').textContent = (s.ate ? 'There is nothing left. Anywhere. It is still chewing.'
+    : full ? 'Nothing left to eat but the rest. Press Eat the Rest.' : k === LAST ? 'Next: Eat the Rest opens at ' + fmt(END.at) + ' slop' : 'Next: ' + STAGES[k].goal + STAGES[k].when) + (peek && !s.ate ? '. Next milestone: ' + peek : '');
   $('bar').style.width = (full ? 100 : p * 100).toFixed(1) + '%'; $('bar').style.background = goopColours(k, p)[0];
   $('barBox').setAttribute('aria-valuenow', Math.round(full ? 100 : p * 100));
   paintWall(w); paintFinale(s);
   const frozenHands = G.daily && G.handsIdle;
-  const buff = s.freeze > 0 ? 'Feeders frozen for ' + Math.ceil(s.freeze) + 's' : s.frenzy > 0 ? 'Frenzy x' + boostMult(s) + ' for ' + Math.ceil(s.frenzy) + 's' : frozenHands ? 'Feeders wait for your hand' : '';
+  const buff = s.duel ? 'Click-off! ' + s.duel.got + ' of ' + s.duel.need + ' feeds, ' + Math.max(0, Math.ceil(s.duel.left)) + 's left' : s.freeze > 0 ? 'Feeders frozen for ' + Math.ceil(s.freeze) + 's' : s.frenzy > 0 ? 'Frenzy x' + boostMult(s) + ' for ' + Math.ceil(s.frenzy) + 's' : frozenHands ? 'Feeders wait for your hand' : '';
   $('buff').hidden = !buff; if (buff) $('buff').textContent = buff;
   $('hint').hidden = s.feeds >= 3 || !$('toast').hidden || !!G.cut || coverOpen();
   $('hopSmall').hidden = !(canHop(s) && !G.daily && $('win').hidden && $('land').hidden && !G.cut);
   $('hopSmall').textContent = s.ate ? 'Become the new universe' : 'Hop to the next star';
+  $('hopNote').hidden = $('hopSmall').hidden;                         // what the hop pays, under the button (touch has no hover)
+  if (!$('hopSmall').hidden) $('hopNote').textContent = hopShort(s);
   $('shelfCount').textContent = G.badgeCount + '/' + BADGES.length;
   $('dustCount').textContent = fmt(mainRun().state.dust);
   document.querySelectorAll('#feeders button').forEach(b => {
     const i = +b.dataset.f, c = feederCost(s, i);
     b.querySelector('.c').textContent = fmt(c); b.querySelector('.own').textContent = s.own[i];
     b.querySelector('.fx').textContent = '+' + fmt(feederRate(s, i)) + ' slop a second each'; b.disabled = s.slop < c;
+    const n = s.own[i], title = legendTitle(FEEDERS[i].id, n), hint = legendHint(n), lv = legendLevel(n);
+    b.querySelector('.leg').textContent = title ? title + (hint ? '. ' + hint : lv === 2 ? '. Legendary: x6' : '') : hint;
+    b.classList.toggle('legend', lv > 0);
   });
-  document.querySelectorAll('#ups button').forEach(b => { const u = UPGRADES.find(q => q.id === b.dataset.u); b.disabled = s.slop < u.cost; });
+  document.querySelectorAll('#ups button').forEach(b => { const u = UPGRADES.find(q => q.id === b.dataset.u); b.disabled = s.slop < upgradeCost(s, u); });
 }
 
 // A readout that may be chewed: the visible text, and a screen-reader twin with the real value.
@@ -135,9 +142,22 @@ export function showWin() {
   paintWinDust();
   $('win').hidden = false;
 }
+// What a hop pays, said before it is pressed: dust and the bonus, why a ceiling trims it, and that deeper
+// hops pay more. Every number on the hop cards and under the hop button comes from here (hopPreview).
+const pc = x => Math.round(x * 100) + '%';
+export function hopLine(s) {
+  const h = hopPreview(s), why = hopWhy(s);
+  const gain = h.bonus > 0 ? ' and +' + pc(h.bonus) + ' to everything, for good (your hop bonus becomes +' + pc(h.total) + ')' : ' but no more bonus (you have +' + pc(s.hopBonus || 0) + ')';
+  const deeper = why ? ' ' + why : s.stage < 16 ? ' Hop from deeper for more: +' + pc(hopBonusFor(11)) + ' from stage 12, +' + pc(HOP_MAX) + ' from stage 17.' : '';
+  return { dust: h.dust, text: gain + '.' + deeper };
+}
+export function hopShort(s) {
+  const h = hopPreview(s), why = hopWhy(s);
+  return 'Pays ' + h.dust + ' Star Dust' + (h.bonus > 0 ? ' and +' + pc(h.bonus) + ' for good.' : ', no bonus.') + (why ? ' ' + why : '');
+}
 export function paintWinDust() {
-  const d = dustForRun(G.state.life);
-  $('winDust').textContent = 'Hopping now earns ' + d + ' Star Dust. Keep feeding and it earns more: every 10x the Sun adds 5.';
+  const h = hopLine(G.state);
+  $('winDust').textContent = 'Hopping now earns ' + h.dust + ' Star Dust' + h.text + ' Keep feeding and the dust grows too: every 10x the Sun adds 5.';
 }
 export function showLanding() {
   const s = G.state, st = G.stats;
@@ -147,7 +167,7 @@ export function showLanding() {
   for (const id of ids.slice(-8)) { const sp = document.createElement('span'); sp.textContent = BADGE_BY_ID[id].name; B.appendChild(sp); }
   if (ids.length > 8) { const sp = document.createElement('span'); sp.textContent = 'and ' + (ids.length - 8) + ' more'; B.prepend(sp); }
   B.setAttribute('aria-label', st.runBadges.length + ' trophies earned this run');
-  $('landDust').textContent = 'Becoming the new universe earns ' + dustForRun(s.life, true) + ' Star Dust, ' + BIG_BANG_DUST + ' of it a Big Bang bonus.';
+  $('landDust').textContent = 'Becoming the new universe earns ' + dustForRun(s.life, true) + ' Star Dust (' + BIG_BANG_DUST + ' of it a Big Bang bonus)' + hopLine(s).text;
   $('land').hidden = false;
   $('bangBtn').focus();
 }
@@ -174,40 +194,78 @@ export function sheetOpen() { return SHEETS.some(id => !$(id).hidden); }
 // A card over the theatre (the away card, the daily result): events pause behind it, like a sheet.
 export function coverOpen() { return !$('away').hidden || !$('dailyEnd').hidden; }
 
+// Narrow screens get every group collapsed, so the shelf opens on a short list of headings.
+const narrow = () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(max-width: 600px)').matches;
+function group(parent, title, count, open) {
+  const d = document.createElement('details'); d.className = 'group'; d.open = open;
+  const sm = document.createElement('summary'); sm.textContent = title;
+  if (count) { const c = document.createElement('small'); c.textContent = count; sm.appendChild(c); }
+  d.appendChild(sm); parent.appendChild(d); return d;
+}
+function recordList(parent, rows) {
+  const R = document.createElement('dl'); R.className = 'records';
+  for (const [a, b, note] of rows) {
+    const w = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = a; dd.textContent = b;
+    if (note) { const n = document.createElement('small'); n.textContent = ' ' + note; dd.appendChild(n); }
+    w.append(dt, dd); R.appendChild(w);
+  }
+  parent.appendChild(R);
+}
+// One "Fastest to" row: the best time, a note when a Head Start set it, and this run's time or "skipped".
+function fastRow(st, k, name) {
+  const r = stageRow(st, k);
+  if (r.best == null && r.run !== 'skipped') return null;
+  const note = r.run === 'skipped' ? (r.best == null ? '' : '(this run: skipped)') : r.from > 0 ? '(from a Head Start)' : '';
+  return [name, r.best == null ? 'skipped' : clock(r.best), note];
+}
 export function renderShelf(achievements, scores, identity) {
-  const st = mainRun().stats, earned = achievements.earned();
+  const st = mainRun().stats, earned = achievements.earned(), wide = !narrow();
   $('shelfTitle').textContent = identity.name() + "'s trophy shelf";
   $('shelfSub').textContent = Object.keys(earned).length + ' of ' + BADGES.length + ' earned. Trophies stay on the shelf when you start over.';
   $('replayBtn').hidden = !(st.cutsceneSeen > 0 || st.universes > 0) || !!G.daily;
   const B = $('badges'); B.textContent = '';
-  for (const b of BADGES) {
-    const d = document.createElement('div'); d.className = 'badge' + (earned[b.id] ? '' : ' off');
-    const n = document.createElement('b'); n.textContent = b.name;
-    const t = document.createElement('span'); t.textContent = b.blurb;
-    d.append(n, t); B.appendChild(d);
-  }
+  BADGE_GROUPS.forEach((g, gi) => {
+    const list = badgesIn(g.id), have = list.filter(b => earned[b.id]).length;
+    const d = group(B, g.name, have + ' of ' + list.length, wide && gi === 0);
+    const grid = document.createElement('div'); grid.className = 'badges';
+    for (const b of list) {
+      const el = document.createElement('div'); el.className = 'badge' + (earned[b.id] ? '' : ' off');
+      const n = document.createElement('b'); n.textContent = b.name;
+      const t = document.createElement('span'); t.textContent = b.blurb;
+      el.append(n, t); grid.appendChild(el);
+    }
+    d.appendChild(grid);
+  });
   const seen = Object.values(st.seen).reduce((a, b) => a + b, 0);
   const sun = scores.best('sun');
   const rows = [
     ['Clicks and taps', fmt(st.clicks)], ['Feeds by hand', fmt(st.feeds)], ['Too-fast feeds', fmt(st.cappedClicks)],
     ['Events caught', fmt(totalCaught(st)) + ' of ' + fmt(seen)], ['Best catch streak', fmt(st.bestStreak)],
     ['Gambles won / lost', st.gambleWins + ' / ' + st.gambleLosses], ['Visitors shooed / not', st.hazardsTapped + ' / ' + st.hazardsMissed],
-    ['Hops', fmt(st.hops)], ['Lifetime slop', fmt(st.lifetimeSlop)], ['Peak slop a second', fmt(st.peakSps)],
+    ['Hops', fmt(st.hops)], ['Hop bonus', '+' + Math.round((mainRun().state.hopBonus || 0) * 100) + '%'], ['Lifetime slop', fmt(st.lifetimeSlop)], ['Peak slop a second', fmt(st.peakSps)],
     ['Time with the goop', clock(st.playSecs)], ['Fastest Sun', sun != null ? clock(sun) : 'not yet'],
     ['Milestones passed', fmt(st.milestones)], ['Universes eaten', fmt(st.universes)], ['Big Bangs', fmt(st.bigBangs)],
   ];
   if (st.dailyDone) rows.push(['Daily goops finished', fmt(st.dailyDone)]);
-  if (st.bestStageAt[UNIVERSE] != null) rows.push(['Fastest universe', clock(st.bestStageAt[UNIVERSE])]);
-  for (let k = 1; k < STAGES.length; k++) if (k !== SUN && st.bestStageAt[k] != null) rows.push(['Fastest to ' + STAGES[k].name, clock(st.bestStageAt[k])]);
-  for (const e of EVENTS) if (st.seen[e.id]) rows.push([e.name + 's caught', (st.caught[e.id] || 0) + ' of ' + st.seen[e.id]]);
   const R = $('records'); R.textContent = '';
-  for (const [a, b] of rows) { const w = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd'); dt.textContent = a; dd.textContent = b; w.append(dt, dd); R.appendChild(w); }
+  recordList(R, rows);
+  // "Fastest to" by act. Stage 7's door is the Sun, so Act 1 ends with it; the universe ends Act 2.
+  const act1 = [], act2 = [];
+  for (let k = 1; k < SUN_STAGE; k++) { const r = fastRow(st, k, STAGES[k].name); if (r) act1.push(r); }
+  { const r = fastRow(st, SUN, 'The Sun (Act 1)'); if (r) act1.push(r); }
+  for (let k = SUN_STAGE + 1; k < STAGES.length; k++) { const r = fastRow(st, k, STAGES[k].name); if (r) act2.push(r); }
+  if (st.bestStageAt[UNIVERSE] != null) act2.push(['The universe (Eat the Rest)', clock(st.bestStageAt[UNIVERSE])]);
+  if (act1.length) recordList(group(R, 'Fastest to, Act 1', act1.length + ' times', wide), act1);
+  if (act2.length) recordList(group(R, 'Fastest to, Act 2', act2.length + ' times', wide), act2);
+  const evRows = EVENTS.filter(e => st.seen[e.id]).map(e => [e.name + 's caught', (st.caught[e.id] || 0) + ' of ' + st.seen[e.id]]);
+  if (evRows.length) recordList(group(R, 'Events caught, by kind', evRows.length + ' kinds', false), evRows);
+  if (act1.some(r => r[2]) || act2.some(r => r[2])) { const p = document.createElement('p'); p.className = 'sub'; p.textContent = 'Times count from the start of each run. A Head Start begins past the first stages, so they are skipped and never timed.'; R.appendChild(p); }
 }
 
 export function renderPerks() {
   const s = mainRun().state;
   $('perksTitle').textContent = 'Star Dust: ' + fmt(s.dust);
-  $('perksSub').textContent = (G.daily ? 'Perks are for your own goop; the daily goop is played without them. ' : '') + 'Each hop leaves Star Dust behind. Perks are yours for good and survive every hop. ' +
+  $('perksSub').textContent = (G.daily ? 'Perks are for your own goop; the daily goop is played without them. ' : '') + 'Each hop leaves Star Dust behind. Perks are yours for good and survive every hop. Your hop bonus: +' + Math.round((s.hopBonus || 0) * 100) + '%. ' +
     (s.won ? 'Hopping now would earn ' + dustForRun(s.life, s.ate) + ' more.' : 'Eat the Sun, then hop, to earn some.') + ' Hand feeds pay up to ' + clickCap(s) + ' a second.';
   const L = $('perkList'), keep = document.activeElement && document.activeElement.dataset && document.activeElement.dataset.perk;
   L.textContent = '';
@@ -215,7 +273,7 @@ export function renderPerks() {
   for (const p of PERKS) {
     if (p.act !== act) {
       act = p.act;
-      const h = document.createElement('h3'); h.textContent = act === 1 ? 'Act 1: the lab to the Sun' : 'Act 2: the universe and after';
+      const h = document.createElement('h3'); h.textContent = (act === 1 ? 'Act 1: the lab to the Sun' : 'Act 2: the universe and after') + ' (' + perksOwnedIn(s, act) + ' of ' + perksTotal(act) + ' levels)';
       L.appendChild(h);
     }
     if (!perkOpen(s, p.id)) { hidden++; continue; }
@@ -233,7 +291,7 @@ export function renderPerks() {
     b.setAttribute('aria-label', p.name + (lv >= max ? ', owned' : ', costs ' + cost + ' Star Dust') + '. ' + p.blurb);
     L.appendChild(b);
   }
-  if (hidden) { const n = document.createElement('p'); n.className = 'note'; n.textContent = hidden + ' more perk' + (hidden > 1 ? 's are' : ' is') + ' still under wraps. ' + ((s.bangs | 0) ? 'One needs the Long Nap first.' : 'Become the new universe to find out.'); L.appendChild(n); }
+  if (hidden) { const n = document.createElement('p'); n.className = 'note'; n.textContent = hidden + ' more perk' + (hidden > 1 ? 's are' : ' is') + ' still under wraps. ' + ((s.bangs | 0) ? 'Some need another perk first.' : 'Become the new universe, or max out a perk, to find out.'); L.appendChild(n); }
   if (keep) { const b = L.querySelector('[data-perk="' + keep + '"]'); if (b && !b.disabled) b.focus(); else $('perks').querySelector('[data-close]').focus(); }
 }
 

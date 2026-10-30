@@ -210,3 +210,22 @@ canvas{display:block;width:100%;aspect-ratio:960/600;max-width:100%;border:3px s
 html.reduce .banner,html.reduce .hint,html.reduce .item.eatrest:not(:disabled){animation:none}
 @media (max-width:600px){.win .wincard{max-width:100%}.boards{grid-template-columns:minmax(0,1fr)}}
 #perkList h3{font-family:var(--display);font-weight:400;font-size:19px;margin:6px 0 0}
+
+/* phase 4: grouped shelf and notebook, legends on the shop row, the hop preview */
+.groups{display:flex;flex-direction:column;gap:8px}
+.group{border:3px solid var(--ink);border-radius:10px;background:rgba(255,243,214,.45);padding:0 10px}
+.group[open]{padding-bottom:10px}
+.group>summary{font-family:var(--display);font-size:18px;line-height:1.1;cursor:pointer;padding:9px 0;list-style:none;display:flex;justify-content:space-between;gap:10px;align-items:center;min-height:44px}
+.group>summary::-webkit-details-marker{display:none}
+.group>summary::after{content:'+';font-size:22px;line-height:1}
+.group[open]>summary::after{content:'\2212'}
+.group>summary small{font-family:inherit;font-size:14px;opacity:.75;margin-left:auto}
+.group .badges,.group .records{margin-top:2px}
+.records dd small{font-weight:800;opacity:.7}
+.item .leg{font-size:12px;font-weight:900;min-width:0;color:#7641d8}
+.item.feeder .leg{grid-column:1;grid-row:3}
+.item.feeder.legend{background:#fff0c2}
+.item.feeder.legend:disabled{background:#ecd9a8}
+.item.feeder.legend .leg{color:#a0520a}
+.hopnote{font-weight:900}
+#hopNote{flex-basis:100%;font-size:12.5px;line-height:1.25}

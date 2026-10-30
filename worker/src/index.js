@@ -21,7 +21,7 @@ export const ROUTES = [
     if (!v.ok) return json(env, { error: v.reason }, 400);
     return stub(env, { name: v.name, token: null, recovery: null });
   }],
-  // POST /submit { kind, value, key, seconds, clicks, events, asc, perks, bangs, mutator } with a bearer
+  // POST /submit { kind, value, key, seconds, clicks, events, asc, hopBonus, perks, bangs, mutator } with a bearer
   // token -> { rank, flagged }. The check is real; storing the run (and ranking it) is the stub.
   ['POST', /^\/submit$/, async (req, env) => {
     const b = await body(req);

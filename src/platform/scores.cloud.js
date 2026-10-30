@@ -8,7 +8,7 @@ import { fetchJson } from './net.js';
 export const OFFLINE_NOTE = 'The online boards cannot be reached right now. These are your own records.';
 // The run summary the Worker's plausibility check reads (worker/src/plausible.js).
 export function runSummary(kind, value, run = {}) {
-  return { kind, value, key: run.key || null, seconds: run.seconds == null ? value : run.seconds, clicks: run.clicks | 0, events: run.events || {}, asc: run.asc | 0, perks: run.perks || {}, bangs: run.bangs | 0, ...(run.mutator ? { mutator: run.mutator } : {}), stage: run.stage | 0 };
+  return { kind, value, key: run.key || null, seconds: run.seconds == null ? value : run.seconds, clicks: run.clicks | 0, events: run.events || {}, asc: run.asc | 0, hopBonus: Number.isFinite(run.hopBonus) ? run.hopBonus : 0, perks: run.perks || {}, bangs: run.bangs | 0, ...(run.mutator ? { mutator: run.mutator } : {}), stage: run.stage | 0 };
 }
 // A server board, mapped onto the panel's shape. Your own row is marked by name.
 export function fromServer(json, kind, name) {

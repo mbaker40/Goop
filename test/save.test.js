@@ -61,7 +61,7 @@ describe('save migration from v1', () => {
 describe('save migration from v2 (six stages) to v3 (twenty)', () => {
   it('a goop already past the Sun lands on the right new stage with nothing lost', () => {
     const before = JSON.parse(pastSun), d = migrate(before);
-    expect(SAVE_VERSION).toBe(4); expect(d.v).toBe(4); expect(d.schema).toBe(2);
+    expect(SAVE_VERSION).toBe(5); expect(d.v).toBe(5); expect(d.schema).toBe(2);
     expect(d.state.life).toBe(4.2e15); expect(d.state.slop).toBe(3.1e15);
     expect(d.state.stage).toBe(7); expect(STAGES[d.state.stage].name).toBe('Nebula Nibbler');
     expect(d.state.won).toBe(true); expect(d.state.winSeen).toBe(true); expect(d.state.ate).toBe(false);
@@ -231,7 +231,7 @@ describe('schema 4: Big Bangs on the state, settings, and the shadow as a fallba
     expect(saveHealth(storage)).toEqual({ schema: null, shadow: 'missing', corrupt: false });
     writeSave(storage, migrate(v3()));
     expect(saveHealth(storage)).toEqual({ schema: SAVE_VERSION, shadow: 'in step', corrupt: false });
-    storage.set(SAVE_KEY, storage.get(SAVE_KEY).replace('"v":4', '"v":4 '));
+    storage.set(SAVE_KEY, storage.get(SAVE_KEY).replace('"v":5', '"v":5 '));
     expect(saveHealth(storage).shadow).toBe('behind');
   });
 });
@@ -240,5 +240,40 @@ describe('the run claim fields', () => {
   it('events caught this run survive a save and load; anything odd reads as 0', () => {
     expect(adoptState({ caught: 7.9 }).caught).toBe(7);
     expect(adoptState({ caught: -3 }).caught).toBe(0); expect(adoptState({ caught: 'x' }).caught).toBe(0); expect(adoptState({}).caught).toBe(0);
+  });
+});
+
+describe('schema 5: the hop bonus is stored, and nobody is nerfed', () => {
+  const v4 = (asc, extra = {}) => { const d = migrate(JSON.parse(pastSun)); d.state.asc = asc; d.stats.playSecs = 9000; const raw = JSON.parse(JSON.stringify({ ...d, v: 4 })); delete raw.state.hopBonus; Object.assign(raw.state, extra); return raw; };
+  it('a v4 save starts with the bonus it was already earning: +50% for every hop so far', () => {
+    const d = migrate(v4(21));
+    expect(d.v).toBe(5); expect(d.schema).toBe(4); expect(d.state.asc).toBe(21); expect(d.state.hopBonus).toBe(10.5);
+    expect(migrate(v4(0)).state.hopBonus).toBe(0);
+  });
+  it('a v4 save that somehow carries a hopBonus field still gets the old rule (the schema decides)', () => {
+    expect(migrate(v4(4, { hopBonus: 0.1 })).state.hopBonus).toBe(2);
+  });
+  it('a v5 save keeps its own bonus, which may be below asc x 0.5 (Sun hops pay +10%)', () => {
+    const d = migrate(v4(3)); d.state.hopBonus = 0.3;
+    const back = migrate(JSON.parse(serialize(d)));
+    expect(back.state.hopBonus).toBeCloseTo(0.3); expect(back.state.asc).toBe(3);
+  });
+  it('a v5 save missing the field (an odd import) falls back to the old rule, never to zero', () => {
+    const d = migrate(v4(6)); const raw = JSON.parse(serialize(d)); delete raw.state.hopBonus;
+    expect(migrate(raw).state.hopBonus).toBe(3);
+    expect(adoptState({ asc: 2, hopBonus: -5 }).hopBonus).toBe(1); expect(adoptState({ asc: 2, hopBonus: 'x' }).hopBonus).toBe(1);
+  });
+  it('the phase 3 build writing over a v5 save is recovered from the v5 shadow, bonus and all', () => {
+    const storage = createMemoryStorage();
+    const d = migrate(v4(5)); d.state.hopBonus = 3.3; writeSave(storage, d);
+    expect(SHADOW_KEY).toBe('feed-the-goop-v5'); expect(OLD_SHADOW_KEYS).toContain('feed-the-goop-v4');
+    const old = JSON.parse(storage.get(SAVE_KEY)); old.v = 4; delete old.state.hopBonus; old.at += 1000;
+    storage.set(SAVE_KEY, JSON.stringify(old));
+    const { data, from } = loadSave(storage);
+    expect(from).toBe('shadow'); expect(data.state.hopBonus).toBeCloseTo(3.3);
+  });
+  it('the new run fields are sanitised', () => {
+    const s = adoptState({ life: 3e6, lastBuy: -1, missRun: 2.7, echo: 99, legends: { 'intern:1': true, 'nope:1': true, 'pipette:3': true } });
+    expect(s.lastBuy).toBe(0); expect(s.missRun).toBe(2); expect(s.echo).toBe(s.stage); expect(s.legends).toEqual({ 'intern:1': true }); expect(s.duel).toBe(null);
   });
 });
